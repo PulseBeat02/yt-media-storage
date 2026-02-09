@@ -54,7 +54,7 @@ VideoDecoder::VideoDecoder(const std::string &input_path) {
 }
 
 VideoDecoder::~VideoDecoder() {
-    if (sws_ctx_) sws_free_context(&sws_ctx_);
+    if (sws_ctx_) sws_freeContext(sws_ctx_);
     if (av_packet_) av_packet_free(&av_packet_);
     if (gray_frame_) av_frame_free(&gray_frame_);
     if (frame_) av_frame_free(&frame_);
