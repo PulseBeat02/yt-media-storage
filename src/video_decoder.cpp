@@ -134,7 +134,7 @@ int64_t VideoDecoder::total_frames() const {
 }
 
 std::vector<std::byte> VideoDecoder::extract_data_from_frame() const {
-    const auto &proj = get_decoder_projections();
+    const auto &[vectors] = get_decoder_projections();
 
     const int blocks_per_row = layout_.blocks_per_row;
     const int total_blocks = layout_.total_blocks;
@@ -173,7 +173,7 @@ std::vector<std::byte> VideoDecoder::extract_data_from_frame() const {
             }
 
             for (int b = 0; b < BITS_PER_BLOCK; ++b) {
-                const float sum = dot_product_64(block_flat, proj.vectors[b]);
+                const float sum = dot_product_64(block_flat, vectors[b]);
                 current_byte = (current_byte << 1) | (sum > 0.0f ? 1 : 0);
             }
         }
@@ -189,21 +189,22 @@ std::size_t get_packet_size(const std::span<const std::byte> data) {
         return HEADER_SIZE + SYMBOL_SIZE_BYTES;
     }
     const uint8_t version = static_cast<uint8_t>(data[4]);
-    return (version == VERSION_ID_V2) ? (HEADER_SIZE_V2 + SYMBOL_SIZE_BYTES)
-                                     : (HEADER_SIZE + SYMBOL_SIZE_BYTES);
+    return (version == VERSION_ID_V2)
+               ? (HEADER_SIZE_V2 + SYMBOL_SIZE_BYTES)
+               : (HEADER_SIZE + SYMBOL_SIZE_BYTES);
 }
 
 namespace {
-constexpr std::array<std::byte, 4> MAGIC_BYTES{
-    static_cast<std::byte>(MAGIC_ID),
-    static_cast<std::byte>(MAGIC_ID >> 8),
-    static_cast<std::byte>(MAGIC_ID >> 16),
-    static_cast<std::byte>(MAGIC_ID >> 24),
-};
+    constexpr std::array<std::byte, 4> MAGIC_BYTES{
+        static_cast<std::byte>(MAGIC_ID),
+        static_cast<std::byte>(MAGIC_ID >> 8),
+        static_cast<std::byte>(MAGIC_ID >> 16),
+        static_cast<std::byte>(MAGIC_ID >> 24),
+    };
 }
 
 void VideoDecoder::extract_packets_from_buffer(std::vector<std::byte> &accumulated,
-                                                std::vector<std::vector<std::byte> > &out_packets) {
+                                               std::vector<std::vector<std::byte> > &out_packets) {
     std::size_t offset = 0;
     while (offset + 4 <= accumulated.size()) {
         auto it = std::search(accumulated.begin() + static_cast<std::ptrdiff_t>(offset),
@@ -226,13 +227,13 @@ void VideoDecoder::extract_packets_from_buffer(std::vector<std::byte> &accumulat
         offset += packet_size;
     }
     accumulated.erase(accumulated.begin(),
-                     accumulated.begin() + static_cast<std::ptrdiff_t>(offset));
+                      accumulated.begin() + static_cast<std::ptrdiff_t>(offset));
 }
 
 std::vector<std::vector<std::byte> > VideoDecoder::extract_packets_from_frame() const {
     const auto raw_data = extract_data_from_frame();
     std::vector<std::vector<std::byte> > packets;
-    std::size_t packet_size = get_packet_size(std::span<const std::byte>(raw_data));
+    const std::size_t packet_size = get_packet_size(std::span(raw_data));
     packets.reserve(raw_data.size() / packet_size);
     std::size_t offset = 0;
     while (offset + packet_size <= raw_data.size()) {
@@ -281,8 +282,7 @@ std::vector<std::vector<std::byte> > VideoDecoder::flush_decoder_and_collect_pac
             throw std::runtime_error("Error receiving frame");
         }
         prepare_frame_for_extraction();
-        auto packets = accumulate_frame_and_extract_packets();
-        for (auto &p : packets) {
+        for (auto packets = accumulate_frame_and_extract_packets(); auto &p: packets) {
             collected.push_back(std::move(p));
         }
     }
@@ -323,8 +323,7 @@ std::vector<std::vector<std::byte> > VideoDecoder::decode_next_frame() {
     }
 
     eof_ = true;
-    auto flushed = flush_decoder_and_collect_packets();
-    if (!flushed.empty()) {
+    if (auto flushed = flush_decoder_and_collect_packets(); !flushed.empty()) {
         return flushed;
     }
     if (!extract_buffer_.empty()) {

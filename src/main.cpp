@@ -80,12 +80,12 @@ static int do_encode(const std::string &input_path, const std::string &output_pa
 
     const auto file_id = make_file_id();
     const Encoder encoder(file_id);
-    std::vector<std::vector<Packet>> all_chunk_packets(num_chunks);
+    std::vector<std::vector<Packet> > all_chunk_packets(num_chunks);
 
     std::array<std::byte, CRYPTO_KEY_BYTES> key{};
     if (encrypt) {
-        const std::span<const std::byte> pw(reinterpret_cast<const std::byte *>(password.data()),
-                                            password.size());
+        const std::span pw(reinterpret_cast<const std::byte *>(password.data()),
+                           password.size());
         key = derive_key(pw, file_id);
     }
 
@@ -138,7 +138,7 @@ static int do_encode(const std::string &input_path, const std::string &output_pa
 }
 
 static int do_decode(const std::string &input_path, const std::string &output_path,
-                    const std::string &password) {
+                     const std::string &password) {
     if (!std::filesystem::exists(input_path)) {
         std::cerr << "Error: input video not found: " << input_path << "\n";
         return 1;
@@ -282,8 +282,7 @@ int main(const int argc, char *argv[]) {
     std::string password;
 
     for (int i = 2; i < argc; ++i) {
-        const std::string arg = argv[i];
-        if ((arg == "--input" || arg == "-i") && i + 1 < argc) {
+        if (const std::string arg = argv[i]; (arg == "--input" || arg == "-i") && i + 1 < argc) {
             input_path = argv[++i];
         } else if ((arg == "--output" || arg == "-o") && i + 1 < argc) {
             output_path = argv[++i];

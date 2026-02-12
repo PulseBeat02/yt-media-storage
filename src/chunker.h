@@ -38,6 +38,6 @@ ChunkedStorageData chunkByteData(std::span<const std::byte> data);
 ChunkedStorageData chunkFile(const char *path, std::size_t chunk_size = 0);
 
 inline std::span<const std::byte> chunkSpan(const ChunkedStorageData &cs, std::size_t i) {
-    const auto &c = cs.chunks[i];
-    return {cs.storage.data() + c.offset, c.length};
+    const auto &[offset, length] = cs.chunks[i];
+    return {cs.storage.data() + offset, length};
 }

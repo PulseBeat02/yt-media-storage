@@ -75,8 +75,8 @@ class DriveManagerUI : public QMainWindow {
     Q_OBJECT
 
 public:
-    DriveManagerUI(QWidget* parent = nullptr);
-    ~DriveManagerUI();
+    explicit DriveManagerUI(QWidget* parent = nullptr);
+    ~DriveManagerUI() override;
 
 private slots:
     void selectInputFile();

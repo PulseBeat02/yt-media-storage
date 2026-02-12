@@ -76,7 +76,7 @@ static uint8_t buildFlags(const uint32_t blockId, const uint32_t numSource, cons
 
 static Packet buildPacket(
     const std::vector<std::byte> &header,
-    std::span<const std::byte> payload) {
+    const std::span<const std::byte> payload) {
     Packet packet;
     const std::size_t totalSize = header.size() + payload.size();
     packet.bytes.resize(totalSize);

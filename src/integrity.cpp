@@ -79,7 +79,7 @@ uint32_t crc32c_concat(const std::span<const std::byte> first,
     return crc;
 }
 
-uint32_t packet_crc32c(std::span<const std::byte> header,
+uint32_t packet_crc32c(const std::span<const std::byte> header,
                        const std::span<const std::byte> payload,
                        const std::size_t crc_offset,
                        const std::size_t crc_size) {

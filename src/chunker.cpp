@@ -25,9 +25,7 @@ ChunkedStorageData chunkByteData(std::span<const std::byte> data) {
     ChunkedStorageData result;
     result.storage.assign(data.begin(), data.end());
 
-    const std::size_t size = result.storage.size();
-
-    if (size == 0) {
+    if (const std::size_t size = result.storage.size(); size == 0) {
         result.chunks.push_back(ChunkSlice{0, 0});
     } else {
         result.chunks.reserve((size + CHUNK_SIZE_BYTES - 1) / CHUNK_SIZE_BYTES);

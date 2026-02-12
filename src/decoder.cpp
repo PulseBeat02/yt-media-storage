@@ -469,9 +469,9 @@ namespace {
 
 std::optional<std::vector<std::size_t>> compute_chunk_sizes(
     const std::map<uint32_t, std::vector<std::byte>> &chunks,
-    uint32_t expected_chunks,
-    bool encrypted,
-    bool decrypt_key_set) {
+    const uint32_t expected_chunks,
+    const bool encrypted,
+    const bool decrypt_key_set) {
     std::vector<std::size_t> sizes(expected_chunks);
     for (const auto &[idx, chunk] : chunks) {
         if (idx >= expected_chunks) {
@@ -501,11 +501,11 @@ std::vector<std::size_t> compute_prefix_offsets(const std::vector<std::size_t> &
 void decrypt_and_copy_into(
     std::vector<std::byte> &result,
     const std::map<uint32_t, std::vector<std::byte>> &chunks,
-    uint32_t expected_chunks,
+    const uint32_t expected_chunks,
     const std::vector<std::size_t> &offsets,
     const std::vector<std::size_t> &sizes,
-    bool encrypted,
-    bool decrypt_key_set,
+    const bool encrypted,
+    const bool decrypt_key_set,
     const std::array<std::byte, 32> &decrypt_key,
     const std::array<std::byte, 16> &file_id) {
 #pragma omp parallel for schedule(static)

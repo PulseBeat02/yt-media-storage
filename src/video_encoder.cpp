@@ -87,8 +87,6 @@ void VideoEncoder::init_encoder(const std::string &output_path) {
     codec_ctx->max_b_frames = 0;
     codec_ctx->pix_fmt = AV_PIX_FMT_GRAY8;
 
-    bool supported = true; // Assume GRAY8 is supported for FFV1
-
     if (format_ctx->oformat->flags & AVFMT_GLOBALHEADER) {
         codec_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
     }

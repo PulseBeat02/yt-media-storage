@@ -86,8 +86,8 @@ This produces two executables:
 ### CLI
 
 ```
-./media_storage encode --input <file> --output <file>
-./media_storage decode --input <file> --output <file>
+./media_storage encode --input <file> --output <video> [--encrypt --password <pwd>]
+./media_storage decode --input <video> --output <file>
 ```
 
 ### GUI
