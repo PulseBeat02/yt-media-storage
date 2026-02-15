@@ -9,12 +9,11 @@
 **Explanation Video**: https://youtu.be/l03Os5uwWmk?si=xgZPNMrvs_aDcWE5  
 **YC Hacker News**: https://news.ycombinator.com/item?id=47012964
 
-Stores files onto YouTube by encoding them into lossless video and decoding them back to the original file. Supports
-both a command-line interface and a graphical user interface.
+Stores files on YouTube by encoding them into a lossless video and decoding them back to the original format.
 
 ## Features
 
-- **File Encoding/Decoding**: Encode any file into a lossless video (FFV1/MKV) and decode it back
+- **File Encoding/Decoding**: Encode any file into a lossless video (FFV1/MKV) and decode it back to the original file.
 - **Fountain Codes**: Uses [Wirehair](https://github.com/catid/wirehair) fountain codes for redundancy and repair
 - **Optional Encryption**: Encrypt files with a password using libsodium (XChaCha20-Poly1305)
 - **Batch Processing**: Queue multiple files for batch encoding (GUI)
