@@ -33,6 +33,7 @@
 #include "crypto.h"
 #include "decoder.h"
 #include "encoder.h"
+#include "integrity.h"
 #include "video_encoder.h"
 #include "video_decoder.h"
 
@@ -59,12 +60,12 @@ static std::array<std::byte, 16> make_file_id() {
 
 static void print_usage(const char *program) {
     std::cerr << "Usage:\n"
-            << "  " << program << " encode --input <file> --output <video> [--encrypt --password <pwd>]\n"
+            << "  " << program << " encode --input <file> --output <video> [--encrypt --password <pwd>] [--hash <crc32|xxhash>]\n"
             << "  " << program << " decode --input <video> --output <file> [--password <pwd>]\n";
 }
 
 static int do_encode(const std::string &input_path, const std::string &output_path,
-                     bool encrypt, const std::string &password) {
+                     bool encrypt, const std::string &password, HashAlgorithm hash_algo) {
     if (!std::filesystem::exists(input_path)) {
         std::cerr << "Error: input file not found: " << input_path << "\n";
         return 1;
@@ -79,7 +80,7 @@ static int do_encode(const std::string &input_path, const std::string &output_pa
     std::cout << "Chunks: " << num_chunks << "\n";
 
     const auto file_id = make_file_id();
-    const Encoder encoder(file_id);
+    const Encoder encoder(file_id, hash_algo);
     std::vector<std::vector<Packet> > all_chunk_packets(num_chunks);
 
     std::array<std::byte, CRYPTO_KEY_BYTES> key{};
@@ -280,6 +281,7 @@ int main(const int argc, char *argv[]) {
     std::string output_path;
     bool encrypt = false;
     std::string password;
+    auto hash_algo = HashAlgorithm::CRC32;
 
     for (int i = 2; i < argc; ++i) {
         if (const std::string arg = argv[i]; (arg == "--input" || arg == "-i") && i + 1 < argc) {
@@ -290,6 +292,15 @@ int main(const int argc, char *argv[]) {
             encrypt = true;
         } else if ((arg == "--password" || arg == "-p") && i + 1 < argc) {
             password = argv[++i];
+        } else if ((arg == "--hash" || arg == "-H") && i + 1 < argc) {
+            if (const std::string algo_str = argv[++i]; algo_str == "xxhash") {
+                hash_algo = HashAlgorithm::XXHash32;
+            } else if (algo_str == "crc32") {
+                hash_algo = HashAlgorithm::CRC32;
+            } else {
+                std::cerr << "Error: unknown hash algorithm '" << algo_str << "' (use crc32 or xxhash)\n";
+                return 1;
+            }
         } else {
             std::cerr << "Error: unknown or incomplete argument '" << arg << "'\n";
             print_usage(argv[0]);
@@ -309,7 +320,7 @@ int main(const int argc, char *argv[]) {
     }
 
     if (command == "encode") {
-        return do_encode(input_path, output_path, encrypt, password);
+        return do_encode(input_path, output_path, encrypt, password, hash_algo);
     } else {
         return do_decode(input_path, output_path, password);
     }

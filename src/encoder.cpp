@@ -75,8 +75,8 @@ static uint8_t buildFlags(const uint32_t blockId, const uint32_t numSource, cons
 }
 
 
-Encoder::Encoder(const FileId file_id)
-    : id(file_id) {
+Encoder::Encoder(const FileId file_id, const HashAlgorithm hash_algo)
+    : id(file_id), algo_(hash_algo) {
 }
 
 void Encoder::write_packet_header(
@@ -105,7 +105,7 @@ void Encoder::write_packet_header(
     writeU32LE(dest, CRC_OFF_V2, 0);
 
     const std::span<const std::byte> headerSpan(dest.data(), HEADER_SIZE_V2);
-    const uint32_t crc = packet_crc32c(headerSpan, payload, CRC_OFF_V2, CRC_SIZE);
+    const uint32_t crc = packet_checksum(headerSpan, payload, CRC_OFF_V2, algo_, CRC_SIZE);
     writeU32LE(dest, CRC_OFF_V2, crc);
 }
 
@@ -172,7 +172,10 @@ Encoder::encode_chunk(
             throw std::runtime_error("wirehair_encode() failed");
         }
 
-        const uint8_t flags = buildFlags(blockId, numSource, is_last_chunk, encrypted);
+        uint8_t flags = buildFlags(blockId, numSource, is_last_chunk, encrypted);
+        if (algo_ == HashAlgorithm::XXHash32) {
+            flags |= UseXXHash;
+        }
         const auto payloadLen = static_cast<uint16_t>(writeLen);
         const std::span<const std::byte> payload_span(packet.bytes.data() + HEADER_SIZE_V2, writeLen);
 

@@ -26,6 +26,11 @@
 
 constexpr size_t SHA256_HASH_SIZE = 32;
 
+enum class HashAlgorithm {
+    CRC32,
+    XXHash32,
+};
+
 struct Sha256Digest {
     std::array<std::byte, 32> bytes{};
 
@@ -49,5 +54,16 @@ bool verify_packet_crc32c(std::span<const std::byte> header,
                           std::span<const std::byte> payload,
                           std::size_t crc_offset,
                           std::size_t crc_size = 4);
+
+uint32_t xxhash32_packet(std::span<const std::byte> header,
+                         std::span<const std::byte> payload,
+                         std::size_t crc_offset,
+                         std::size_t crc_size = 4);
+
+uint32_t packet_checksum(std::span<const std::byte> header,
+                         std::span<const std::byte> payload,
+                         std::size_t crc_offset,
+                         HashAlgorithm algo,
+                         std::size_t crc_size = 4);
 
 Sha256Digest sha256(std::span<const std::byte> data);

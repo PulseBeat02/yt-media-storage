@@ -19,6 +19,8 @@
 
 #include "libs/picosha2.h"
 #include "libs/CRC.h"
+#define XXH_INLINE_ALL
+#include "libs/xxhash.h"
 
 #include <array>
 #include <cstring>
@@ -123,4 +125,38 @@ bool verify_packet_crc32c(const std::span<const std::byte> header,
     const uint32_t storedChecksum = read_u32_le(header, crc_offset);
     const uint32_t computedChecksum = packet_crc32c(header, payload, crc_offset, crc_size);
     return storedChecksum == computedChecksum;
+}
+
+uint32_t xxhash32_packet(const std::span<const std::byte> header,
+                         const std::span<const std::byte> payload,
+                         const std::size_t crc_offset,
+                         const std::size_t crc_size) {
+    XXH32_state_t state;
+    XXH32_reset(&state, 0);
+
+    XXH32_update(&state, header.data(), crc_offset);
+
+    if (crc_size == 4) {
+        constexpr uint8_t zeros[4] = {0, 0, 0, 0};
+        XXH32_update(&state, zeros, 4);
+    }
+
+    if (const std::size_t after_crc = crc_offset + crc_size; after_crc < header.size()) {
+        XXH32_update(&state, header.data() + after_crc, header.size() - after_crc);
+    }
+
+    XXH32_update(&state, payload.data(), payload.size());
+
+    return XXH32_digest(&state);
+}
+
+uint32_t packet_checksum(const std::span<const std::byte> header,
+                         const std::span<const std::byte> payload,
+                         const std::size_t crc_offset,
+                         const HashAlgorithm algo,
+                         const std::size_t crc_size) {
+    if (algo == HashAlgorithm::XXHash32) {
+        return xxhash32_packet(header, payload, crc_offset, crc_size);
+    }
+    return packet_crc32c(header, payload, crc_offset, crc_size);
 }

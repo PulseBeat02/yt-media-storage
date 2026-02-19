@@ -17,6 +17,7 @@ both a command-line interface and a graphical user interface.
 - **File Encoding/Decoding**: Encode any file into a lossless video (FFV1/MKV) and then decode it back to the original file
 - **Fountain Codes**: Uses [Wirehair](https://github.com/catid/wirehair) fountain codes for redundancy and repair
 - **Optional Encryption**: Encrypt files with a password using libsodium (XChaCha20-Poly1305)
+- **Selectable Checksum**: Choose between CRC32 (default) and [xxHash32](https://github.com/Cyan4973/xxHash) for packet integrity verification
 - **Batch Processing**: Queue multiple files for batch encoding (GUI)
 - **Progress Tracking**: Real-time progress bars and status updates (GUI)
 
@@ -91,9 +92,21 @@ This produces two executables:
 ### CLI
 
 ```
-./media_storage encode --input <file> --output <video> [--encrypt --password <pwd>]
-./media_storage decode --input <video> --output <file>
+./media_storage encode --input <file> --output <video> [--encrypt --password <pwd>] [--hash <crc32|xxhash>]
+./media_storage decode --input <video> --output <file> [--password <pwd>]
 ```
+
+#### Options
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--input` | `-i` | Input file path (required) |
+| `--output` | `-o` | Output file path (required) |
+| `--encrypt` | `-e` | Enable encryption (encode only) |
+| `--password` | `-p` | Password for encryption/decryption |
+| `--hash` | `-H` | Checksum algorithm: `crc32` (default) or `xxhash` (encode only) |
+
+The checksum algorithm is embedded in each packet's flags, so `decode` automatically detects which algorithm was used — no need to specify it again.
 
 ### GUI
 
@@ -133,6 +146,7 @@ This produces two executables:
 - **Video Format**: FFV1 codec in MKV container (lossless)
 - **Frame Resolution**: 3840x2160 (4K) at 30 FPS
 - **Encryption**: Optional XChaCha20-Poly1305 via libsodium
+- **Checksums**: CRC32-MPEG2 (default) or xxHash32 (streaming) per packet; algorithm is stored in the packet flags for self-describing decode
 
 ## Troubleshooting
 
