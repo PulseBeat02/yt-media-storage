@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <unordered_map>
 #include <span>
 #include <vector>
@@ -122,6 +123,8 @@ public:
     [[nodiscard]] std::vector<uint32_t> completed_chunk_indices() const;
 
     [[nodiscard]] std::optional<std::vector<std::byte>> assemble_file(uint32_t expected_chunks) const;
+
+    [[nodiscard]] bool write_assembled_file(const std::string &output_path, uint32_t expected_chunks) const;
 
     void set_decrypt_key(std::span<const std::byte, 32> key);
 

@@ -59,13 +59,12 @@ void WorkerThread::run() {
             const auto input_size = std::filesystem::file_size(inputPath.toStdString());
             emit logMessage(QString("Input size: %1 bytes").arg(input_size));
             
-            emit progressUpdated(10);
+            emit progressUpdated(5);
             const std::size_t chunk_size = encrypt ? CHUNK_SIZE_PLAIN_MAX_ENCRYPTED : 0;
-            const auto chunked = chunkFile(inputPath.toStdString().c_str(), chunk_size);
-            const std::size_t num_chunks = chunked.chunks.size();
-            emit logMessage(QString("Created %1 chunks").arg(num_chunks));
+            const FileChunkReader reader(inputPath.toStdString().c_str(), chunk_size);
+            const std::size_t num_chunks = reader.num_chunks();
+            emit logMessage(QString("Chunks: %1").arg(num_chunks));
             
-            emit progressUpdated(30);
             if (encrypt) {
                 emit logMessage("Encrypting chunks with password");
             }
@@ -84,48 +83,37 @@ void WorkerThread::run() {
             }
             
             const Encoder encoder(file_id);
-            std::vector<std::vector<Packet>> all_chunk_packets(num_chunks);
+            std::size_t total_packets = 0;
             
             emit statusUpdated("Encoding chunks...");
-#pragma omp parallel for schedule(dynamic)
-            for (int i = 0; i < static_cast<int>(num_chunks); ++i) {
-                auto chunk_data = chunkSpan(chunked, static_cast<std::size_t>(i));
-                std::span<const std::byte> data_to_encode = chunk_data;
+
+            VideoEncoder video_encoder(outputPath.toStdString());
+
+            for (std::size_t i = 0; i < num_chunks; ++i) {
+                auto chunk_data = reader.read_chunk(i);
+                std::span<const std::byte> data_to_encode(chunk_data);
                 std::vector<std::byte> encrypted_buf;
                 if (encrypt) {
-                    encrypted_buf = encrypt_chunk(chunk_data, key, file_id, static_cast<uint32_t>(i));
+                    encrypted_buf = encrypt_chunk(data_to_encode, key, file_id, static_cast<uint32_t>(i));
                     data_to_encode = encrypted_buf;
                 }
-                const bool is_last = (i == static_cast<int>(num_chunks) - 1);
-                auto [chunk_packets, manifest] = encoder.encode_chunk(static_cast<uint32_t>(i), data_to_encode, is_last, encrypt);
-                all_chunk_packets[i] = std::move(chunk_packets);
-#pragma omp critical
-                {
-                    int progress = 30 + (60 * (i + 1) / static_cast<int>(num_chunks));
-                    emit progressUpdated(progress);
-                }
+                const bool is_last = (i == num_chunks - 1);
+                auto [chunk_packets, manifest] = encoder.encode_chunk(
+                    static_cast<uint32_t>(i), data_to_encode, is_last, encrypt);
+                total_packets += chunk_packets.size();
+                video_encoder.encode_packets(chunk_packets);
+
+                int progress = 5 + (90 * static_cast<int>(i + 1) / static_cast<int>(num_chunks));
+                emit progressUpdated(progress);
             }
-            
-            std::size_t total_packets = 0;
-            for (const auto& packets : all_chunk_packets)
-                total_packets += packets.size();
-            emit logMessage(QString("Generated %1 packets").arg(total_packets));
-            
-            emit progressUpdated(90);
-            emit statusUpdated("Creating video file...");
-            
-            VideoEncoder video_encoder(outputPath.toStdString());
-            for (auto& packets : all_chunk_packets) {
-                video_encoder.encode_packets(packets);
-                packets.clear();
-                packets.shrink_to_fit();
-            }
+
             video_encoder.finalize();
             
             if (encrypt) {
                 secure_zero(std::span<std::byte>(key));
             }
-            
+
+            emit logMessage(QString("Generated %1 packets").arg(total_packets));
             emit progressUpdated(100);
             emit operationCompleted(true, "Encoding completed successfully");
             
@@ -225,8 +213,7 @@ void WorkerThread::run() {
                 secure_zero(std::span<std::byte>(dec_key));
             }
             
-            auto assembled = decoder.assemble_file(expected_chunks);
-            if (!assembled) {
+            if (!decoder.write_assembled_file(outputPath.toStdString(), expected_chunks)) {
                 if (decoder.is_encrypted()) {
                     decoder.clear_decrypt_key();
                 }
@@ -237,15 +224,6 @@ void WorkerThread::run() {
             if (decoder.is_encrypted()) {
                 decoder.clear_decrypt_key();
             }
-            
-            std::ofstream out(outputPath.toStdString(), std::ios::binary);
-            if (!out) {
-                emit operationCompleted(false, "Could not open output file for writing");
-                return;
-            }
-            
-            out.write(reinterpret_cast<const char*>(assembled->data()), static_cast<std::streamsize>(assembled->size()));
-            out.close();
             
             emit progressUpdated(100);
             emit operationCompleted(true, "Decoding completed successfully");

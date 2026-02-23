@@ -164,6 +164,11 @@ The checksum algorithm is embedded in each packet's flags, so `decode` automatic
 - **Decoding fails**: Verify the input file is a valid encoded video
 - **Encode Error: failed to write header**: Make sure you have at least FFMPEG version 8 in-order to use FFV1 encoder on mp4. Otherwise, use mkv instead.
 
+### Memory Usage
+
+- **Encoding** streams chunks and uses only a few MB of RAM regardless of input file size.
+- **Decoding** holds all decoded chunks in memory before writing the output file.
+
 ## License
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public

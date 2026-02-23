@@ -75,13 +75,12 @@ static int do_encode(const std::string &input_path, const std::string &output_pa
     std::cout << "Input: " << input_path << " (" << format_size(input_size) << ")\n";
 
     const std::size_t chunk_size = encrypt ? CHUNK_SIZE_PLAIN_MAX_ENCRYPTED : 0;
-    const auto chunked = chunkFile(input_path.c_str(), chunk_size);
-    const std::size_t num_chunks = chunked.chunks.size();
+    const FileChunkReader reader(input_path.c_str(), chunk_size);
+    const std::size_t num_chunks = reader.num_chunks();
     std::cout << "Chunks: " << num_chunks << "\n";
 
     const auto file_id = make_file_id();
     const Encoder encoder(file_id, hash_algo);
-    std::vector<std::vector<Packet> > all_chunk_packets(num_chunks);
 
     std::array<std::byte, CRYPTO_KEY_BYTES> key{};
     if (encrypt) {
@@ -90,45 +89,40 @@ static int do_encode(const std::string &input_path, const std::string &output_pa
         key = derive_key(pw, file_id);
     }
 
-#pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < static_cast<int>(num_chunks); ++i) {
-        auto chunk_data = chunkSpan(chunked, static_cast<std::size_t>(i));
-        std::span<const std::byte> data_to_encode = chunk_data;
-        std::vector<std::byte> encrypted_buf;
-        if (encrypt) {
-            encrypted_buf = encrypt_chunk(chunk_data, key, file_id, static_cast<uint32_t>(i));
-            data_to_encode = encrypted_buf;
-        }
-        const bool is_last = (i == static_cast<int>(num_chunks) - 1);
-        auto [chunk_packets, manifest] =
-                encoder.encode_chunk(static_cast<uint32_t>(i), data_to_encode, is_last, encrypt);
-        all_chunk_packets[i] = std::move(chunk_packets);
-    }
-
     std::size_t total_packets = 0;
-    for (const auto &packets: all_chunk_packets)
-        total_packets += packets.size();
-    std::cout << "Packets: " << total_packets << "\n";
 
     try {
         VideoEncoder video_encoder(output_path);
-        for (auto &packets: all_chunk_packets) {
-            video_encoder.encode_packets(packets);
-            packets.clear();
-            packets.shrink_to_fit();
+
+        for (std::size_t i = 0; i < num_chunks; ++i) {
+            auto chunk_data = reader.read_chunk(i);
+            std::span<const std::byte> data_to_encode(chunk_data);
+            std::vector<std::byte> encrypted_buf;
+            if (encrypt) {
+                encrypted_buf = encrypt_chunk(data_to_encode, key, file_id, static_cast<uint32_t>(i));
+                data_to_encode = encrypted_buf;
+            }
+            const bool is_last = (i == num_chunks - 1);
+            auto [chunk_packets, manifest] =
+                    encoder.encode_chunk(static_cast<uint32_t>(i), data_to_encode, is_last, encrypt);
+            total_packets += chunk_packets.size();
+            video_encoder.encode_packets(chunk_packets);
         }
+
         video_encoder.finalize();
     } catch (const std::exception &e) {
         if (encrypt) {
             secure_zero(std::span<std::byte>(key));
         }
-        std::cerr << "Error writing video: " << e.what() << "\n";
+        std::cerr << "Error encoding: " << e.what() << "\n";
         return 1;
     }
 
     if (encrypt) {
         secure_zero(std::span<std::byte>(key));
     }
+
+    std::cout << "Packets: " << total_packets << "\n";
 
     const auto video_size = std::filesystem::file_size(output_path);
     std::cout << "\nEncode complete: " << format_size(input_size) << " -> "
@@ -232,8 +226,7 @@ static int do_decode(const std::string &input_path, const std::string &output_pa
         secure_zero(std::span<std::byte>(key));
     }
 
-    auto assembled = decoder.assemble_file(expected_chunks);
-    if (!assembled) {
+    if (!decoder.write_assembled_file(output_path, expected_chunks)) {
         if (decoder.is_encrypted()) {
             decoder.clear_decrypt_key();
         }
@@ -246,18 +239,9 @@ static int do_decode(const std::string &input_path, const std::string &output_pa
         decoder.clear_decrypt_key();
     }
 
-    std::ofstream out(output_path, std::ios::binary);
-    if (!out) {
-        std::cerr << "Error: could not open " << output_path << " for writing\n";
-        return 1;
-    }
-
-    out.write(reinterpret_cast<const char *>(assembled->data()),
-              static_cast<std::streamsize>(assembled->size()));
-    out.close();
-
+    const auto output_size = std::filesystem::file_size(output_path);
     std::cout << "\nDecode complete: " << format_size(video_size) << " -> "
-            << format_size(assembled->size()) << "\n";
+            << format_size(output_size) << "\n";
     std::cout << "Written to: " << output_path << "\n";
 
     return 0;

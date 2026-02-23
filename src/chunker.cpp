@@ -67,3 +67,39 @@ ChunkedStorageData chunkFile(const char *path, std::size_t chunk_size) {
 
     return result;
 }
+
+FileChunkReader::FileChunkReader(const char *path, const std::size_t chunk_size)
+    : path_(path)
+    , chunk_size_(chunk_size > 0 ? chunk_size : CHUNK_SIZE_BYTES) {
+    std::ifstream file(path_, std::ios::binary | std::ios::ate);
+    if (!file) {
+        throw std::runtime_error("open failed");
+    }
+    file_size_ = file.tellg();
+    num_chunks_ = file_size_ == 0 ? 1 : (file_size_ + chunk_size_ - 1) / chunk_size_;
+}
+
+std::vector<std::byte> FileChunkReader::read_chunk(const std::size_t index) const {
+    if (index >= num_chunks_) {
+        throw std::runtime_error("chunk index out of range");
+    }
+
+    const std::size_t offset = index * chunk_size_;
+    if (offset >= file_size_) {
+        return {};
+    }
+    const std::size_t len = (std::min)(chunk_size_, file_size_ - offset);
+
+    std::ifstream file(path_, std::ios::binary);
+    if (!file) {
+        throw std::runtime_error("open failed");
+    }
+    file.seekg(static_cast<std::streamoff>(offset));
+
+    std::vector<std::byte> data(len);
+    if (!file.read(reinterpret_cast<char *>(data.data()), static_cast<std::streamsize>(len))) {
+        throw std::runtime_error("read failed");
+    }
+
+    return data;
+}

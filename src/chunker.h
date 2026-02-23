@@ -20,6 +20,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <span>
 
@@ -41,3 +42,20 @@ inline std::span<const std::byte> chunkSpan(const ChunkedStorageData &cs, std::s
     const auto &[offset, length] = cs.chunks[i];
     return {cs.storage.data() + offset, length};
 }
+
+class FileChunkReader {
+public:
+    explicit FileChunkReader(const char *path, std::size_t chunk_size = 0);
+
+    [[nodiscard]] std::size_t num_chunks() const { return num_chunks_; }
+    [[nodiscard]] std::size_t file_size() const { return file_size_; }
+    [[nodiscard]] std::size_t chunk_size() const { return chunk_size_; }
+
+    [[nodiscard]] std::vector<std::byte> read_chunk(std::size_t index) const;
+
+private:
+    std::string path_;
+    std::size_t file_size_;
+    std::size_t chunk_size_;
+    std::size_t num_chunks_;
+};

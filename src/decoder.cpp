@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <fstream>
 #include <mutex>
 #include <ranges>
 #include <stdexcept>
@@ -553,4 +554,53 @@ std::optional<std::vector<std::byte> > Decoder::assemble_file(const uint32_t exp
     decrypt_and_copy_into(result, completed_chunks, expected_chunks, offsets,
                           *chunk_sizes, encrypted_, decrypt_key_set_, decrypt_key_, *id);
     return result;
+}
+
+bool Decoder::write_assembled_file(const std::string &output_path, const uint32_t expected_chunks) const {
+    if (completed_chunks.size() != expected_chunks) {
+        return false;
+    }
+    for (const auto &idx : completed_chunks | std::views::keys) {
+        if (idx >= expected_chunks) {
+            return false;
+        }
+    }
+    if (encrypted_ && !decrypt_key_set_) {
+        return false;
+    }
+    if (!id) {
+        return false;
+    }
+
+    std::ofstream out(output_path, std::ios::binary);
+    if (!out) {
+        return false;
+    }
+
+    for (uint32_t i = 0; i < expected_chunks; ++i) {
+        const auto &chunk = completed_chunks.at(i);
+        if (encrypted_ && decrypt_key_set_) {
+            if (chunk.size() < CRYPTO_PLAIN_SIZE_HEADER) {
+                return false;
+            }
+            const std::size_t plain_size = read_plain_size_from_header(chunk);
+            if (plain_size > CHUNK_SIZE_BYTES) {
+                return false;
+            }
+            std::vector<std::byte> decrypted(plain_size);
+            decrypt_chunk_into(
+                std::span<std::byte>(decrypted.data(), plain_size),
+                chunk, decrypt_key_, *id, i);
+            out.write(reinterpret_cast<const char *>(decrypted.data()),
+                      static_cast<std::streamsize>(plain_size));
+        } else {
+            out.write(reinterpret_cast<const char *>(chunk.data()),
+                      static_cast<std::streamsize>(chunk.size()));
+        }
+        if (!out.good()) {
+            return false;
+        }
+    }
+
+    return true;
 }
