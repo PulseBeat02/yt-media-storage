@@ -14,10 +14,12 @@ both a command-line interface and a graphical user interface.
 
 ## Features
 
-- **File Encoding/Decoding**: Encode any file into a lossless video (FFV1/MKV) and then decode it back to the original file
+- **File Encoding/Decoding**: Encode any file into a lossless video (FFV1/MKV) and then decode it back to the original
+  file
 - **Fountain Codes**: Uses [Wirehair](https://github.com/catid/wirehair) fountain codes for redundancy and repair
 - **Optional Encryption**: Encrypt files with a password using libsodium (XChaCha20-Poly1305)
-- **Selectable Checksum**: Choose between CRC32 (default) and [xxHash32](https://github.com/Cyan4973/xxHash) for packet integrity verification
+- **Selectable Checksum**: Choose between CRC32 (default) and [xxHash32](https://github.com/Cyan4973/xxHash) for packet
+  integrity verification
 - **Batch Processing**: Queue multiple files for batch encoding (GUI)
 - **Progress Tracking**: Real-time progress bars and status updates (GUI)
 
@@ -82,10 +84,11 @@ cmake -B build
 cmake --build build
 ```
 
-This produces two executables:
+This produces two executables and one shared library:
 
 - `media_storage` — Command-line interface
 - `media_storage_gui` — Graphical user interface
+- `libmedia_storage.so` / `media_storage.dll` — Embeddable shared library
 
 ## Usage
 
@@ -98,15 +101,16 @@ This produces two executables:
 
 #### Options
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--input` | `-i` | Input file path (required) |
-| `--output` | `-o` | Output file path (required) |
-| `--encrypt` | `-e` | Enable encryption (encode only) |
-| `--password` | `-p` | Password for encryption/decryption |
-| `--hash` | `-H` | Checksum algorithm: `crc32` (default) or `xxhash` (encode only) |
+| Flag         | Short | Description                                                     |
+|--------------|-------|-----------------------------------------------------------------|
+| `--input`    | `-i`  | Input file path (required)                                      |
+| `--output`   | `-o`  | Output file path (required)                                     |
+| `--encrypt`  | `-e`  | Enable encryption (encode only)                                 |
+| `--password` | `-p`  | Password for encryption/decryption                              |
+| `--hash`     | `-H`  | Checksum algorithm: `crc32` (default) or `xxhash` (encode only) |
 
-The checksum algorithm is embedded in each packet's flags, so `decode` automatically detects which algorithm was used — no need to specify it again.
+The checksum algorithm is embedded in each packet's flags, so `decode` automatically detects which algorithm was used —
+no need to specify it again.
 
 ### GUI
 
@@ -139,6 +143,55 @@ The checksum algorithm is embedded in each packet's flags, so `decode` automatic
 - Logs panel provides detailed information about each step
 - All operations run in separate threads to keep the UI responsive
 
+### Library (Embedding in Your App)
+
+The shared library exposes a C API (`media_storage.h`) so you can integrate encoding/decoding. Link against
+`libmedia_storage` and include the header:
+
+```c
+#include <media_storage.h>
+
+int progress(uint64_t current, uint64_t total, void *user) {
+    printf("Progress: %llu / %llu\n", current, total);
+    return 0; // return non-zero to cancel
+}
+
+int main(void) {
+    ms_encode_options_t opts = {0};
+    opts.input_path  = "myfile.bin";
+    opts.output_path = "myfile.mkv";
+    opts.hash_algorithm = MS_HASH_CRC32;
+    opts.progress = progress;
+
+    ms_result_t result;
+    ms_status_t status = ms_encode(&opts, &result);
+    if (status != MS_OK) {
+        fprintf(stderr, "Error: %s\n", ms_status_string(status));
+        return 1;
+    }
+
+    printf("Encoded %llu bytes -> %llu bytes (%llu frames)\n",
+           result.input_size, result.output_size, result.total_frames);
+    return 0;
+}
+```
+
+#### CMake Integration
+
+After installing with `cmake --install build`, use `find_package`:
+
+```cmake
+find_package(media_storage REQUIRED)
+target_link_libraries(your_app PRIVATE media_storage::media_storage_lib)
+```
+
+Or add this repository as a subdirectory:
+
+```cmake
+add_subdirectory(media-storage)
+target_link_libraries(your_app PRIVATE media_storage_lib)
+```
+
 ## Technical Details
 
 - **Encoding**: Files are chunked, encoded with fountain codes, and embedded into video frames
@@ -146,7 +199,8 @@ The checksum algorithm is embedded in each packet's flags, so `decode` automatic
 - **Video Format**: FFV1 codec in MKV container (lossless)
 - **Frame Resolution**: 3840x2160 (4K) at 30 FPS
 - **Encryption**: Optional XChaCha20-Poly1305 via libsodium
-- **Checksums**: CRC32-MPEG2 (default) or xxHash32 (streaming) per packet; algorithm is stored in the packet flags for self-describing decode
+- **Checksums**: CRC32-MPEG2 (default) or xxHash32 (streaming) per packet; algorithm is stored in the packet flags for
+  self-describing decode
 
 ## Troubleshooting
 
@@ -162,7 +216,8 @@ The checksum algorithm is embedded in each packet's flags, so `decode` automatic
 - **Cannot open input file**: Check file permissions and paths
 - **Encoding fails**: Ensure sufficient disk space for output video
 - **Decoding fails**: Verify the input file is a valid encoded video
-- **Encode Error: failed to write header**: Make sure you have at least FFMPEG version 8 in-order to use FFV1 encoder on mp4. Otherwise, use mkv instead.
+- **Encode Error: failed to write header**: Make sure you have at least FFMPEG version 8 in-order to use FFV1 encoder on
+  mp4. Otherwise, use mkv instead.
 
 ### Memory Usage
 

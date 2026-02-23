@@ -36,12 +36,7 @@ pkg_check_modules(SWSCALE REQUIRED IMPORTED_TARGET libswscale)
 pkg_check_modules(SWRESAMPLE REQUIRED IMPORTED_TARGET libswresample)
 pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
 
-add_executable(media_storage)
-add_executable(media_storage_gui)
-
-add_subdirectory(src)
-
-target_link_libraries(media_storage PRIVATE
+set(CORE_LINK_LIBS
         PkgConfig::AVCODEC
         PkgConfig::AVFORMAT
         PkgConfig::AVUTIL
@@ -51,24 +46,39 @@ target_link_libraries(media_storage PRIVATE
         OpenMP::OpenMP_CXX
 )
 
+add_library(media_storage_core STATIC)
+set_target_properties(media_storage_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+add_library(media_storage_lib SHARED)
+target_compile_definitions(media_storage_lib PRIVATE MEDIA_STORAGE_BUILD_SHARED)
+
+add_executable(media_storage)
+add_executable(media_storage_gui)
+add_subdirectory(src)
+
+target_link_libraries(media_storage_core PUBLIC ${CORE_LINK_LIBS})
+
+target_link_libraries(media_storage_lib PRIVATE media_storage_core)
+target_include_directories(media_storage_lib PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+set_target_properties(media_storage_lib PROPERTIES
+        OUTPUT_NAME media_storage
+        VERSION 1.0.0
+        SOVERSION 1
+)
+
+target_link_libraries(media_storage PRIVATE media_storage_lib)
 target_link_libraries(media_storage_gui PRIVATE
-        PkgConfig::AVCODEC
-        PkgConfig::AVFORMAT
-        PkgConfig::AVUTIL
-        PkgConfig::SWSCALE
-        PkgConfig::SWRESAMPLE
-        PkgConfig::SODIUM
-        OpenMP::OpenMP_CXX
+        media_storage_lib
         Qt6::Core
         Qt6::Widgets
 )
 
-# Enable Qt MOC only for GUI target
 set_target_properties(media_storage_gui PROPERTIES AUTOMOC ON AUTOUIC ON)
-
-# Check for OpenMP
 if (MSVC)
-    target_compile_options(media_storage PRIVATE
+    target_compile_options(media_storage_core PRIVATE
             $<$<CONFIG:Release>:/O2>
             /arch:AVX2
     )
@@ -77,10 +87,29 @@ if (MSVC)
             /arch:AVX2
     )
 else ()
-    target_compile_options(media_storage PRIVATE -march=native)
+    target_compile_options(media_storage_core PRIVATE -march=native)
     if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i386")
         target_compile_options(media_storage_gui PRIVATE -O2 -mssse3)
     else ()
         target_compile_options(media_storage_gui PRIVATE -O2 -march=native)
     endif ()
 endif ()
+
+include(GNUInstallDirs)
+
+install(TARGETS media_storage_lib
+        EXPORT media_storage_targets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(FILES include/media_storage.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(EXPORT media_storage_targets
+        FILE media_storage-config.cmake
+        NAMESPACE media_storage::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/media_storage
+)

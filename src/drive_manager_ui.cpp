@@ -15,13 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "drive_manager_ui.h"
-#include "chunker.h"
-#include "configuration.h"
-#include "crypto.h"
-#include "encoder.h"
-#include "decoder.h"
-#include "video_encoder.h"
-#include "video_decoder.h"
+#include "media_storage.h"
 
 #include <QApplication>
 #include <QMainWindow>
@@ -35,7 +29,6 @@
 #include <QHeaderView>
 #include <QFileInfo>
 #include <QDateTime>
-#include <fstream>
 
 WorkerThread::WorkerThread(Operation op, const QString& input, const QString& output,
                          bool encrypt, const QString& password, QObject* parent)
@@ -43,196 +36,87 @@ WorkerThread::WorkerThread(Operation op, const QString& input, const QString& ou
       encrypt(encrypt), password(password) {
 }
 
+static int gui_encode_progress(const uint64_t current, const uint64_t total, void *user) {
+    auto *thread = static_cast<WorkerThread *>(user);
+    if (total > 0) {
+        const int pct = 5 + static_cast<int>(90 * (current + 1) / total);
+        emit thread->progressUpdated(pct);
+    }
+    return 0;
+}
+
+static int gui_decode_progress(const uint64_t current, const uint64_t total, void *user) {
+    auto *thread = static_cast<WorkerThread *>(user);
+    if (total > 0) {
+        const int pct = 10 + static_cast<int>(70 * current / total);
+        emit thread->progressUpdated(pct);
+    }
+    return 0;
+}
+
 void WorkerThread::run() {
-    std::array<std::byte, CRYPTO_KEY_BYTES> key{};
-    bool key_used = false;
-    try {
-        if (operation == Encode) {
-            emit statusUpdated("Starting encoding process...");
-            emit logMessage("Encoding: " + inputPath + " -> " + outputPath);
-            
-            if (!std::filesystem::exists(inputPath.toStdString())) {
-                emit operationCompleted(false, "Input file does not exist");
-                return;
-            }
-            
-            const auto input_size = std::filesystem::file_size(inputPath.toStdString());
-            emit logMessage(QString("Input size: %1 bytes").arg(input_size));
-            
-            emit progressUpdated(5);
-            const std::size_t chunk_size = encrypt ? CHUNK_SIZE_PLAIN_MAX_ENCRYPTED : 0;
-            const FileChunkReader reader(inputPath.toStdString().c_str(), chunk_size);
-            const std::size_t num_chunks = reader.num_chunks();
-            emit logMessage(QString("Chunks: %1").arg(num_chunks));
-            
-            if (encrypt) {
-                emit logMessage("Encrypting chunks with password");
-            }
-            const std::array<std::byte, 16> file_id = []{
-                std::array<std::byte, 16> id{};
-                for (int i = 0; i < 16; ++i) {
-                    id[i] = static_cast<std::byte>(i);
-                }
-                return id;
-            }();
-            if (encrypt) {
-                const std::string pw = password.toStdString();
-                const std::span<const std::byte> pw_span(reinterpret_cast<const std::byte*>(pw.data()), pw.size());
-                key = derive_key(pw_span, file_id);
-                key_used = true;
-            }
-            
-            const Encoder encoder(file_id);
-            std::size_t total_packets = 0;
-            
-            emit statusUpdated("Encoding chunks...");
+    const std::string input = inputPath.toStdString();
+    const std::string output = outputPath.toStdString();
+    const std::string pw = password.toStdString();
 
-            VideoEncoder video_encoder(outputPath.toStdString());
+    if (operation == Encode) {
+        emit statusUpdated("Starting encoding process...");
+        emit logMessage("Encoding: " + inputPath + " -> " + outputPath);
+        if (encrypt) {
+            emit logMessage("Encrypting chunks with password");
+        }
+        emit progressUpdated(5);
 
-            for (std::size_t i = 0; i < num_chunks; ++i) {
-                auto chunk_data = reader.read_chunk(i);
-                std::span<const std::byte> data_to_encode(chunk_data);
-                std::vector<std::byte> encrypted_buf;
-                if (encrypt) {
-                    encrypted_buf = encrypt_chunk(data_to_encode, key, file_id, static_cast<uint32_t>(i));
-                    data_to_encode = encrypted_buf;
-                }
-                const bool is_last = (i == num_chunks - 1);
-                auto [chunk_packets, manifest] = encoder.encode_chunk(
-                    static_cast<uint32_t>(i), data_to_encode, is_last, encrypt);
-                total_packets += chunk_packets.size();
-                video_encoder.encode_packets(chunk_packets);
+        ms_encode_options_t opts{};
+        opts.input_path = input.c_str();
+        opts.output_path = output.c_str();
+        opts.encrypt = encrypt ? 1 : 0;
+        opts.password = pw.c_str();
+        opts.password_len = pw.size();
+        opts.hash_algorithm = MS_HASH_CRC32;
+        opts.progress = gui_encode_progress;
+        opts.progress_user = this;
 
-                int progress = 5 + (90 * static_cast<int>(i + 1) / static_cast<int>(num_chunks));
-                emit progressUpdated(progress);
-            }
+        ms_result_t result{};
+        const ms_status_t status = ms_encode(&opts, &result);
 
-            video_encoder.finalize();
-            
-            if (encrypt) {
-                secure_zero(std::span<std::byte>(key));
-            }
-
-            emit logMessage(QString("Generated %1 packets").arg(total_packets));
+        if (status == MS_OK) {
+            emit logMessage(QString("Input size: %1 bytes").arg(result.input_size));
+            emit logMessage(QString("Chunks: %1").arg(result.total_chunks));
+            emit logMessage(QString("Generated %1 packets in %2 frames")
+                .arg(result.total_packets).arg(result.total_frames));
             emit progressUpdated(100);
             emit operationCompleted(true, "Encoding completed successfully");
-            
-        } else if (operation == Decode) {
-            emit statusUpdated("Starting decoding process...");
-            emit logMessage("Decoding: " + inputPath + " -> " + outputPath);
-            
-            if (!std::filesystem::exists(inputPath.toStdString())) {
-                emit operationCompleted(false, "Input video does not exist");
-                return;
-            }
-            
-            const auto video_size = std::filesystem::file_size(inputPath.toStdString());
-            emit logMessage(QString("Video size: %1 bytes").arg(video_size));
-            
-            emit progressUpdated(10);
-            Decoder decoder;
-            std::size_t total_extracted = 0;
-            std::size_t decoded_chunks = 0;
-            uint32_t max_chunk_index = 0;
-            bool found_last_chunk = false;
-            uint32_t last_chunk_index = 0;
-            
-            VideoDecoder video_decoder(inputPath.toStdString());
-            const int64_t total_frames = video_decoder.total_frames();
-            emit logMessage(QString("Total frames: %1").arg(total_frames >= 0 ? QString::number(total_frames) : "unknown"));
-            
-            emit statusUpdated("Extracting packets from video...");
-            std::size_t valid_frames = 0;
-            
-            while (!video_decoder.is_eof()) {
-                if (auto frame_packets = video_decoder.decode_next_frame(); !frame_packets.empty()) {
-                    ++valid_frames;
-                    for (auto& pkt_data : frame_packets) {
-                        ++total_extracted;
-                        
-                        if (pkt_data.size() >= HEADER_SIZE) {
-                            const auto flags = static_cast<uint8_t>(pkt_data[FLAGS_OFF]);
-                            uint32_t chunk_idx = 0;
-                            std::memcpy(&chunk_idx, pkt_data.data() + CHUNK_INDEX_OFF, sizeof(chunk_idx));
-                            if (chunk_idx > max_chunk_index)
-                                max_chunk_index = chunk_idx;
-                            if (flags & LastChunk) {
-                                found_last_chunk = true;
-                                last_chunk_index = chunk_idx;
-                            }
-                        }
-                        
-                        const std::span<const std::byte> data(pkt_data.data(), pkt_data.size());
-                        if (auto result = decoder.process_packet(data); result && result->success) {
-                            ++decoded_chunks;
-                        }
-                    }
-                    
-                    if (total_frames > 0) {
-                        int progress = 10 + (70 * valid_frames / static_cast<int>(total_frames));
-                        emit progressUpdated(progress);
-                    }
-                }
-            }
-            
-            emit logMessage(QString("Valid frames: %1").arg(valid_frames));
-            emit logMessage(QString("Packets extracted: %1").arg(total_extracted));
-            
-            if (total_extracted == 0) {
-                emit operationCompleted(false, "No packets could be extracted from the video");
-                return;
-            }
-            
-            emit progressUpdated(80);
-            emit statusUpdated("Assembling file...");
-            
-            uint32_t expected_chunks;
-            if (found_last_chunk) {
-                expected_chunks = last_chunk_index + 1;
-            } else {
-                expected_chunks = max_chunk_index + 1;
-            }
-            
-            emit logMessage(QString("Chunks decoded: %1/%2").arg(decoded_chunks).arg(expected_chunks));
-            
-            if (decoded_chunks < expected_chunks) {
-                emit operationCompleted(false, QString("Only decoded %1 of %2 chunks").arg(decoded_chunks).arg(expected_chunks));
-                return;
-            }
-            
-            if (decoder.is_encrypted()) {
-                emit logMessage("Decrypting content with password");
-                if (password.isEmpty()) {
-                    emit operationCompleted(false, "Content is encrypted. Please enter the password.");
-                    return;
-                }
-                const std::string pw = password.toStdString();
-                const std::span<const std::byte> pw_span(reinterpret_cast<const std::byte*>(pw.data()), pw.size());
-                auto dec_key = derive_key(pw_span, *decoder.file_id());
-                decoder.set_decrypt_key(dec_key);
-                secure_zero(std::span<std::byte>(dec_key));
-            }
-            
-            if (!decoder.write_assembled_file(outputPath.toStdString(), expected_chunks)) {
-                if (decoder.is_encrypted()) {
-                    decoder.clear_decrypt_key();
-                }
-                emit operationCompleted(false, "Failed to assemble file (wrong password or corrupted data)");
-                return;
-            }
-            
-            if (decoder.is_encrypted()) {
-                decoder.clear_decrypt_key();
-            }
-            
+        } else {
+            emit operationCompleted(false, QString("Error: %1").arg(ms_status_string(status)));
+        }
+
+    } else if (operation == Decode) {
+        emit statusUpdated("Starting decoding process...");
+        emit logMessage("Decoding: " + inputPath + " -> " + outputPath);
+        emit progressUpdated(10);
+
+        ms_decode_options_t opts{};
+        opts.input_path = input.c_str();
+        opts.output_path = output.c_str();
+        opts.password = pw.c_str();
+        opts.password_len = pw.size();
+        opts.progress = gui_decode_progress;
+        opts.progress_user = this;
+
+        ms_result_t result{};
+        const ms_status_t status = ms_decode(&opts, &result);
+
+        if (status == MS_OK) {
+            emit logMessage(QString("Video size: %1 bytes").arg(result.input_size));
+            emit logMessage(QString("Packets extracted: %1").arg(result.total_packets));
+            emit logMessage(QString("Chunks decoded: %1").arg(result.total_chunks));
+            emit logMessage(QString("Frames: %1").arg(result.total_frames));
             emit progressUpdated(100);
             emit operationCompleted(true, "Decoding completed successfully");
+        } else {
+            emit operationCompleted(false, QString("Error: %1").arg(ms_status_string(status)));
         }
-    } catch (const std::exception& e) {
-        if (key_used) {
-            secure_zero(std::span<std::byte>(key));
-        }
-        emit operationCompleted(false, QString("Error: %1").arg(e.what()));
     }
 }
 

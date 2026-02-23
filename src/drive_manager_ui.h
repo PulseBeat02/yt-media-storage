@@ -40,7 +40,6 @@
 
 #include <memory>
 #include <string>
-#include <filesystem>
 
 class WorkerThread : public QThread {
     Q_OBJECT
