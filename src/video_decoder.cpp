@@ -133,8 +133,12 @@ int64_t VideoDecoder::total_frames() const {
 }
 
 std::vector<std::byte> VideoDecoder::extract_data_from_frame() const {
-    const auto &projections = get_decoder_projections(); // leave unstructured for OSX OpenMP
+#if defined(__APPLE__) && defined(_OPENMP)
+    const auto &projections = get_decoder_projections(); // avoid structured bindings
     const auto &vectors = projections.vectors;
+#else
+    const auto &vectors = get_decoder_projections().vectors;
+#endif
 
     const int blocks_per_row = layout_.blocks_per_row;
     const int total_blocks = layout_.total_blocks;
