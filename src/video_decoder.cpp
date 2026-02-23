@@ -21,7 +21,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cstring>
 #include <span>
 #include <stdexcept>
 
@@ -134,7 +133,7 @@ int64_t VideoDecoder::total_frames() const {
 }
 
 std::vector<std::byte> VideoDecoder::extract_data_from_frame() const {
-    const auto &projections = get_decoder_projections();
+    const auto &projections = get_decoder_projections(); // leave unstructured for OSX OpenMP
     const auto &vectors = projections.vectors;
 
     const int blocks_per_row = layout_.blocks_per_row;
@@ -189,7 +188,7 @@ std::size_t get_packet_size(const std::span<const std::byte> data) {
     if (data.size() < 5) {
         return HEADER_SIZE + SYMBOL_SIZE_BYTES;
     }
-    const uint8_t version = static_cast<uint8_t>(data[4]);
+    const auto version = static_cast<uint8_t>(data[4]);
     return (version == VERSION_ID_V2)
                ? (HEADER_SIZE_V2 + SYMBOL_SIZE_BYTES)
                : (HEADER_SIZE + SYMBOL_SIZE_BYTES);

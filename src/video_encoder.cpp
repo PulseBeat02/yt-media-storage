@@ -157,7 +157,7 @@ int VideoEncoder::packets_per_frame() {
 }
 
 void VideoEncoder::embed_data_in_frame(const std::vector<std::byte> &data) {
-    const auto &blocks = get_precomputed_blocks();
+    const auto &blocks = get_precomputed_blocks(); // leave unstructured for OSX OpenMP
     const auto &patterns = blocks.patterns;
 
     const std::size_t total_bits = data.size() * 8;

@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include <cstdint>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -51,7 +50,8 @@ static int decode_progress(const uint64_t current, const uint64_t total, void *)
 
 static void print_usage(const char *program) {
     std::cerr << "Usage:\n"
-            << "  " << program << " encode --input <file> --output <video> [--encrypt --password <pwd>] [--hash <crc32|xxhash>]\n"
+            << "  " << program <<
+            " encode --input <file> --output <video> [--encrypt --password <pwd>] [--hash <crc32|xxhash>]\n"
             << "  " << program << " decode --input <video> --output <file> [--password <pwd>]\n";
 }
 
@@ -72,9 +72,7 @@ static int do_encode(const std::string &input_path, const std::string &output_pa
     opts.progress_user = nullptr;
 
     ms_result_t result{};
-    const ms_status_t status = ms_encode(&opts, &result);
-
-    if (status != MS_OK) {
+    if (const ms_status_t status = ms_encode(&opts, &result); status != MS_OK) {
         std::cout << "\n";
         std::cerr << "Error: " << ms_status_string(status) << "\n";
         return 1;
@@ -104,9 +102,7 @@ static int do_decode(const std::string &input_path, const std::string &output_pa
     opts.progress_user = nullptr;
 
     ms_result_t result{};
-    const ms_status_t status = ms_decode(&opts, &result);
-
-    if (status != MS_OK) {
+    if (const ms_status_t status = ms_decode(&opts, &result); status != MS_OK) {
         std::cout << "\n";
         std::cerr << "Error: " << ms_status_string(status) << "\n";
         return 1;

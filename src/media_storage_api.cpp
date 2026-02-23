@@ -19,7 +19,6 @@
 #include "media_storage.h"
 
 #include <array>
-#include <cstring>
 #include <filesystem>
 #include <span>
 #include <string>
@@ -158,9 +157,8 @@ ms_status_t ms_decode(const ms_decode_options_t *options, ms_result_t *result) {
 
         while (!video_decoder.is_eof()) {
             if (options->progress) {
-                const uint64_t cur = static_cast<uint64_t>(video_decoder.frames_read());
-                const uint64_t tot = total >= 0 ? static_cast<uint64_t>(total) : 0;
-                if (options->progress(cur, tot, options->progress_user) != 0) {
+                const auto cur = static_cast<uint64_t>(video_decoder.frames_read());
+                if (const uint64_t tot = total >= 0 ? static_cast<uint64_t>(total) : 0; options->progress(cur, tot, options->progress_user) != 0) {
                     return MS_ERR_DECODE_FAILED;
                 }
             }

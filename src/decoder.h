@@ -28,7 +28,6 @@
 #include <vector>
 
 #include "integrity.h"
-#include "configuration.h"
 
 struct PacketHeader {
     uint32_t magic = 0;
@@ -37,7 +36,7 @@ struct PacketHeader {
     std::array<std::byte, 16> file_id{};
     uint32_t chunk_index = 0;
     uint32_t chunk_size = 0;
-    uint32_t original_size = 0;  // v2 only; equals chunk_size for v1
+    uint32_t original_size = 0; // v2 only; equals chunk_size for v1
     uint16_t symbol_size = 0;
     uint32_t k = 0; // num source symbols
     uint32_t esi = 0; // encoding symbol id (block id)
@@ -112,7 +111,7 @@ public:
 
     [[nodiscard]] bool is_chunk_complete(uint32_t chunk_index) const;
 
-    [[nodiscard]] std::optional<std::vector<std::byte>> get_chunk_data(uint32_t chunk_index) const;
+    [[nodiscard]] std::optional<std::vector<std::byte> > get_chunk_data(uint32_t chunk_index) const;
 
     [[nodiscard]] std::optional<FileId> file_id() const { return id; }
 
@@ -122,7 +121,7 @@ public:
 
     [[nodiscard]] std::vector<uint32_t> completed_chunk_indices() const;
 
-    [[nodiscard]] std::optional<std::vector<std::byte>> assemble_file(uint32_t expected_chunks) const;
+    [[nodiscard]] std::optional<std::vector<std::byte> > assemble_file(uint32_t expected_chunks) const;
 
     [[nodiscard]] bool write_assembled_file(const std::string &output_path, uint32_t expected_chunks) const;
 
@@ -138,6 +137,6 @@ private:
     std::array<std::byte, 32> decrypt_key_{};
     bool decrypt_key_set_ = false;
     std::unordered_map<uint32_t, ChunkDecoder> active_decoders;
-    std::unordered_map<uint32_t, std::vector<std::byte>> completed_chunks;
+    std::unordered_map<uint32_t, std::vector<std::byte> > completed_chunks;
     size_t total_packets_ = 0;
 };

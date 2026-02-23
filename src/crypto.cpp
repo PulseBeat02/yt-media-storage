@@ -18,7 +18,6 @@
 #include "configuration.h"
 
 #include <sodium.h>
-#include <cstring>
 #include <mutex>
 #include <stdexcept>
 
@@ -86,7 +85,7 @@ std::vector<std::byte> encrypt_chunk(
     const std::size_t cipher_len = plain.size() + crypto_aead_xchacha20poly1305_ietf_ABYTES;
     std::vector<std::byte> result(CRYPTO_PLAIN_SIZE_HEADER + cipher_len);
 
-    const uint32_t plain_size_le = static_cast<uint32_t>(plain.size());
+    const auto plain_size_le = static_cast<uint32_t>(plain.size());
     result[0] = static_cast<std::byte>(plain_size_le & 0xff);
     result[1] = static_cast<std::byte>((plain_size_le >> 8) & 0xff);
     result[2] = static_cast<std::byte>((plain_size_le >> 16) & 0xff);

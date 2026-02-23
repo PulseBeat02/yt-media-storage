@@ -21,7 +21,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <mutex>
 #include <stdexcept>
 
@@ -167,7 +166,7 @@ Encoder::encode_chunk(
 
         auto *payload_dest = reinterpret_cast<uint8_t *>(packet.bytes.data() + HEADER_SIZE_V2);
         uint32_t writeLen = 0;
-        if (const WirehairResult result = wirehair_encode(codec, blockId, payload_dest, static_cast<uint32_t>(SYMBOL_SIZE_BYTES), &writeLen); result != Wirehair_Success) {
+        if (const WirehairResult result = wirehair_encode(codec, blockId, payload_dest, SYMBOL_SIZE_BYTES, &writeLen); result != Wirehair_Success) {
             wirehair_free(codec);
             throw std::runtime_error("wirehair_encode() failed");
         }

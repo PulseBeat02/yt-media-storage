@@ -38,7 +38,7 @@ ChunkedStorageData chunkByteData(std::span<const std::byte> data) {
     return result;
 }
 
-ChunkedStorageData chunkFile(const char *path, std::size_t chunk_size) {
+ChunkedStorageData chunkFile(const char *path, const std::size_t chunk_size) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file) {
         throw std::runtime_error("open failed");
@@ -49,7 +49,7 @@ ChunkedStorageData chunkFile(const char *path, std::size_t chunk_size) {
 
     ChunkedStorageData result;
     result.storage.resize(size);
-    if (!file.read(reinterpret_cast<char *>(result.storage.data()), size)) {
+    if (!file.read(reinterpret_cast<char *>(result.storage.data()), static_cast<long long>(size))) {
         throw std::runtime_error("read failed");
     }
 

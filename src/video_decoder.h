@@ -19,7 +19,6 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -27,7 +26,6 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
-#include <libavutil/opt.h>
 #include <libswscale/swscale.h>
 }
 
@@ -78,8 +76,8 @@ private:
 
     [[nodiscard]] std::vector<std::vector<std::byte> > extract_packets_from_frame() const;
 
-    void extract_packets_from_buffer(std::vector<std::byte> &accumulated,
-                                     std::vector<std::vector<std::byte> > &out_packets);
+    static void extract_packets_from_buffer(std::vector<std::byte> &accumulated,
+                                            std::vector<std::vector<std::byte> > &out_packets);
 
     void prepare_frame_for_extraction();
 
