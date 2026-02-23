@@ -19,6 +19,7 @@
 #include "media_storage.h"
 
 #include <array>
+#include <cstring>
 #include <filesystem>
 #include <span>
 #include <string>

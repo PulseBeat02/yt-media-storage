@@ -18,6 +18,7 @@
 #include "configuration.h"
 
 #include <sodium.h>
+#include <cstring>
 #include <mutex>
 #include <stdexcept>
 

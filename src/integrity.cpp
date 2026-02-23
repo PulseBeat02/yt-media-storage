@@ -23,6 +23,7 @@
 #include "libs/xxhash.h"
 
 #include <array>
+#include <cstring>
 
 static std::string bytes_to_hex(const std::span<const std::byte> inputBytes) {
     std::string hexString(inputBytes.size() * 2, 0);
