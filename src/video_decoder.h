@@ -74,6 +74,8 @@ private:
 
     [[nodiscard]] std::vector<std::byte> extract_data_from_frame() const;
 
+    void extract_data_into(std::vector<std::byte> &dest) const;
+
     [[nodiscard]] std::vector<std::vector<std::byte> > extract_packets_from_frame() const;
 
     static void extract_packets_from_buffer(std::vector<std::byte> &accumulated,

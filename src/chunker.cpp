@@ -92,12 +92,15 @@ std::vector<std::byte> FileChunkReader::read_chunk(const std::size_t index) cons
     }
     const std::size_t len = (std::min)(chunk_size_, file_size_ - offset);
 
-    file_.seekg(static_cast<std::streamoff>(offset));
+    if (offset != file_pos_) {
+        file_.seekg(static_cast<std::streamoff>(offset));
+    }
 
     std::vector<std::byte> data(len);
     if (!file_.read(reinterpret_cast<char *>(data.data()), static_cast<std::streamsize>(len))) {
         throw std::runtime_error("read failed");
     }
 
+    file_pos_ = offset + len;
     return data;
 }

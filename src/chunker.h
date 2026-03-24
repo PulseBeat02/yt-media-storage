@@ -60,4 +60,5 @@ private:
     std::size_t chunk_size_;
     std::size_t num_chunks_;
     mutable std::ifstream file_;
+    mutable std::size_t file_pos_ = 0;
 };

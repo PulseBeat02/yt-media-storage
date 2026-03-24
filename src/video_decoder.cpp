@@ -119,6 +119,7 @@ void VideoDecoder::init_decoder(const std::string &input_path) {
     }
 
     layout_ = compute_frame_layout(codec_ctx_->width, codec_ctx_->height);
+    extract_buffer_.reserve(static_cast<std::size_t>(layout_.bytes_per_frame) * 2);
 }
 
 int64_t VideoDecoder::total_frames() const {
@@ -136,9 +137,9 @@ int64_t VideoDecoder::total_frames() const {
     return -1;
 }
 
-std::vector<std::byte> VideoDecoder::extract_data_from_frame() const {
+void VideoDecoder::extract_data_into(std::vector<std::byte> &dest) const {
 #if defined(__APPLE__) && defined(_OPENMP)
-    const auto &projections = get_decoder_projections(); // avoid structured bindings
+    const auto &projections = get_decoder_projections();
     const auto &vectors = projections.vectors;
 #else
     const auto &vectors = get_decoder_projections().vectors;
@@ -159,8 +160,10 @@ std::vector<std::byte> VideoDecoder::extract_data_from_frame() const {
         src_stride = gray_frame_->linesize[0];
     }
 
-    std::vector data(total_bytes, std::byte{0});
-    auto *out = reinterpret_cast<uint8_t *>(data.data());
+    const std::size_t base = dest.size();
+    dest.resize(base + total_bytes);
+    auto *out = reinterpret_cast<uint8_t *>(dest.data() + base);
+    std::memset(out, 0, total_bytes);
 
 #pragma omp parallel for schedule(static)
     for (int byte_idx = 0; byte_idx < total_bytes; ++byte_idx) {
@@ -188,7 +191,11 @@ std::vector<std::byte> VideoDecoder::extract_data_from_frame() const {
 
         out[byte_idx] = current_byte;
     }
+}
 
+std::vector<std::byte> VideoDecoder::extract_data_from_frame() const {
+    std::vector<std::byte> data;
+    extract_data_into(data);
     return data;
 }
 
@@ -259,8 +266,7 @@ void VideoDecoder::prepare_frame_for_extraction() {
 }
 
 std::vector<std::vector<std::byte> > VideoDecoder::accumulate_frame_and_extract_packets() {
-    const auto raw_data = extract_data_from_frame();
-    extract_buffer_.insert(extract_buffer_.end(), raw_data.begin(), raw_data.end());
+    extract_data_into(extract_buffer_);
     std::vector<std::vector<std::byte> > packets;
     packets.reserve(extract_buffer_.size() / (HEADER_SIZE_V2 + SYMBOL_SIZE_BYTES));
     extract_packets_from_buffer(extract_buffer_, packets);
