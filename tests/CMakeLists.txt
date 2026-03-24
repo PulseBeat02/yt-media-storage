@@ -21,10 +21,13 @@ add_executable(media_storage_tests
         test_crypto.cpp
         test_roundtrip.cpp
         test_stream.cpp
+        test_dct.cpp
+        test_api.cpp
 )
 
 target_link_libraries(media_storage_tests PRIVATE
         media_storage_core
+        media_storage_lib
         GTest::gtest
         GTest::gtest_main
 )
@@ -32,6 +35,15 @@ target_link_libraries(media_storage_tests PRIVATE
 target_include_directories(media_storage_tests PRIVATE
         "${CMAKE_SOURCE_DIR}/src"
 )
+
+if (WIN32)
+    add_custom_command(TARGET media_storage_tests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:media_storage_tests>
+            $<TARGET_FILE_DIR:media_storage_tests>
+            COMMAND_EXPAND_LISTS
+    )
+endif ()
 
 include(GoogleTest)
 gtest_discover_tests(media_storage_tests)

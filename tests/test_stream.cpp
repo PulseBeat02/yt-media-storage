@@ -261,3 +261,163 @@ TEST(Stream, FrameLayout_DefaultMatchesConstants) {
     EXPECT_EQ(default_layout.total_blocks, explicit_layout.total_blocks);
     EXPECT_EQ(default_layout.bytes_per_frame, explicit_layout.bytes_per_frame);
 }
+
+TEST(Stream, MKV_Roundtrip) {
+    const auto original = make_random_data(65536);
+    const TempFile input("test_mkv_input.bin");
+    const TempFile mkv("test_mkv_roundtrip.mkv");
+    write_file(input.path, original);
+
+    {
+        const FileChunkReader reader(input.path.c_str());
+        const auto file_id = make_test_file_id();
+        const Encoder encoder(file_id);
+        VideoEncoder video_encoder(mkv.path);
+
+        for (std::size_t i = 0; i < reader.num_chunks(); ++i) {
+            auto chunk_data = reader.read_chunk(i);
+            const bool is_last = (i == reader.num_chunks() - 1);
+            auto [packets, manifest] = encoder.encode_chunk(
+                static_cast<uint32_t>(i), chunk_data, is_last);
+            video_encoder.encode_packets(packets);
+        }
+        video_encoder.finalize();
+    }
+
+    ASSERT_TRUE(std::filesystem::exists(mkv.path));
+
+    {
+        VideoDecoder video_decoder(mkv.path);
+        Decoder decoder;
+        std::size_t decoded_chunks = 0;
+        uint32_t last_chunk_index = 0;
+        bool found_last = false;
+
+        while (!video_decoder.is_eof()) {
+            for (auto frame_packets = video_decoder.decode_next_frame();
+                 auto &pkt_data: frame_packets) {
+                if (pkt_data.size() >= HEADER_SIZE) {
+                    const auto flags = static_cast<uint8_t>(pkt_data[FLAGS_OFF]);
+                    uint32_t idx = 0;
+                    std::memcpy(&idx, pkt_data.data() + CHUNK_INDEX_OFF, sizeof(idx));
+                    if (flags & LastChunk) {
+                        found_last = true;
+                        last_chunk_index = idx;
+                    }
+                }
+                if (auto res = decoder.process_packet(
+                        std::span(pkt_data.data(), pkt_data.size()), false);
+                    res && res->success) {
+                    ++decoded_chunks;
+                }
+            }
+        }
+
+        ASSERT_TRUE(found_last);
+        const uint32_t expected = last_chunk_index + 1;
+        ASSERT_GE(decoded_chunks, expected);
+
+        const auto assembled = decoder.assemble_file(expected);
+        ASSERT_TRUE(assembled.has_value());
+        EXPECT_EQ(*assembled, original);
+    }
+}
+
+TEST(Stream, Roundtrip_WithXXHash) {
+    const auto original = make_random_data(65536);
+    const TempFile input("test_stream_xxhash_input.bin");
+    const TempFile flv("test_stream_xxhash.flv");
+    write_file(input.path, original);
+
+    {
+        const FileChunkReader reader(input.path.c_str());
+        const auto file_id = make_test_file_id();
+        const Encoder encoder(file_id, HashAlgorithm::XXHash32);
+        StreamEncoder stream_enc(flv.path, 8000, 1920, 1080);
+
+        for (std::size_t i = 0; i < reader.num_chunks(); ++i) {
+            auto chunk_data = reader.read_chunk(i);
+            const bool is_last = (i == reader.num_chunks() - 1);
+            auto [packets, manifest] = encoder.encode_chunk(
+                static_cast<uint32_t>(i), chunk_data, is_last);
+            stream_enc.encode_packets(packets);
+        }
+        stream_enc.finalize();
+    }
+
+    ASSERT_TRUE(std::filesystem::exists(flv.path));
+    const auto decoded = stream_decode_file(flv.path);
+    EXPECT_EQ(decoded, original);
+}
+
+TEST(Stream, Roundtrip_720p) {
+    const auto original = make_random_data(32768);
+    const TempFile input("test_stream_720p_input.bin");
+    const TempFile flv("test_stream_720p.flv");
+    write_file(input.path, original);
+
+    ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 4000, 1280, 720));
+    ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+    const auto decoded = stream_decode_file(flv.path);
+    EXPECT_EQ(decoded, original);
+}
+
+TEST(Stream, PacketsPerFrame_ReturnsPositive) {
+    const int ppf = VideoEncoder::packets_per_frame();
+    EXPECT_GT(ppf, 0);
+
+    const int sppf = StreamEncoder::packets_per_frame();
+    EXPECT_GT(sppf, 0);
+    EXPECT_EQ(ppf, sppf);
+}
+
+TEST(Stream, MaxPacketBytesPerFrame_MatchesLayout) {
+    const std::size_t max_bytes = max_packet_bytes_per_frame();
+    const FrameLayout layout = compute_frame_layout();
+    EXPECT_EQ(max_bytes, static_cast<std::size_t>(layout.bytes_per_frame));
+}
+
+TEST(Stream, Roundtrip_MultiChunk) {
+    const auto original = make_random_data(CHUNK_SIZE_BYTES + 1024);
+    const TempFile input("test_stream_multichunk_input.bin");
+    const TempFile flv("test_stream_multichunk.flv");
+    write_file(input.path, original);
+
+    ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));
+    ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+    const auto decoded = stream_decode_file(flv.path);
+    EXPECT_EQ(decoded, original);
+}
+
+TEST(Stream, DecodeAllFrames_Path) {
+    const auto original = make_random_data(32768);
+    const TempFile input("test_stream_decodeall_input.bin");
+    const TempFile flv("test_stream_decodeall.flv");
+    write_file(input.path, original);
+
+    stream_encode_file(input.path, flv.path, 8000, 1920, 1080);
+
+    VideoDecoder video_decoder(flv.path);
+    const auto all_packets = video_decoder.decode_all_frames();
+    EXPECT_GT(all_packets.size(), 0u);
+
+    Decoder decoder;
+    for (const auto &pkt_data: all_packets) {
+        (void) decoder.process_packet(std::span(pkt_data.data(), pkt_data.size()), false);
+    }
+    EXPECT_GE(decoder.chunks_completed(), 1u);
+}
+
+TEST(Stream, EmptyFile_Roundtrip) {
+    const TempFile input("test_stream_empty_input.bin");
+    const TempFile flv("test_stream_empty.flv");
+    write_file(input.path, {});
+
+    ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));
+    ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+    const auto decoded = stream_decode_file(flv.path);
+    EXPECT_TRUE(decoded.empty());
+}

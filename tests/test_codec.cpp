@@ -21,6 +21,7 @@
 #include "encoder.h"
 #include "integrity.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -270,4 +271,136 @@ TEST(Codec, Decoder_XXHashAlgorithmRoundtrip) {
     const std::optional<std::vector<std::byte> > recovered_chunk = decoder.get_chunk_data(0);
     ASSERT_TRUE(recovered_chunk.has_value());
     EXPECT_EQ(*recovered_chunk, original_data);
+}
+
+TEST(Codec, Encoder_EncryptedFlagIsSet) {
+    const std::vector<std::byte> input_data = make_test_data(4096);
+    const Encoder encoder(make_test_file_id());
+    const auto [packets, manifest] = encode_test_data(encoder, input_data, 0, false, true);
+    for (const auto &[bytes]: packets) {
+        const auto flags = static_cast<uint8_t>(bytes[FLAGS_OFF]);
+        EXPECT_NE(flags & Encrypted, 0);
+    }
+}
+
+TEST(Codec, Decoder_CompletedChunkReturnsNullopt) {
+    const std::vector<std::byte> input_data = make_test_data(4096);
+    const Encoder encoder(make_test_file_id());
+    const auto [packets, manifest] = encode_test_data(encoder, input_data);
+
+    Decoder decoder;
+    feed_all_packets_to_decoder(decoder, packets);
+    EXPECT_TRUE(decoder.is_chunk_complete(0));
+
+    for (const Packet &packet: packets) {
+        auto result = decoder.process_packet(packet_span(packet));
+        EXPECT_FALSE(result.has_value());
+    }
+}
+
+TEST(Codec, Decoder_MultipleChunks) {
+    const auto chunk0_data = make_test_data(2048);
+    const auto chunk1_data = make_test_data(4096);
+    const Encoder encoder(make_test_file_id());
+
+    auto [packets0, m0] = encoder.encode_chunk(0, chunk0_data, false);
+    auto [packets1, m1] = encoder.encode_chunk(1, chunk1_data, true);
+
+    Decoder decoder;
+    feed_all_packets_to_decoder(decoder, packets0);
+    feed_all_packets_to_decoder(decoder, packets1);
+
+    EXPECT_EQ(decoder.chunks_completed(), 2u);
+    EXPECT_TRUE(decoder.is_chunk_complete(0));
+    EXPECT_TRUE(decoder.is_chunk_complete(1));
+
+    const auto data0 = decoder.get_chunk_data(0);
+    const auto data1 = decoder.get_chunk_data(1);
+    ASSERT_TRUE(data0.has_value());
+    ASSERT_TRUE(data1.has_value());
+    EXPECT_EQ(*data0, chunk0_data);
+    EXPECT_EQ(*data1, chunk1_data);
+}
+
+TEST(Codec, Decoder_StateTracking) {
+    const std::vector<std::byte> input_data = make_test_data(4096);
+    const Encoder encoder(make_test_file_id());
+    const auto [packets, manifest] = encode_test_data(encoder, input_data);
+
+    Decoder decoder;
+    EXPECT_EQ(decoder.total_packets_received(), 0u);
+    EXPECT_EQ(decoder.chunks_completed(), 0u);
+    EXPECT_FALSE(decoder.is_chunk_complete(0));
+
+    feed_all_packets_to_decoder(decoder, packets);
+
+    EXPECT_EQ(decoder.total_packets_received(), packets.size());
+    EXPECT_EQ(decoder.chunks_completed(), 1u);
+    EXPECT_TRUE(decoder.is_chunk_complete(0));
+
+    auto indices = decoder.completed_chunk_indices();
+    ASSERT_EQ(indices.size(), 1u);
+    EXPECT_EQ(indices[0], 0u);
+}
+
+TEST(Codec, Decoder_GetChunkDataIsCopy) {
+    const std::vector<std::byte> input_data = make_test_data(4096);
+    const Encoder encoder(make_test_file_id());
+    const auto [packets, manifest] = encode_test_data(encoder, input_data);
+
+    Decoder decoder;
+    feed_all_packets_to_decoder(decoder, packets);
+
+    EXPECT_TRUE(decoder.get_chunk_data(0).has_value());
+    EXPECT_TRUE(decoder.get_chunk_data(0).has_value());
+}
+
+TEST(Codec, Decoder_PacketLossResilience) {
+    const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 4);
+    const Encoder encoder(make_test_file_id());
+    const auto [packets, manifest] = encode_test_data(encoder, original_data);
+
+    const std::size_t half = packets.size() / 2;
+
+    Decoder decoder;
+    bool decoded = false;
+    for (std::size_t i = 0; i < half; ++i) {
+        if (auto result = decoder.process_packet(packet_span(packets[i]));
+            result.has_value() && result->success) {
+            decoded = true;
+        }
+    }
+
+    EXPECT_TRUE(decoded);
+    const auto recovered = decoder.get_chunk_data(0);
+    ASSERT_TRUE(recovered.has_value());
+    EXPECT_EQ(*recovered, original_data);
+}
+
+TEST(Codec, Decoder_OutOfOrderDelivery) {
+    const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 4);
+    const Encoder encoder(make_test_file_id());
+    auto [packets, manifest] = encode_test_data(encoder, original_data);
+
+    std::ranges::reverse(packets);
+
+    Decoder decoder;
+    const bool decoded = feed_all_packets_to_decoder(decoder, packets);
+
+    EXPECT_TRUE(decoded);
+    const auto recovered = decoder.get_chunk_data(0);
+    ASSERT_TRUE(recovered.has_value());
+    EXPECT_EQ(*recovered, original_data);
+}
+
+TEST(Codec, Decoder_IncompleteChunkNotAccessible) {
+    const std::vector<std::byte> input_data = make_test_data(4096);
+    const Encoder encoder(make_test_file_id());
+    const auto [packets, manifest] = encode_test_data(encoder, input_data);
+
+    Decoder decoder;
+    (void) decoder.process_packet(packet_span(packets[0]));
+
+    EXPECT_FALSE(decoder.is_chunk_complete(0));
+    EXPECT_FALSE(decoder.get_chunk_data(0).has_value());
 }

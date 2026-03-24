@@ -260,3 +260,74 @@ TEST(Chunker, FileChunkReader_OutOfRangeThrows) {
     const std::size_t invalid_index = reader.num_chunks();
     EXPECT_THROW(static_cast<void>(reader.read_chunk(invalid_index)), std::runtime_error);
 }
+
+TEST(Chunker, FileChunkReader_NonSequentialReadOrder) {
+    constexpr std::size_t custom_chunk = 100;
+    constexpr std::size_t total_size = 300;
+    const std::vector<std::byte> original_data = make_patterned_data(total_size, 7);
+    const TempFile temp_file(original_data);
+    const FileChunkReader reader(temp_file.path_cstr(), custom_chunk);
+
+    ASSERT_EQ(reader.num_chunks(), 3u);
+
+    const auto chunk2 = reader.read_chunk(2);
+    const auto chunk0 = reader.read_chunk(0);
+    const auto chunk1 = reader.read_chunk(1);
+
+    for (std::size_t i = 0; i < 100; ++i) {
+        EXPECT_EQ(chunk0[i], original_data[i]);
+        EXPECT_EQ(chunk1[i], original_data[100 + i]);
+        EXPECT_EQ(chunk2[i], original_data[200 + i]);
+    }
+}
+
+TEST(Chunker, FileChunkReader_ReadSameChunkTwice) {
+    const std::vector<std::byte> original_data = make_patterned_data(200, 13);
+    const TempFile temp_file(original_data);
+    const FileChunkReader reader(temp_file.path_cstr(), 100);
+
+    const auto first_read = reader.read_chunk(0);
+    const auto second_read = reader.read_chunk(0);
+
+    EXPECT_EQ(first_read, second_read);
+}
+
+TEST(Chunker, FileChunkReader_NonExistentFileThrows) {
+    EXPECT_THROW(FileChunkReader("/tmp/nonexistent_chunker_test_12345.bin"), std::runtime_error);
+}
+
+TEST(Chunker, ChunkFile_NonExistentFileThrows) {
+    EXPECT_THROW(chunkFile("/tmp/nonexistent_chunker_test_12345.bin"), std::runtime_error);
+}
+
+TEST(Chunker, ChunkFile_CustomChunkSize) {
+    constexpr std::size_t custom_chunk = 50;
+    const std::vector<std::byte> original_data = make_patterned_data(120, 5);
+    const TempFile temp_file(original_data);
+
+    const auto [storage, chunks] = chunkFile(temp_file.path_cstr(), custom_chunk);
+
+    ASSERT_EQ(chunks.size(), 3u);
+    EXPECT_EQ(chunks[0].length, 50u);
+    EXPECT_EQ(chunks[1].length, 50u);
+    EXPECT_EQ(chunks[2].length, 20u);
+    EXPECT_EQ(storage, original_data);
+}
+
+TEST(Chunker, ChunkByteData_ExactlyTwoChunks) {
+    constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2;
+    const std::vector<std::byte> data = make_patterned_data(total_size);
+    const std::span data_span(data.data(), data.size());
+    const auto [storage, chunks] = chunkByteData(data_span);
+    ASSERT_EQ(chunks.size(), 2u);
+    EXPECT_EQ(chunks[0].length, CHUNK_SIZE_BYTES);
+    EXPECT_EQ(chunks[1].length, CHUNK_SIZE_BYTES);
+}
+
+TEST(Chunker, ChunkFile_EmptyFile) {
+    const TempFile temp_file({});
+    const auto [storage, chunks] = chunkFile(temp_file.path_cstr());
+    ASSERT_EQ(chunks.size(), 1u);
+    EXPECT_EQ(chunks[0].length, 0u);
+    EXPECT_TRUE(storage.empty());
+}

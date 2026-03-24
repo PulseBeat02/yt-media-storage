@@ -23,9 +23,12 @@
 #include "encoder.h"
 #include "integrity.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <optional>
 #include <span>
 #include <vector>
@@ -188,4 +191,150 @@ TEST(Roundtrip, MultipleChunks_Sha256ManifestVerification) {
     const std::optional<std::vector<std::byte> > assembled = decoder.assemble_file(num_chunks);
     ASSERT_TRUE(assembled.has_value());
     EXPECT_EQ(*assembled, original_data);
+}
+
+TEST(Roundtrip, WithEncryptionAndXXHash) {
+    const std::vector<std::byte> original_data = make_test_data(8192);
+    const Encoder::FileId file_id = make_test_file_id();
+    const Encoder encoder(file_id, HashAlgorithm::XXHash32);
+    Decoder decoder;
+
+    static constexpr std::byte password[] = {
+        std::byte{'t'}, std::byte{'e'}, std::byte{'s'}, std::byte{'t'}
+    };
+    auto key = derive_key(std::span(password), file_id);
+
+    const std::vector<std::byte> encrypted = encrypt_chunk(original_data, key, file_id, 0);
+    for (auto [packets, manifest] = encoder.encode_chunk(0, encrypted, true, true);
+         const Packet &packet: packets) {
+        (void) decoder.process_packet(packet_span(packet), false);
+    }
+
+    EXPECT_TRUE(decoder.is_encrypted());
+    decoder.set_decrypt_key(key);
+
+    const auto assembled = decoder.assemble_file(1);
+    ASSERT_TRUE(assembled.has_value());
+    EXPECT_EQ(*assembled, original_data);
+
+    decoder.clear_decrypt_key();
+    secure_zero(std::span<std::byte>(key));
+}
+
+TEST(Roundtrip, EmptyData) {
+    const std::vector<std::byte> original_data;
+    const Encoder encoder(make_test_file_id());
+    Decoder decoder;
+
+    encode_and_feed(encoder, decoder, original_data, 0, true);
+
+    const auto assembled = decoder.assemble_file(1);
+    ASSERT_TRUE(assembled.has_value());
+    EXPECT_TRUE(assembled->empty());
+}
+
+TEST(Roundtrip, ExactChunkSizeBoundary) {
+    const std::vector<std::byte> original_data = make_test_data(CHUNK_SIZE_BYTES);
+    const Encoder encoder(make_test_file_id());
+    Decoder decoder;
+
+    encode_and_feed(encoder, decoder, original_data, 0, true);
+
+    const auto assembled = decoder.assemble_file(1);
+    ASSERT_TRUE(assembled.has_value());
+    EXPECT_EQ(*assembled, original_data);
+}
+
+TEST(Roundtrip, ExactTwoChunkBoundary) {
+    constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2;
+    const std::vector<std::byte> original_data = make_test_data(total_size);
+    const Encoder encoder(make_test_file_id());
+    Decoder decoder;
+
+    const ChunkedStorageData chunked = chunkByteData(original_data);
+    const auto num_chunks = static_cast<uint32_t>(chunked.chunks.size());
+    ASSERT_EQ(num_chunks, 2u);
+
+    for (uint32_t i = 0; i < num_chunks; ++i) {
+        encode_and_feed(encoder, decoder, chunkSpan(chunked, i), i, i == num_chunks - 1);
+    }
+
+    const auto assembled = decoder.assemble_file(num_chunks);
+    ASSERT_TRUE(assembled.has_value());
+    EXPECT_EQ(*assembled, original_data);
+}
+
+TEST(Roundtrip, ManyChunks) {
+    constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 5 + 12345;
+    const std::vector<std::byte> original_data = make_test_data(total_size);
+    const Encoder encoder(make_test_file_id());
+    Decoder decoder;
+
+    const ChunkedStorageData chunked = chunkByteData(original_data);
+    const auto num_chunks = static_cast<uint32_t>(chunked.chunks.size());
+    EXPECT_EQ(num_chunks, 6u);
+
+    for (uint32_t i = 0; i < num_chunks; ++i) {
+        encode_and_feed(encoder, decoder, chunkSpan(chunked, i), i, i == num_chunks - 1);
+    }
+
+    const auto assembled = decoder.assemble_file(num_chunks);
+    ASSERT_TRUE(assembled.has_value());
+    EXPECT_EQ(*assembled, original_data);
+}
+
+TEST(Roundtrip, OutOfOrderPackets) {
+    const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 4);
+    const Encoder encoder(make_test_file_id());
+    auto [packets, manifest] = encoder.encode_chunk(0, original_data, true);
+
+    std::ranges::reverse(packets);
+
+    Decoder decoder;
+    for (const Packet &packet: packets) {
+        (void) decoder.process_packet(packet_span(packet), false);
+    }
+
+    const auto assembled = decoder.assemble_file(1);
+    ASSERT_TRUE(assembled.has_value());
+    EXPECT_EQ(*assembled, original_data);
+}
+
+TEST(Roundtrip, PacketLossRecovery) {
+    const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 8);
+    const Encoder encoder(make_test_file_id());
+    auto [packets, manifest] = encoder.encode_chunk(0, original_data, true);
+
+    Decoder decoder;
+    for (std::size_t i = 0; i < packets.size(); i += 2) {
+        (void) decoder.process_packet(packet_span(packets[i]), false);
+    }
+
+    EXPECT_TRUE(decoder.is_chunk_complete(0));
+    const auto assembled = decoder.assemble_file(1);
+    ASSERT_TRUE(assembled.has_value());
+    EXPECT_EQ(*assembled, original_data);
+}
+
+TEST(Roundtrip, WriteAssembledFile) {
+    const std::vector<std::byte> original_data = make_test_data(4096);
+    const Encoder encoder(make_test_file_id());
+    Decoder decoder;
+
+    encode_and_feed(encoder, decoder, original_data, 0, true);
+
+    const auto output_path = std::filesystem::temp_directory_path() / "test_write_assembled.bin";
+    const bool success = decoder.write_assembled_file(output_path.string(), 1);
+    EXPECT_TRUE(success);
+
+    std::ifstream ifs(output_path, std::ios::binary | std::ios::ate);
+    ASSERT_TRUE(ifs.is_open());
+    const auto file_size = ifs.tellg();
+    ifs.seekg(0);
+    std::vector<std::byte> file_data(file_size);
+    ifs.read(reinterpret_cast<char *>(file_data.data()), file_size);
+
+    EXPECT_EQ(file_data, original_data);
+    ifs.close();
+    std::filesystem::remove(output_path);
 }

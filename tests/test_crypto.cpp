@@ -204,3 +204,59 @@ TEST(Crypto, SecureZero_ClearsEntireBuffer) {
         EXPECT_EQ(byte_val, std::byte{0});
     }
 }
+
+TEST(Crypto, EncryptDecrypt_EmptyPlaintext) {
+    const auto key = make_test_key();
+    const auto file_id = make_test_file_id();
+    const std::vector<std::byte> empty;
+
+    const std::vector<std::byte> ciphertext = encrypt_chunk(empty, key, file_id, 0u);
+    const std::vector<std::byte> decrypted = decrypt_chunk(ciphertext, key, file_id, 0u);
+
+    EXPECT_EQ(decrypted, empty);
+}
+
+TEST(Crypto, Decrypt_TooSmallBufferThrows) {
+    const std::vector<std::byte> tiny = {std::byte{0}, std::byte{1}};
+    const auto key = make_test_key();
+    const auto file_id = make_test_file_id();
+
+    EXPECT_THROW(decrypt_chunk(tiny, key, file_id, 0u), std::runtime_error);
+}
+
+TEST(Crypto, DecryptChunkInto_UndersizedOutputThrows) {
+    const auto key = make_test_key();
+    const auto file_id = make_test_file_id();
+    const std::vector<std::byte> plaintext = make_patterned_data(64);
+
+    const std::vector<std::byte> ciphertext = encrypt_chunk(plaintext, key, file_id, 0u);
+
+    std::vector<std::byte> too_small(1);
+    EXPECT_THROW(decrypt_chunk_into(too_small, ciphertext, key, file_id, 0u), std::runtime_error);
+}
+
+TEST(Crypto, Encrypt_CiphertextDiffersFromPlaintext) {
+    const auto key = make_test_key();
+    const auto file_id = make_test_file_id();
+    const std::vector<std::byte> plaintext = make_patterned_data(256);
+
+    const std::vector<std::byte> ciphertext = encrypt_chunk(plaintext, key, file_id, 0u);
+
+    const std::vector<std::byte> cipher_body(
+        ciphertext.begin() + CRYPTO_PLAIN_SIZE_HEADER, ciphertext.end());
+    EXPECT_NE(cipher_body,
+              std::vector<std::byte>(plaintext.begin(),
+                                     plaintext.begin() + static_cast<std::ptrdiff_t>(
+                                         std::min(plaintext.size(), cipher_body.size()))));
+}
+
+TEST(Crypto, Encrypt_DifferentChunkIndicesProduceDifferentCiphertext) {
+    const auto key = make_test_key();
+    const auto file_id = make_test_file_id();
+    const std::vector<std::byte> plaintext = make_patterned_data(64);
+
+    const std::vector<std::byte> ct0 = encrypt_chunk(plaintext, key, file_id, 0u);
+    const std::vector<std::byte> ct1 = encrypt_chunk(plaintext, key, file_id, 1u);
+
+    EXPECT_NE(ct0, ct1);
+}

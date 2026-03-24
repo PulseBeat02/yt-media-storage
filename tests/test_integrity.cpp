@@ -146,3 +146,36 @@ TEST(Integrity, VerifyPacketCrc_CorruptedPayloadFails) {
 
     EXPECT_FALSE(verify_packet_crc32c(header, payload, crc_offset));
 }
+
+TEST(Integrity, Crc32_EmptyInput) {
+    const std::vector<std::byte> empty;
+    const uint32_t crc = crc32c(empty);
+    const uint32_t crc_again = crc32c(empty);
+    EXPECT_EQ(crc, crc_again);
+}
+
+TEST(Integrity, Crc32_WithCustomSeed) {
+    const std::vector<std::byte> data = bytes_from_string("seed-test");
+    const uint32_t crc_default = crc32c(data, 0);
+    const uint32_t crc_seeded = crc32c(data, 12345);
+    EXPECT_NE(crc_default, crc_seeded);
+}
+
+TEST(Integrity, Sha256_LargeInput) {
+    std::vector<std::byte> large_data(1024 * 1024);
+    for (std::size_t i = 0; i < large_data.size(); ++i) {
+        large_data[i] = static_cast<std::byte>(i & 0xFF);
+    }
+    const Sha256Digest digest = sha256(large_data);
+    const Sha256Digest digest_again = sha256(large_data);
+    EXPECT_EQ(digest, digest_again);
+    EXPECT_EQ(digest.hexValue().size(), 64u);
+}
+
+TEST(Integrity, XXHash_EmptyPayload) {
+    const std::vector<std::byte> header = bytes_from_string("hdr");
+    const std::vector<std::byte> empty_payload;
+    const uint32_t hash = xxhash32_packet(header, empty_payload, 0);
+    const uint32_t hash_again = xxhash32_packet(header, empty_payload, 0);
+    EXPECT_EQ(hash, hash_again);
+}
