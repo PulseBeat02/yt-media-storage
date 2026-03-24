@@ -1,5 +1,5 @@
 // This file is part of yt-media-storage, a tool for encoding media.
-// Copyright (C) Brandon Li <https://brandonli.me/>
+// Copyright (C) 2026 Brandon Li <https://brandonli.me/>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -86,6 +86,8 @@ void VideoEncoder::init_encoder(const std::string &output_path) {
     codec_ctx->gop_size = 30;
     codec_ctx->max_b_frames = 0;
     codec_ctx->pix_fmt = AV_PIX_FMT_GRAY8;
+    codec_ctx->thread_count = 0;
+    codec_ctx->thread_type = FF_THREAD_SLICE;
 
     if (format_ctx->oformat->flags & AVFMT_GLOBALHEADER) {
         codec_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;

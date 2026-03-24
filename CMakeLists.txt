@@ -1,5 +1,5 @@
 # This file is part of yt-media-storage, a tool for encoding media.
-# Copyright (C) Brandon Li <https://brandonli.me/>
+# Copyright (C) 2026 Brandon Li <https://brandonli.me/>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -45,6 +45,8 @@ set(CORE_LINK_LIBS
         PkgConfig::SODIUM
         OpenMP::OpenMP_CXX
 )
+
+option(BUILD_TESTS "Build test suite" OFF)
 
 add_library(media_storage_core STATIC)
 set_target_properties(media_storage_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -93,6 +95,22 @@ else ()
     else ()
         target_compile_options(media_storage_gui PRIVATE -O2 -march=native)
     endif ()
+endif ()
+
+if (BUILD_TESTS)
+    enable_testing()
+    find_package(GTest QUIET)
+    if (NOT GTest_FOUND)
+        include(FetchContent)
+        FetchContent_Declare(
+                googletest
+                GIT_REPOSITORY https://github.com/google/googletest.git
+                GIT_TAG v1.15.2
+        )
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googletest)
+    endif ()
+    add_subdirectory(tests)
 endif ()
 
 include(GNUInstallDirs)

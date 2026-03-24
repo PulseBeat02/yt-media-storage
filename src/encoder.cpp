@@ -1,5 +1,5 @@
 // This file is part of yt-media-storage, a tool for encoding media.
-// Copyright (C) Brandon Li <https://brandonli.me/>
+// Copyright (C) 2026 Brandon Li <https://brandonli.me/>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -162,8 +162,8 @@ Encoder::encode_chunk(
     packets.reserve(packetCount);
 
     for (uint32_t blockId = firstBlockId; blockId <= lastBlockId; ++blockId) {
-        Packet packet;
-        packet.bytes.resize(HEADER_SIZE_V2 + SYMBOL_SIZE_BYTES);
+        packets.emplace_back();
+        auto &packet = packets.back();
 
         auto *payload_dest = reinterpret_cast<uint8_t *>(packet.bytes.data() + HEADER_SIZE_V2);
         uint32_t writeLen = 0;
@@ -182,8 +182,6 @@ Encoder::encode_chunk(
         write_packet_header(
             std::span(packet.bytes.data(), HEADER_SIZE_V2),
             chunk_index, chunkSize, manifest.original_size, symbolSize, numSource, blockId, payloadLen, flags, payload_span);
-
-        packets.push_back(std::move(packet));
     }
 
     wirehair_free(codec);

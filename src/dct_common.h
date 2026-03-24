@@ -1,6 +1,6 @@
 /*
  * This file is part of yt-media-storage, a tool for encoding media.
- * Copyright (C) Brandon Li <https://brandonli.me/>
+ * Copyright (C) 2026 Brandon Li <https://brandonli.me/>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,14 +26,14 @@
 #include <utility>
 
 #if defined(__AVX2__) || defined(__AVX__)
-    #include <immintrin.h>
-    #define DCT_USE_AVX 1
+#include <immintrin.h>
+#define DCT_USE_AVX 1
 #elif defined(__SSE2__) || (defined(_MSC_VER) && (defined(_M_X64) || defined(_M_AMD64)))
-    #include <emmintrin.h>
-    #define DCT_USE_SSE2 1
+#include <emmintrin.h>
+#define DCT_USE_SSE2 1
 #elif defined(__ARM_NEON) || defined(__ARM_NEON__)
-    #include <arm_neon.h>
-    #define DCT_USE_NEON 1
+#include <arm_neon.h>
+#define DCT_USE_NEON 1
 #endif
 
 // simd (used for dot products)
@@ -42,7 +42,7 @@ inline float dot_product_64(const float *a, const float *b) {
     __m256 sum0 = _mm256_setzero_ps();
     __m256 sum1 = _mm256_setzero_ps();
     for (int i = 0; i < 64; i += 16) {
-        sum0 = _mm256_add_ps(sum0, _mm256_mul_ps(_mm256_loadu_ps(a + i),     _mm256_loadu_ps(b + i)));
+        sum0 = _mm256_add_ps(sum0, _mm256_mul_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
         sum1 = _mm256_add_ps(sum1, _mm256_mul_ps(_mm256_loadu_ps(a + i + 8), _mm256_loadu_ps(b + i + 8)));
     }
     sum0 = _mm256_add_ps(sum0, sum1);
@@ -60,9 +60,9 @@ inline float dot_product_64(const float *a, const float *b) {
     __m128 sum2 = _mm_setzero_ps();
     __m128 sum3 = _mm_setzero_ps();
     for (int i = 0; i < 64; i += 16) {
-        sum0 = _mm_add_ps(sum0, _mm_mul_ps(_mm_loadu_ps(a + i),      _mm_loadu_ps(b + i)));
-        sum1 = _mm_add_ps(sum1, _mm_mul_ps(_mm_loadu_ps(a + i + 4),  _mm_loadu_ps(b + i + 4)));
-        sum2 = _mm_add_ps(sum2, _mm_mul_ps(_mm_loadu_ps(a + i + 8),  _mm_loadu_ps(b + i + 8)));
+        sum0 = _mm_add_ps(sum0, _mm_mul_ps(_mm_loadu_ps(a + i), _mm_loadu_ps(b + i)));
+        sum1 = _mm_add_ps(sum1, _mm_mul_ps(_mm_loadu_ps(a + i + 4), _mm_loadu_ps(b + i + 4)));
+        sum2 = _mm_add_ps(sum2, _mm_mul_ps(_mm_loadu_ps(a + i + 8), _mm_loadu_ps(b + i + 8)));
         sum3 = _mm_add_ps(sum3, _mm_mul_ps(_mm_loadu_ps(a + i + 12), _mm_loadu_ps(b + i + 12)));
     }
     sum0 = _mm_add_ps(_mm_add_ps(sum0, sum1), _mm_add_ps(sum2, sum3));
@@ -80,9 +80,9 @@ inline float dot_product_64(const float *a, const float *b) {
     float32x4_t sum2 = vdupq_n_f32(0.0f);
     float32x4_t sum3 = vdupq_n_f32(0.0f);
     for (int i = 0; i < 64; i += 16) {
-        sum0 = vmlaq_f32(sum0, vld1q_f32(a + i),      vld1q_f32(b + i));
-        sum1 = vmlaq_f32(sum1, vld1q_f32(a + i + 4),  vld1q_f32(b + i + 4));
-        sum2 = vmlaq_f32(sum2, vld1q_f32(a + i + 8),  vld1q_f32(b + i + 8));
+        sum0 = vmlaq_f32(sum0, vld1q_f32(a + i), vld1q_f32(b + i));
+        sum1 = vmlaq_f32(sum1, vld1q_f32(a + i + 4), vld1q_f32(b + i + 4));
+        sum2 = vmlaq_f32(sum2, vld1q_f32(a + i + 8), vld1q_f32(b + i + 8));
         sum3 = vmlaq_f32(sum3, vld1q_f32(a + i + 12), vld1q_f32(b + i + 12));
     }
     sum0 = vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3));

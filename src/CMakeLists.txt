@@ -1,5 +1,5 @@
 # This file is part of yt-media-storage, a tool for encoding media.
-# Copyright (C) Brandon Li <https://brandonli.me/>
+# Copyright (C) 2026 Brandon Li <https://brandonli.me/>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

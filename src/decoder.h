@@ -1,6 +1,6 @@
 /*
  * This file is part of yt-media-storage, a tool for encoding media.
- * Copyright (C) Brandon Li <https://brandonli.me/>
+ * Copyright (C) 2026 Brandon Li <https://brandonli.me/>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 #include <span>
 #include <vector>
 
+#include "configuration.h"
 #include "integrity.h"
 
 struct PacketHeader {
@@ -47,6 +48,7 @@ struct PacketHeader {
 struct DecodedPacket {
     PacketHeader header;
     std::vector<std::byte> payload;
+    std::array<std::byte, HEADER_SIZE_V2> raw_header{};
 };
 
 struct ChunkDecodeResult {
@@ -105,9 +107,9 @@ public:
 
     [[nodiscard]] static bool validate_raw_packet_crc(std::span<const std::byte> packet_data);
 
-    [[nodiscard]] std::optional<ChunkDecodeResult> process_packet(std::span<const std::byte> packet_data);
+    [[nodiscard]] std::optional<ChunkDecodeResult> process_packet(std::span<const std::byte> packet_data, bool compute_sha256 = true);
 
-    [[nodiscard]] std::optional<ChunkDecodeResult> process_packet(const DecodedPacket &packet);
+    [[nodiscard]] std::optional<ChunkDecodeResult> process_packet(const DecodedPacket &packet, bool compute_sha256 = true);
 
     [[nodiscard]] bool is_chunk_complete(uint32_t chunk_index) const;
 

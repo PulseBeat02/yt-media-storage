@@ -1,6 +1,6 @@
 /*
  * This file is part of yt-media-storage, a tool for encoding media.
- * Copyright (C) Brandon Li <https://brandonli.me/>
+ * Copyright (C) 2026 Brandon Li <https://brandonli.me/>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include <array>
 #include <cstring>
 #include <filesystem>
+#include <omp.h>
 #include <span>
 #include <string>
 
@@ -84,9 +85,17 @@ ms_status_t ms_encode(const ms_encode_options_t *options, ms_result_t *result) {
     try {
         VideoEncoder video_encoder(output_path);
 
-        for (std::size_t i = 0; i < num_chunks; ++i) {
+        const int batch_size = std::max(1, omp_get_max_threads());
+
+        for (std::size_t batch_start = 0; batch_start < num_chunks;
+             batch_start += batch_size) {
+            const std::size_t batch_end =
+                std::min(batch_start + static_cast<std::size_t>(batch_size),
+                         num_chunks);
+            const int batch_count = static_cast<int>(batch_end - batch_start);
+
             if (options->progress) {
-                if (options->progress(static_cast<uint64_t>(i),
+                if (options->progress(static_cast<uint64_t>(batch_start),
                                       static_cast<uint64_t>(num_chunks),
                                       options->progress_user) != 0) {
                     if (encrypt) secure_zero(std::span<std::byte>(key));
@@ -94,20 +103,46 @@ ms_status_t ms_encode(const ms_encode_options_t *options, ms_result_t *result) {
                 }
             }
 
-            auto chunk_data = reader.read_chunk(i);
-            std::span<const std::byte> data_to_encode(chunk_data);
-            std::vector<std::byte> encrypted_buf;
-            if (encrypt) {
-                encrypted_buf = encrypt_chunk(data_to_encode, key, file_id,
-                                              static_cast<uint32_t>(i));
-                data_to_encode = encrypted_buf;
+            std::vector<std::vector<std::byte>> chunk_datas(batch_count);
+            for (int j = 0; j < batch_count; ++j) {
+                chunk_datas[j] = reader.read_chunk(batch_start + j);
             }
-            const bool is_last = (i == num_chunks - 1);
-            auto [chunk_packets, manifest] =
-                encoder.encode_chunk(static_cast<uint32_t>(i), data_to_encode,
-                                     is_last, encrypt);
-            total_packets += chunk_packets.size();
-            video_encoder.encode_packets(chunk_packets);
+
+            std::vector<std::pair<std::vector<Packet>, ChunkManifestEntry>>
+                results(batch_count);
+            bool batch_error = false;
+
+#pragma omp parallel for schedule(dynamic)
+            for (int j = 0; j < batch_count; ++j) {
+                if (batch_error) continue;
+                try {
+                    const std::size_t i = batch_start + j;
+                    std::span<const std::byte> data_to_encode(chunk_datas[j]);
+                    std::vector<std::byte> encrypted_buf;
+                    if (encrypt) {
+                        encrypted_buf = encrypt_chunk(
+                            data_to_encode, key, file_id,
+                            static_cast<uint32_t>(i));
+                        data_to_encode = encrypted_buf;
+                    }
+                    const bool is_last = (i == num_chunks - 1);
+                    results[j] = encoder.encode_chunk(
+                        static_cast<uint32_t>(i), data_to_encode,
+                        is_last, encrypt);
+                } catch (...) {
+                    batch_error = true;
+                }
+            }
+
+            if (batch_error) {
+                if (encrypt) secure_zero(std::span<std::byte>(key));
+                return MS_ERR_ENCODE_FAILED;
+            }
+
+            for (int j = 0; j < batch_count; ++j) {
+                total_packets += results[j].first.size();
+                video_encoder.encode_packets(results[j].first);
+            }
         }
 
         video_encoder.finalize();
@@ -183,7 +218,7 @@ ms_status_t ms_decode(const ms_decode_options_t *options, ms_result_t *result) {
                 }
 
                 const std::span<const std::byte> data(pkt_data.data(), pkt_data.size());
-                if (auto res = decoder.process_packet(data);
+                if (auto res = decoder.process_packet(data, false);
                     res && res->success) {
                     ++decoded_chunks;
                 }

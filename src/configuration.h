@@ -1,6 +1,6 @@
 /*
  * This file is part of yt-media-storage, a tool for encoding media.
- * Copyright (C) Brandon Li <https://brandonli.me/>
+ * Copyright (C) 2026 Brandon Li <https://brandonli.me/>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -85,6 +85,7 @@ constexpr size_t HEADER_SIZE = CRC_OFF + CRC_SIZE;
 constexpr size_t ORIGINAL_SIZE_OFF = PAYLOAD_LEN_OFF + PAYLOAD_LEN_SIZE;
 constexpr size_t CRC_OFF_V2 = ORIGINAL_SIZE_OFF + ORIGINAL_SIZE_SIZE;
 constexpr size_t HEADER_SIZE_V2 = CRC_OFF_V2 + CRC_SIZE;
+constexpr size_t PACKET_SIZE = HEADER_SIZE_V2 + SYMBOL_SIZE_BYTES;
 
 // Frame Layout
 struct FrameLayout {
