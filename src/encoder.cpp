@@ -162,8 +162,8 @@ Encoder::encode_chunk(
     packets.reserve(packetCount);
 
     for (uint32_t blockId = firstBlockId; blockId <= lastBlockId; ++blockId) {
-        Packet packet;
-        packet.bytes.resize(HEADER_SIZE_V2 + SYMBOL_SIZE_BYTES);
+        packets.emplace_back();
+        auto &packet = packets.back();
 
         auto *payload_dest = reinterpret_cast<uint8_t *>(packet.bytes.data() + HEADER_SIZE_V2);
         uint32_t writeLen = 0;
@@ -182,8 +182,6 @@ Encoder::encode_chunk(
         write_packet_header(
             std::span(packet.bytes.data(), HEADER_SIZE_V2),
             chunk_index, chunkSize, manifest.original_size, symbolSize, numSource, blockId, payloadLen, flags, payload_span);
-
-        packets.push_back(std::move(packet));
     }
 
     wirehair_free(codec);

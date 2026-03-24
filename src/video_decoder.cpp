@@ -76,6 +76,9 @@ void VideoDecoder::init_decoder(const std::string &input_path) {
         throw std::runtime_error("Failed to copy codec parameters");
     }
 
+    codec_ctx_->thread_count = 0;
+    codec_ctx_->thread_type = FF_THREAD_SLICE;
+
     ret = avcodec_open2(codec_ctx_, codec, nullptr);
     if (ret < 0) {
         throw std::runtime_error("Failed to open codec");
@@ -199,38 +202,27 @@ std::size_t get_packet_size(const std::span<const std::byte> data) {
                : (HEADER_SIZE + SYMBOL_SIZE_BYTES);
 }
 
-namespace {
-    constexpr std::array<std::byte, 4> MAGIC_BYTES{
-        static_cast<std::byte>(MAGIC_ID),
-        static_cast<std::byte>(MAGIC_ID >> 8),
-        static_cast<std::byte>(MAGIC_ID >> 16),
-        static_cast<std::byte>(MAGIC_ID >> 24),
-    };
-}
-
 void VideoDecoder::extract_packets_from_buffer(std::vector<std::byte> &accumulated,
                                                std::vector<std::vector<std::byte> > &out_packets) {
     std::size_t offset = 0;
+
     while (offset + 4 <= accumulated.size()) {
-        auto it = std::search(accumulated.begin() + static_cast<std::ptrdiff_t>(offset),
-                              accumulated.end(),
-                              MAGIC_BYTES.begin(), MAGIC_BYTES.end());
-        if (it == accumulated.end()) {
-            break;
+        uint32_t magic = 0;
+        std::memcpy(&magic, accumulated.data() + offset, sizeof(magic));
+        if (magic == MAGIC_ID) {
+            const std::size_t pkt_size = get_packet_size(
+                std::span<const std::byte>(accumulated.data() + offset,
+                                           accumulated.size() - offset));
+            if (offset + pkt_size > accumulated.size()) break;
+            out_packets.emplace_back(
+                accumulated.begin() + static_cast<std::ptrdiff_t>(offset),
+                accumulated.begin() + static_cast<std::ptrdiff_t>(offset + pkt_size));
+            offset += pkt_size;
+        } else {
+            ++offset;
         }
-        offset = static_cast<std::size_t>(std::distance(accumulated.begin(), it));
-        const std::size_t packet_size = get_packet_size(
-            std::span<const std::byte>(accumulated.data() + offset,
-                                       accumulated.size() - offset));
-        if (offset + packet_size > accumulated.size()) {
-            break;
-        }
-        std::vector<std::byte> packet(
-            accumulated.begin() + static_cast<std::ptrdiff_t>(offset),
-            accumulated.begin() + static_cast<std::ptrdiff_t>(offset + packet_size));
-        out_packets.push_back(std::move(packet));
-        offset += packet_size;
     }
+
     accumulated.erase(accumulated.begin(),
                       accumulated.begin() + static_cast<std::ptrdiff_t>(offset));
 }

@@ -20,6 +20,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <span>
@@ -58,4 +59,5 @@ private:
     std::size_t file_size_;
     std::size_t chunk_size_;
     std::size_t num_chunks_;
+    mutable std::ifstream file_;
 };

@@ -85,6 +85,7 @@ constexpr size_t HEADER_SIZE = CRC_OFF + CRC_SIZE;
 constexpr size_t ORIGINAL_SIZE_OFF = PAYLOAD_LEN_OFF + PAYLOAD_LEN_SIZE;
 constexpr size_t CRC_OFF_V2 = ORIGINAL_SIZE_OFF + ORIGINAL_SIZE_SIZE;
 constexpr size_t HEADER_SIZE_V2 = CRC_OFF_V2 + CRC_SIZE;
+constexpr size_t PACKET_SIZE = HEADER_SIZE_V2 + SYMBOL_SIZE_BYTES;
 
 // Frame Layout
 struct FrameLayout {

@@ -25,10 +25,11 @@
 #include <utility>
 #include <vector>
 
+#include "configuration.h"
 #include "integrity.h"
 
 struct Packet {
-    std::vector<std::byte> bytes;
+    std::array<std::byte, PACKET_SIZE> bytes{};
 };
 
 struct ChunkManifestEntry {
