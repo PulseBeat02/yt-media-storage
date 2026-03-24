@@ -70,7 +70,7 @@ brew install cmake qt@6 ffmpeg libsodium libomp
 ### Windows (vcpkg)
 
 ```powershell
-vcpkg install ffmpeg libsodium openmp qt6
+vcpkg install ffmpeg libsodium openmp qt6 gtest
 ```
 
 Or install Qt6 separately via the [Qt Online Installer](https://www.qt.io/download-qt-installer) and FFmpeg/libsodium
@@ -79,7 +79,6 @@ via vcpkg.
 ## Building
 
 ```bash
-mkdir build
 cmake -B build
 cmake --build build
 ```
@@ -89,6 +88,22 @@ This produces two executables and one shared library:
 - `media_storage` — Command-line interface
 - `media_storage_gui` — Graphical user interface
 - `libmedia_storage.so` / `media_storage.dll` — Embeddable shared library
+
+## Testing
+
+Tests use [Google Test](https://github.com/google/googletest).
+
+```bash
+cmake -B build -DBUILD_TESTS=ON
+cmake --build build
+ctest --test-dir build
+```
+
+Or run the test binary directly for verbose output:
+
+```bash
+./build/tests/media_storage_tests
+```
 
 ## Usage
 
