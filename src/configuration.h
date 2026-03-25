@@ -33,10 +33,10 @@ constexpr size_t CHUNK_SIZE_BYTES = 1024ull * 1024ull; // 1 MiB
 constexpr size_t CRYPTO_AEAD_TAG_BYTES = 16;
 inline constexpr size_t CHUNK_SIZE_PLAIN_MAX_ENCRYPTED = CHUNK_SIZE_BYTES - 4 - CRYPTO_AEAD_TAG_BYTES;
 constexpr size_t SYMBOL_SIZE_BYTES = 256;
-constexpr double REPAIR_OVERHEAD = 1.00;
+constexpr double REPAIR_OVERHEAD = 5.00;
 constexpr bool INCLUDE_SOURCE = true;
 constexpr int BITS_PER_BLOCK = 1;
-constexpr double COEFFICIENT_STRENGTH = 150.0;
+constexpr double COEFFICIENT_STRENGTH = 500.0;
 
 enum Flags : uint8_t {
     None = 0,
