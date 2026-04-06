@@ -213,7 +213,9 @@ ms_status_t ms_decode(const ms_decode_options_t *options, ms_result_t *result) {
             for (auto &pkt_data : frame_packets) {
                 ++total_extracted;
 
-                if (pkt_data.size() >= HEADER_SIZE) {
+                if (pkt_data.size() >= HEADER_SIZE &&
+                    Decoder::validate_raw_packet_crc(
+                        std::span<const std::byte>(pkt_data.data(), pkt_data.size()))) {
                     const auto flags = static_cast<uint8_t>(pkt_data[FLAGS_OFF]);
                     uint32_t chunk_idx = 0;
                     std::memcpy(&chunk_idx, pkt_data.data() + CHUNK_INDEX_OFF,
@@ -470,7 +472,9 @@ ms_status_t ms_stream_decode(const ms_stream_decode_options_t *options, ms_resul
             for (auto &pkt_data : frame_packets) {
                 ++total_extracted;
 
-                if (pkt_data.size() >= HEADER_SIZE) {
+                if (pkt_data.size() >= HEADER_SIZE &&
+                    Decoder::validate_raw_packet_crc(
+                        std::span<const std::byte>(pkt_data.data(), pkt_data.size()))) {
                     const auto flags = static_cast<uint8_t>(pkt_data[FLAGS_OFF]);
                     uint32_t chunk_idx = 0;
                     std::memcpy(&chunk_idx, pkt_data.data() + CHUNK_INDEX_OFF,
