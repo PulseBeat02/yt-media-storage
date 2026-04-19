@@ -4,7 +4,9 @@
 
 # Media Storage
 
-**Explanation Video**: https://youtu.be/l03Os5uwWmk?si=xgZPNMrvs_aDcWE5  
+**Explanation Video**: 
+- https://youtu.be/l03Os5uwWmk?si=xgZPNMrvs_aDcWE5  
+- https://youtu.be/Qmds7-mwCMg?si=04TzoLp7p-LdRyLX
 **YC Hacker News**: https://news.ycombinator.com/item?id=47012964
 
 Stores files onto YouTube by encoding them into lossless video and decoding them back to the original file. Supports
