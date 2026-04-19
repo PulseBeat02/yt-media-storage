@@ -10,8 +10,8 @@
 
 **YC Hacker News**: https://news.ycombinator.com/item?id=47012964
 
-Stores files onto YouTube by encoding them into lossless video and decoding them back to the original file. Supports
-both a command-line interface and a graphical user interface.
+Stores files onto any video or streaming platform (YouTube, Twitch, etc.) by encoding them into lossless video and decoding 
+them back to the original file. Supports both a command-line interface and a graphical user interface.
 
 ## Features
 
