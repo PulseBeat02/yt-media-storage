@@ -1,6 +1,5 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/pulsebeat02/yt-media-storage/badge)](https://www.codefactor.io/repository/github/pulsebeat02/yt-media-storage)
-[![TeamCity Full Build Status](https://img.shields.io/teamcity/build/s/YtMediaStorage_Build?server=https%3A%2F%2Fci.brandonli.me
-)](https://ci.brandonli.me/project/YtMediaStorage)
+[![Build](https://github.com/pulsebeat02/yt-media-storage/actions/workflows/build.yml/badge.svg)](https://github.com/PulseBeat02/yt-media-storage/actions)
 
 # Media Storage
 
