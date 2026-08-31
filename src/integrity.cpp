@@ -17,13 +17,24 @@
 #include "integrity.h"
 #include "configuration.h"
 
-#include "libs/picosha2.h"
 #include "libs/CRC.h"
 #define XXH_INLINE_ALL
 #include "libs/xxhash.h"
 
+#if defined(__APPLE__)
+#include <CommonCrypto/CommonDigest.h>
+#else
+#include "libs/picosha2.h"
+#endif
+
+#include <algorithm>
 #include <array>
 #include <cstring>
+
+static const CRC::Table<uint32_t, 32> &crc32_table() {
+    static const CRC::Table<uint32_t, 32> table = CRC::CRC_32_MPEG2().MakeTable();
+    return table;
+}
 
 static std::string bytes_to_hex(const std::span<const std::byte> inputBytes) {
     std::string hexString(inputBytes.size() * 2, 0);
@@ -43,9 +54,22 @@ std::string Sha256Digest::hexValue() const {
 Sha256Digest sha256(const std::span<const std::byte> data) {
     Sha256Digest digest;
     const auto dataStart = reinterpret_cast<const uint8_t *>(data.data());
-    const auto dataEnd = dataStart + data.size();
     std::array<unsigned char, SHA256_HASH_SIZE> hashBuffer{};
-    picosha2::hash256(dataStart, dataEnd, hashBuffer.begin(), hashBuffer.end());
+#if defined(__APPLE__)
+    CC_SHA256_CTX ctx;
+    CC_SHA256_Init(&ctx);
+    std::size_t remaining = data.size();
+    const uint8_t *cursor = dataStart;
+    while (remaining > 0) {
+        const auto step = static_cast<CC_LONG>(std::min<std::size_t>(remaining, 1u << 30));
+        CC_SHA256_Update(&ctx, cursor, step);
+        cursor += step;
+        remaining -= step;
+    }
+    CC_SHA256_Final(hashBuffer.data(), &ctx);
+#else
+    picosha2::hash256(dataStart, dataStart + data.size(), hashBuffer.begin(), hashBuffer.end());
+#endif
     for (size_t byteIndex = 0; byteIndex < SHA256_HASH_SIZE; ++byteIndex) {
         digest.bytes[byteIndex] = std::byte{hashBuffer[byteIndex]};
     }
@@ -53,6 +77,7 @@ Sha256Digest sha256(const std::span<const std::byte> data) {
 }
 
 uint32_t crc32c(const std::span<const std::byte> data, const uint32_t seed) {
+    const auto &table = crc32_table();
     if (seed != 0) {
         const uint8_t seedBytes[4] = {
             static_cast<uint8_t>(seed & 0xFFu),
@@ -60,20 +85,18 @@ uint32_t crc32c(const std::span<const std::byte> data, const uint32_t seed) {
             static_cast<uint8_t>((seed >> 16) & 0xFFu),
             static_cast<uint8_t>((seed >> 24) & 0xFFu)
         };
-        const auto &table = CRC::CRC_32_MPEG2();
         uint32_t crc = CRC::Calculate(seedBytes, 4, table);
         crc = CRC::Calculate(data.data(),
                              data.size(), table, crc);
         return crc;
     }
-    const auto dataPointer = reinterpret_cast<const uint8_t *>(data.data());
-    return CRC::Calculate(dataPointer, data.size(), CRC::CRC_32_MPEG2());
+    return CRC::Calculate(data.data(), data.size(), table);
 }
 
 uint32_t crc32c_concat(const std::span<const std::byte> first,
                        const std::span<const std::byte> second,
                        uint32_t /*unused_seed*/) {
-    const auto &table = CRC::CRC_32_MPEG2();
+    const auto &table = crc32_table();
     uint32_t crc = CRC::Calculate(first.data(),
                                   first.size(), table);
     crc = CRC::Calculate(second.data(),
@@ -85,7 +108,7 @@ uint32_t packet_crc32c(const std::span<const std::byte> header,
                        const std::span<const std::byte> payload,
                        const std::size_t crc_offset,
                        const std::size_t crc_size) {
-    const auto &table = CRC::CRC_32_MPEG2();
+    const auto &table = crc32_table();
     const auto *hdr = reinterpret_cast<const uint8_t *>(header.data());
     uint32_t crc = CRC::Calculate(hdr, crc_offset, table);
     if (crc_size == 4) {

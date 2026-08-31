@@ -315,18 +315,19 @@ static std::optional<ParsedPacketView> parse_and_validate_packet(const std::span
     return result;
 }
 
-std::optional<ChunkDecodeResult> Decoder::process_packet(const std::span<const std::byte> packet_data, const bool compute_sha256) {
-    ++total_packets_;
-
-    const auto parsed = parse_and_validate_packet(packet_data);
-    if (!parsed) {
-        return std::nullopt;
-    }
-
-    const PacketHeader &hdr = parsed->header;
+std::optional<ChunkDecodeResult> Decoder::handle_validated_packet(const PacketHeader &hdr,
+                                                                  const std::span<const std::byte> payload,
+                                                                  const bool compute_sha256) {
     if (!id) {
         id = hdr.file_id;
         encrypted_ = (hdr.flags & Encrypted) != 0;
+    }
+
+    if (hdr.chunk_index > max_chunk_index_) {
+        max_chunk_index_ = hdr.chunk_index;
+    }
+    if (hdr.flags & LastChunk) {
+        last_chunk_index_ = hdr.chunk_index;
     }
 
     if (hdr.chunk_index < completed_chunks.size() && completed_chunks[hdr.chunk_index].has_value()) {
@@ -340,7 +341,7 @@ std::optional<ChunkDecodeResult> Decoder::process_packet(const std::span<const s
         active_decoders[hdr.chunk_index].emplace(hdr.chunk_index, hdr.chunk_size, hdr.k, hdr.symbol_size);
     }
 
-    if (ChunkDecoder &decoder = *active_decoders[hdr.chunk_index]; decoder.add_packet(hdr.esi, parsed->payload)) {
+    if (ChunkDecoder &decoder = *active_decoders[hdr.chunk_index]; decoder.add_packet(hdr.esi, payload)) {
         ChunkDecodeResult result;
         result.chunk_index = hdr.chunk_index;
         result.data = decoder.consume_decoded_data();
@@ -363,52 +364,26 @@ std::optional<ChunkDecodeResult> Decoder::process_packet(const std::span<const s
     return std::nullopt;
 }
 
+std::optional<ChunkDecodeResult> Decoder::process_packet(const std::span<const std::byte> packet_data, const bool compute_sha256) {
+    ++total_packets_;
+
+    const auto parsed = parse_and_validate_packet(packet_data);
+    if (!parsed) {
+        return std::nullopt;
+    }
+
+    return handle_validated_packet(parsed->header, parsed->payload, compute_sha256);
+}
+
 std::optional<ChunkDecodeResult> Decoder::process_packet(const DecodedPacket &packet, const bool compute_sha256) {
     ++total_packets_;
     if (!validate_packet_crc(packet)) {
         return std::nullopt;
     }
 
-    const PacketHeader &hdr = packet.header;
-    if (!id) {
-        id = hdr.file_id;
-        encrypted_ = (hdr.flags & Encrypted) != 0;
-    }
-
-    if (hdr.chunk_index < completed_chunks.size() && completed_chunks[hdr.chunk_index].has_value()) {
-        return std::nullopt;
-    }
-
-    if (hdr.chunk_index >= active_decoders.size()) {
-        active_decoders.resize(hdr.chunk_index + 1);
-    }
-    if (!active_decoders[hdr.chunk_index].has_value()) {
-        active_decoders[hdr.chunk_index].emplace(hdr.chunk_index, hdr.chunk_size, hdr.k, hdr.symbol_size);
-    }
-
-    ChunkDecoder &decoder = *active_decoders[hdr.chunk_index];
-    if (const std::span payloadSpan(packet.payload.data(), packet.payload.size()); decoder.add_packet(
-        hdr.esi, payloadSpan)) {
-        ChunkDecodeResult result;
-        result.chunk_index = hdr.chunk_index;
-        result.data = decoder.consume_decoded_data();
-        const uint32_t copy_len = std::min(static_cast<uint32_t>(result.data.size()), hdr.original_size);
-        result.data.resize(copy_len);
-        if (compute_sha256) {
-            result.sha256 = sha256(std::span<const std::byte>(result.data.data(), result.data.size()));
-        }
-        result.success = true;
-        if (hdr.chunk_index >= completed_chunks.size()) {
-            completed_chunks.resize(hdr.chunk_index + 1);
-        }
-        completed_chunks[hdr.chunk_index] = std::move(result.data);
-        ++completed_count_;
-        active_decoders[hdr.chunk_index].reset();
-
-        return result;
-    }
-
-    return std::nullopt;
+    return handle_validated_packet(packet.header,
+                                   std::span(packet.payload.data(), packet.payload.size()),
+                                   compute_sha256);
 }
 
 bool Decoder::is_chunk_complete(const uint32_t chunk_index) const {

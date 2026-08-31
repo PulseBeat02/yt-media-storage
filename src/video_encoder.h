@@ -19,6 +19,7 @@
 #pragma once
 
 #include <cstddef>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,22 @@ extern "C" {
 
 #include "configuration.h"
 #include "encoder.h"
+
+inline void ensure_fresh_writable_frame(AVFrame *frame) {
+    if (av_frame_is_writable(frame)) {
+        return;
+    }
+    const int format = frame->format;
+    const int width = frame->width;
+    const int height = frame->height;
+    av_frame_unref(frame);
+    frame->format = format;
+    frame->width = width;
+    frame->height = height;
+    if (av_frame_get_buffer(frame, 0) < 0) {
+        throw std::runtime_error("Failed to allocate frame buffer");
+    }
+}
 
 FrameLayout compute_frame_layout();
 

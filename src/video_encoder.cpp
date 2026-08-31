@@ -157,7 +157,7 @@ void VideoEncoder::embed_data_in_frame(const std::vector<std::byte> &data) const
     const auto &patterns = get_precomputed_blocks().patterns;
 #endif
 
-    av_frame_make_writable(frame);
+    ensure_fresh_writable_frame(frame);
 
     const std::size_t total_bits = data.size() * 8;
     const int total_blocks = layout_.blocks_per_row * layout_.blocks_per_col;
@@ -169,7 +169,8 @@ void VideoEncoder::embed_data_in_frame(const std::vector<std::byte> &data) const
 
     uint8_t *dst_base = frame->data[0];
     const int dst_stride = frame->linesize[0];
-    for (int y = 0; y < FRAME_HEIGHT; ++y)
+    const int first_uncovered_row = (active_blocks / blocks_per_row) * 8;
+    for (int y = first_uncovered_row; y < FRAME_HEIGHT; ++y)
         std::memset(dst_base + y * dst_stride, 128, FRAME_WIDTH);
 
 #pragma omp parallel for schedule(static)
@@ -202,14 +203,9 @@ void VideoEncoder::embed_data_in_frame(const std::vector<std::byte> &data) const
 }
 
 void VideoEncoder::encode_frame() {
-    int ret = av_frame_make_writable(frame);
-    if (ret < 0) {
-        throw std::runtime_error("Frame not writable");
-    }
-
     frame->pts = frame_index++;
 
-    ret = avcodec_send_frame(codec_ctx, frame);
+    int ret = avcodec_send_frame(codec_ctx, frame);
     if (ret < 0) {
         throw std::runtime_error("Error sending frame");
     }

@@ -120,6 +120,10 @@ public:
 
     [[nodiscard]] size_t chunks_completed() const { return completed_count_; }
 
+    [[nodiscard]] uint32_t max_chunk_index() const { return max_chunk_index_; }
+
+    [[nodiscard]] std::optional<uint32_t> last_chunk_index() const { return last_chunk_index_; }
+
     [[nodiscard]] std::vector<uint32_t> completed_chunk_indices() const;
 
     [[nodiscard]] std::optional<std::vector<std::byte> > assemble_file(uint32_t expected_chunks) const;
@@ -133,6 +137,10 @@ public:
     [[nodiscard]] bool is_encrypted() const { return encrypted_; }
 
 private:
+    std::optional<ChunkDecodeResult> handle_validated_packet(const PacketHeader &hdr,
+                                                             std::span<const std::byte> payload,
+                                                             bool compute_sha256);
+
     std::optional<FileId> id;
     bool encrypted_ = false;
     std::array<std::byte, 32> decrypt_key_{};
@@ -141,4 +149,6 @@ private:
     std::vector<std::optional<std::vector<std::byte> > > completed_chunks;
     size_t completed_count_ = 0;
     size_t total_packets_ = 0;
+    uint32_t max_chunk_index_ = 0;
+    std::optional<uint32_t> last_chunk_index_;
 };

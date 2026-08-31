@@ -159,39 +159,40 @@ void VideoDecoder::extract_data_into(std::vector<std::byte> &dest) const {
     std::memset(out, 0, total_bytes);
 
     if constexpr (BITS_PER_BLOCK == 1) {
+        static constexpr int16_t PROJ[4] = {8035, 6811, 4551, 1598};
+
 #pragma omp parallel for schedule(static)
         for (int byte_idx = 0; byte_idx < total_bytes; ++byte_idx) {
             uint8_t current_byte = 0;
             for (int sub = 0; sub < 8; ++sub) {
-                constexpr int32_t C0 = 8035; // round(cos(1*pi/16) * 8192)
-                constexpr int32_t C1 = 6811; // round(cos(3*pi/16) * 8192)
-                constexpr int32_t C2 = 4551; // round(cos(5*pi/16) * 8192)
-                constexpr int32_t C3 = 1598; // round(cos(7*pi/16) * 8192)
-
                 const int block_idx = byte_idx * 8 + sub;
                 const int block_row = block_idx / blocks_per_row;
                 const int block_col = block_idx % blocks_per_row;
-                const int base_x = block_col * 8;
-                const int base_y = block_row * 8;
+                const uint8_t *block = src_base + block_row * 8 * src_stride + block_col * 8;
 
+#if defined(DCT_USE_NEON)
+                uint16x8_t acc = vaddl_u8(vld1_u8(block), vld1_u8(block + src_stride));
+                for (int y = 2; y < 8; ++y) {
+                    acc = vaddw_u8(acc, vld1_u8(block + y * src_stride));
+                }
+                const int16x4_t lo = vreinterpret_s16_u16(vget_low_u16(acc));
+                const int16x4_t hi = vrev64_s16(vreinterpret_s16_u16(vget_high_u16(acc)));
+                const int32x4_t prod = vmull_s16(vsub_s16(lo, hi), vld1_s16(PROJ));
+                const int32_t s = vaddvq_s32(prod);
+#else
                 int col[8] = {0, 0, 0, 0, 0, 0, 0, 0};
                 for (int y = 0; y < 8; ++y) {
-                    const uint8_t *row = src_base + (base_y + y) * src_stride + base_x;
-                    col[0] += row[0];
-                    col[1] += row[1];
-                    col[2] += row[2];
-                    col[3] += row[3];
-                    col[4] += row[4];
-                    col[5] += row[5];
-                    col[6] += row[6];
-                    col[7] += row[7];
+                    const uint8_t *row = block + y * src_stride;
+                    for (int x = 0; x < 8; ++x) {
+                        col[x] += row[x];
+                    }
                 }
-
                 const int32_t s =
-                        C0 * (col[0] - col[7]) +
-                        C1 * (col[1] - col[6]) +
-                        C2 * (col[2] - col[5]) +
-                        C3 * (col[3] - col[4]);
+                        PROJ[0] * (col[0] - col[7]) +
+                        PROJ[1] * (col[1] - col[6]) +
+                        PROJ[2] * (col[2] - col[5]) +
+                        PROJ[3] * (col[3] - col[4]);
+#endif
                 current_byte = static_cast<uint8_t>((current_byte << 1) | (s > 0 ? 1 : 0));
             }
             out[byte_idx] = current_byte;

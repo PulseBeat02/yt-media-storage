@@ -24,6 +24,7 @@
 #include <cstring>
 #include <mutex>
 #include <stdexcept>
+#include <utility>
 
 static std::once_flag ensure_init;
 
@@ -146,10 +147,14 @@ Encoder::encode_chunk(
     const auto* msgData = reinterpret_cast<const uint8_t*>(data_to_encode.data());
     const auto msgSize = static_cast<uint32_t>(data_to_encode.size());
     constexpr auto symbolSizeU32 = static_cast<uint32_t>(SYMBOL_SIZE_BYTES);
-    const WirehairCodec codec = wirehair_encoder_create(nullptr, msgData, msgSize, symbolSizeU32);
+
+    static thread_local WirehairCodec reusable_codec = nullptr;
+    const WirehairCodec codec = wirehair_encoder_create(
+        std::exchange(reusable_codec, nullptr), msgData, msgSize, symbolSizeU32);
     if (!codec) {
         throw std::runtime_error("wirehair_encoder_create() failed");
     }
+    reusable_codec = codec;
 
     const uint32_t repairCount = computeRepairCount(numSource, REPAIR_OVERHEAD);
     constexpr uint32_t firstBlockId = INCLUDE_SOURCE ? 1u : (numSource + 1u);
@@ -168,7 +173,6 @@ Encoder::encode_chunk(
         auto *payload_dest = reinterpret_cast<uint8_t *>(packet.bytes.data() + HEADER_SIZE_V2);
         uint32_t writeLen = 0;
         if (const WirehairResult result = wirehair_encode(codec, blockId, payload_dest, SYMBOL_SIZE_BYTES, &writeLen); result != Wirehair_Success) {
-            wirehair_free(codec);
             throw std::runtime_error("wirehair_encode() failed");
         }
 
@@ -183,8 +187,6 @@ Encoder::encode_chunk(
             std::span(packet.bytes.data(), HEADER_SIZE_V2),
             chunk_index, chunkSize, manifest.original_size, symbolSize, numSource, blockId, payloadLen, flags, payload_span);
     }
-
-    wirehair_free(codec);
 
     return {std::move(packets), manifest};
 }

@@ -61,9 +61,20 @@ void StreamEncoder::init_audio_encoder() {
         throw std::runtime_error("Failed to allocate audio codec context");
     }
 
+#if LIBAVCODEC_VERSION_MAJOR >= 62
+    const enum AVSampleFormat *sample_fmts = nullptr;
+    int num_sample_fmts = 0;
+    avcodec_get_supported_config(nullptr, acodec, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0,
+                                 reinterpret_cast<const void **>(&sample_fmts),
+                                 &num_sample_fmts);
+    audio_codec_ctx_->sample_fmt = (sample_fmts && num_sample_fmts > 0)
+                                       ? sample_fmts[0]
+                                       : AV_SAMPLE_FMT_FLTP;
+#else
     audio_codec_ctx_->sample_fmt = acodec->sample_fmts
                                        ? acodec->sample_fmts[0]
                                        : AV_SAMPLE_FMT_FLTP;
+#endif
     audio_codec_ctx_->sample_rate = 44100;
     audio_codec_ctx_->bit_rate = 128000;
 #if LIBAVUTIL_VERSION_MAJOR >= 57
@@ -261,7 +272,7 @@ void StreamEncoder::embed_data_in_frame(const std::vector<std::byte> &data) cons
     const auto &patterns = get_precomputed_blocks().patterns;
 #endif
 
-    av_frame_make_writable(frame_);
+    ensure_fresh_writable_frame(frame_);
 
     const std::size_t total_bits = data.size() * 8;
     const int total_blocks = layout_.blocks_per_row * layout_.blocks_per_col;
@@ -273,7 +284,8 @@ void StreamEncoder::embed_data_in_frame(const std::vector<std::byte> &data) cons
 
     uint8_t *y_base = frame_->data[0];
     const int y_stride = frame_->linesize[0];
-    for (int y = 0; y < height_; ++y)
+    const int first_uncovered_row = (active_blocks / blocks_per_row) * 8;
+    for (int y = first_uncovered_row; y < height_; ++y)
         std::memset(y_base + y * y_stride, 128, width_);
 
     const int chroma_h = height_ / 2;
@@ -313,14 +325,9 @@ void StreamEncoder::embed_data_in_frame(const std::vector<std::byte> &data) cons
 }
 
 void StreamEncoder::encode_frame() {
-    int ret = av_frame_make_writable(frame_);
-    if (ret < 0) {
-        throw std::runtime_error("Frame not writable");
-    }
-
     frame_->pts = frame_index_++;
 
-    ret = avcodec_send_frame(video_codec_ctx_, frame_);
+    int ret = avcodec_send_frame(video_codec_ctx_, frame_);
     if (ret < 0) {
         throw std::runtime_error("Error sending frame");
     }
