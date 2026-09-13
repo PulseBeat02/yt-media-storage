@@ -16,11 +16,17 @@
 
 #include "integrity.h"
 
-#include "libs/picosha2.h"
 #include "libs/CRC.h"
 #define XXH_INLINE_ALL
 #include "libs/xxhash.h"
 
+#if defined(__APPLE__)
+#include <CommonCrypto/CommonDigest.h>
+#else
+#include "libs/picosha2.h"
+#endif
+
+#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -38,8 +44,9 @@ namespace {
         return hex;
     }
 
-    const auto &crc_table() {
-        return CRC::CRC_32_MPEG2();
+    const CRC::Table<uint32_t, 32> &crc_table() {
+        static const CRC::Table<uint32_t, 32> table = CRC::CRC_32_MPEG2().MakeTable();
+        return table;
     }
 
     uint32_t read_u32_le(const std::span<const std::byte> buffer, const std::size_t offset) {
@@ -58,9 +65,19 @@ std::string Sha256Digest::hex_value() const {
 Sha256Digest sha256(const std::span<const std::byte> data) {
     Sha256Digest digest;
     const auto *begin = reinterpret_cast<const uint8_t *>(data.data());
-    const auto *end = begin + data.size();
     std::array<unsigned char, SHA256_HASH_SIZE> hash{};
-    picosha2::hash256(begin, end, hash.begin(), hash.end());
+#if defined(__APPLE__)
+    CC_SHA256_CTX ctx;
+    CC_SHA256_Init(&ctx);
+    for (std::size_t offset = 0; offset < data.size();) {
+        const auto step = static_cast<CC_LONG>(std::min<std::size_t>(data.size() - offset, 1u << 30));
+        CC_SHA256_Update(&ctx, begin + offset, step);
+        offset += step;
+    }
+    CC_SHA256_Final(hash.data(), &ctx);
+#else
+    picosha2::hash256(begin, begin + data.size(), hash.begin(), hash.end());
+#endif
     for (std::size_t i = 0; i < SHA256_HASH_SIZE; ++i) {
         digest.bytes[i] = std::byte{hash[i]};
     }

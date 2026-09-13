@@ -97,6 +97,10 @@ public:
 
     [[nodiscard]] std::size_t chunks_completed() const { return completed_count_; }
 
+    [[nodiscard]] uint32_t max_chunk_index() const { return max_chunk_index_; }
+
+    [[nodiscard]] std::optional<uint32_t> last_chunk_index() const { return last_chunk_index_; }
+
     [[nodiscard]] std::vector<uint32_t> completed_chunk_indices() const;
 
     [[nodiscard]] std::optional<std::vector<std::byte> > assemble_file(uint32_t expected_chunks) const;
@@ -118,6 +122,8 @@ private:
     std::vector<std::optional<std::vector<std::byte> > > completed_chunks_;
     std::size_t completed_count_ = 0;
     std::size_t total_packets_ = 0;
+    uint32_t max_chunk_index_ = 0;
+    std::optional<uint32_t> last_chunk_index_;
 
     [[nodiscard]] bool ready_to_assemble(uint32_t expected_chunks) const;
 

@@ -16,6 +16,8 @@
 
 #include "stream.h"
 
+#include "av_utils.h"
+
 extern "C" {
 #include <libavutil/opt.h>
 }
@@ -34,12 +36,6 @@ namespace {
     constexpr int64_t AUDIO_BIT_RATE = 128000;
     constexpr int AUDIO_CHANNELS = 2;
     constexpr int KEYFRAME_INTERVAL_SECONDS = 2;
-
-    std::string av_error_string(const int error_code) {
-        char buffer[AV_ERROR_MAX_STRING_SIZE] = {};
-        av_strerror(error_code, buffer, sizeof(buffer));
-        return buffer;
-    }
 
     AVSampleFormat preferred_sample_format(const AVCodec *codec) {
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(61, 13, 100)
@@ -124,12 +120,12 @@ void StreamEncoder::init_stream(const std::string &rtmp_url, const int bitrate_k
 
     ret = avio_open(&format_ctx_->pb, rtmp_url.c_str(), AVIO_FLAG_WRITE);
     if (ret < 0) {
-        throw std::runtime_error("Failed to open RTMP stream: " + av_error_string(ret));
+        throw std::runtime_error("Failed to open RTMP stream: " + ffmpeg_error_string(ret));
     }
 
     ret = avformat_write_header(format_ctx_, nullptr);
     if (ret < 0) {
-        throw std::runtime_error("Failed to write stream header: " + av_error_string(ret));
+        throw std::runtime_error("Failed to write stream header: " + ffmpeg_error_string(ret));
     }
 }
 
@@ -171,7 +167,7 @@ void StreamEncoder::init_video_encoder(const int bitrate_kbps) {
 
     int ret = avcodec_open2(video_codec_ctx_, codec, nullptr);
     if (ret < 0) {
-        throw std::runtime_error("Failed to open libx264 codec: " + av_error_string(ret));
+        throw std::runtime_error("Failed to open libx264 codec: " + ffmpeg_error_string(ret));
     }
 
     ret = avcodec_parameters_from_context(video_stream_->codecpar, video_codec_ctx_);
@@ -224,7 +220,7 @@ void StreamEncoder::init_audio_encoder() {
 
     int ret = avcodec_open2(audio_codec_ctx_, codec, nullptr);
     if (ret < 0) {
-        throw std::runtime_error("Failed to open AAC codec: " + av_error_string(ret));
+        throw std::runtime_error("Failed to open AAC codec: " + ffmpeg_error_string(ret));
     }
 
     ret = avcodec_parameters_from_context(audio_stream_->codecpar, audio_codec_ctx_);
@@ -272,7 +268,7 @@ void StreamEncoder::write_pending_packets(AVCodecContext *codec_ctx, const AVStr
         }
         if (ret < 0) {
             if (ignore_errors) return;
-            throw std::runtime_error("Error receiving packet: " + av_error_string(ret));
+            throw std::runtime_error("Error receiving packet: " + ffmpeg_error_string(ret));
         }
 
         av_packet_rescale_ts(av_packet_, codec_ctx->time_base, stream->time_base);
@@ -281,7 +277,7 @@ void StreamEncoder::write_pending_packets(AVCodecContext *codec_ctx, const AVStr
         const int write_ret = av_interleaved_write_frame(format_ctx_, av_packet_);
         av_packet_unref(av_packet_);
         if (write_ret < 0 && !ignore_errors) {
-            throw std::runtime_error("Error writing frame to stream: " + av_error_string(write_ret));
+            throw std::runtime_error("Error writing frame to stream: " + ffmpeg_error_string(write_ret));
         }
     }
 }
@@ -309,9 +305,7 @@ void StreamEncoder::write_audio_up_to(const int64_t video_pts) {
 }
 
 void StreamEncoder::encode_frame() {
-    if (av_frame_make_writable(frame_) < 0) {
-        throw std::runtime_error("Frame not writable");
-    }
+    ensure_fresh_writable_frame(frame_);
 
     embed_data_into_plane(frame_->data[0], frame_->linesize[0], layout_, frame_data_buffer_);
     const int chroma_height = height_ / 2;
@@ -324,7 +318,7 @@ void StreamEncoder::encode_frame() {
     frame_->pts = frame_index_++;
 
     if (const int ret = avcodec_send_frame(video_codec_ctx_, frame_); ret < 0) {
-        throw std::runtime_error("Error sending frame: " + av_error_string(ret));
+        throw std::runtime_error("Error sending frame: " + ffmpeg_error_string(ret));
     }
     write_pending_packets(video_codec_ctx_, video_stream_, false);
     write_audio_up_to(frame_->pts);
@@ -367,6 +361,6 @@ void StreamEncoder::finalize() {
     flush_frame_buffer();
     flush_encoders();
     if (const int ret = av_write_trailer(format_ctx_); ret < 0) {
-        throw std::runtime_error("Error writing stream trailer: " + av_error_string(ret));
+        throw std::runtime_error("Error writing stream trailer: " + ffmpeg_error_string(ret));
     }
 }

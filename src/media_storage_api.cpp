@@ -186,15 +186,12 @@ namespace {
 
     ms_status_t consume_video(VideoDecoder &video, Decoder &decoder, const ms_progress_fn progress,
                               void *progress_user, DecodeStats &stats) {
-        uint32_t max_chunk_index = 0;
-        bool found_last_chunk = false;
-        uint32_t last_chunk_index = 0;
-
         const int64_t total = video.total_frames();
         const uint64_t total_for_progress = total > 0 ? static_cast<uint64_t>(total) : 0;
 
         while (!video.is_eof()) {
-            if (found_last_chunk && stats.decoded_chunks >= static_cast<std::size_t>(last_chunk_index) + 1) {
+            if (const auto last = decoder.last_chunk_index();
+                last && stats.decoded_chunks >= static_cast<std::size_t>(*last) + 1) {
                 break;
             }
             if (progress && progress(static_cast<uint64_t>(video.frames_read()), total_for_progress,
@@ -204,26 +201,14 @@ namespace {
 
             for (const auto &packet_bytes: video.decode_next_frame()) {
                 ++stats.total_packets;
-                const auto parsed = parse_and_verify_packet(packet_bytes);
-                if (!parsed) {
-                    continue;
-                }
-
-                const uint32_t chunk_index = parsed->header.chunk_index;
-                max_chunk_index = std::max(max_chunk_index, chunk_index);
-                if (parsed->header.flags & FLAG_LAST_CHUNK) {
-                    found_last_chunk = true;
-                    last_chunk_index = chunk_index;
-                }
-
-                if (const auto res = decoder.process_verified_packet(*parsed, false); res && res->success) {
+                if (const auto res = decoder.process_packet(packet_bytes, false); res && res->success) {
                     ++stats.decoded_chunks;
                 }
             }
         }
 
         stats.total_frames = video.frames_read();
-        stats.expected_chunks = (found_last_chunk ? last_chunk_index : max_chunk_index) + 1;
+        stats.expected_chunks = decoder.last_chunk_index().value_or(decoder.max_chunk_index()) + 1;
         return MS_OK;
     }
 

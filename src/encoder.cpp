@@ -95,11 +95,13 @@ Encoder::encode_chunk(
     manifest.num_source_symbols = num_source;
     manifest.sha256 = sha256(chunk_data);
 
-    const WirehairCodecPtr codec(wirehair_encoder_create(
-        nullptr, reinterpret_cast<const uint8_t *>(data_to_encode.data()), chunk_size, symbol_size));
+    static thread_local WirehairCodecPtr reusable_codec;
+    const WirehairCodec codec = wirehair_encoder_create(
+        reusable_codec.release(), reinterpret_cast<const uint8_t *>(data_to_encode.data()), chunk_size, symbol_size);
     if (!codec) {
         throw std::runtime_error("wirehair_encoder_create() failed");
     }
+    reusable_codec.reset(codec);
 
     const uint32_t repair_count = compute_repair_count(num_source, REPAIR_OVERHEAD);
     const uint32_t first_block_id = INCLUDE_SOURCE ? 1u : num_source + 1u;
@@ -120,7 +122,7 @@ Encoder::encode_chunk(
         Packet &packet = packets.emplace_back();
         auto *payload_dest = reinterpret_cast<uint8_t *>(packet.bytes.data() + HEADER_SIZE_V2);
         uint32_t write_len = 0;
-        if (wirehair_encode(codec.get(), block_id, payload_dest, SYMBOL_SIZE_BYTES, &write_len) != Wirehair_Success) {
+        if (wirehair_encode(codec, block_id, payload_dest, SYMBOL_SIZE_BYTES, &write_len) != Wirehair_Success) {
             throw std::runtime_error("wirehair_encode() failed");
         }
 

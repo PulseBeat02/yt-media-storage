@@ -16,17 +16,10 @@
 
 #include "video_encoder.h"
 
+#include "av_utils.h"
 #include "configuration.h"
 
 #include <stdexcept>
-
-namespace {
-    std::string av_error_string(const int error_code) {
-        char buffer[AV_ERROR_MAX_STRING_SIZE] = {};
-        av_strerror(error_code, buffer, sizeof(buffer));
-        return buffer;
-    }
-}
 
 VideoEncoder::VideoEncoder(const std::string &output_path) {
     try {
@@ -95,7 +88,7 @@ void VideoEncoder::init_encoder(const std::string &output_path) {
 
     ret = avcodec_open2(codec_ctx_, codec, nullptr);
     if (ret < 0) {
-        throw std::runtime_error("Failed to open codec: " + av_error_string(ret));
+        throw std::runtime_error("Failed to open codec: " + ffmpeg_error_string(ret));
     }
 
     ret = avcodec_parameters_from_context(stream_->codecpar, codec_ctx_);
@@ -125,12 +118,12 @@ void VideoEncoder::init_encoder(const std::string &output_path) {
 
     ret = avio_open(&format_ctx_->pb, output_path.c_str(), AVIO_FLAG_WRITE);
     if (ret < 0) {
-        throw std::runtime_error("Failed to open output file: " + av_error_string(ret));
+        throw std::runtime_error("Failed to open output file: " + ffmpeg_error_string(ret));
     }
 
     ret = avformat_write_header(format_ctx_, nullptr);
     if (ret < 0) {
-        throw std::runtime_error("Failed to write header: " + av_error_string(ret));
+        throw std::runtime_error("Failed to write header: " + ffmpeg_error_string(ret));
     }
 }
 
@@ -145,7 +138,7 @@ void VideoEncoder::write_pending_packets() {
             return;
         }
         if (ret < 0) {
-            throw std::runtime_error("Error receiving packet: " + av_error_string(ret));
+            throw std::runtime_error("Error receiving packet: " + ffmpeg_error_string(ret));
         }
 
         av_packet_rescale_ts(av_packet_, codec_ctx_->time_base, stream_->time_base);
@@ -154,21 +147,18 @@ void VideoEncoder::write_pending_packets() {
         const int write_ret = av_interleaved_write_frame(format_ctx_, av_packet_);
         av_packet_unref(av_packet_);
         if (write_ret < 0) {
-            throw std::runtime_error("Error writing frame: " + av_error_string(write_ret));
+            throw std::runtime_error("Error writing frame: " + ffmpeg_error_string(write_ret));
         }
     }
 }
 
 void VideoEncoder::encode_frame() {
-    if (av_frame_make_writable(frame_) < 0) {
-        throw std::runtime_error("Frame not writable");
-    }
-
+    ensure_fresh_writable_frame(frame_);
     embed_data_into_plane(frame_->data[0], frame_->linesize[0], layout_, frame_data_buffer_);
     frame_->pts = frame_index_++;
 
     if (const int ret = avcodec_send_frame(codec_ctx_, frame_); ret < 0) {
-        throw std::runtime_error("Error sending frame: " + av_error_string(ret));
+        throw std::runtime_error("Error sending frame: " + ffmpeg_error_string(ret));
     }
     write_pending_packets();
 }
@@ -209,6 +199,6 @@ void VideoEncoder::finalize() {
     flush_frame_buffer();
     flush_encoder();
     if (const int ret = av_write_trailer(format_ctx_); ret < 0) {
-        throw std::runtime_error("Error writing trailer: " + av_error_string(ret));
+        throw std::runtime_error("Error writing trailer: " + ffmpeg_error_string(ret));
     }
 }

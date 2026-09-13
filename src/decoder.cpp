@@ -104,6 +104,11 @@ std::optional<ChunkDecodeResult> Decoder::process_verified_packet(const ParsedPa
         encrypted_ = (hdr.flags & FLAG_ENCRYPTED) != 0;
     }
 
+    max_chunk_index_ = std::max(max_chunk_index_, hdr.chunk_index);
+    if (hdr.flags & FLAG_LAST_CHUNK) {
+        last_chunk_index_ = hdr.chunk_index;
+    }
+
     if (is_chunk_complete(hdr.chunk_index)) {
         return std::nullopt;
     }
