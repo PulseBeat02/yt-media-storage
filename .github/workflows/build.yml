@@ -12,6 +12,16 @@ env:
   VCPKG_BINARY_SOURCES: 'clear;x-gha,readwrite'
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check final newlines
+        shell: bash
+        run: bash scripts/check-final-newline.sh
+
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -160,6 +170,7 @@ jobs:
             -DVCPKG_MANIFEST_MODE=ON \
             -DVCPKG_MANIFEST_FEATURES="$MANIFEST_FEATURES" \
             -DMEDIA_STORAGE_STATIC_BINARIES=ON \
+            -DMEDIA_STORAGE_NATIVE_ARCH=OFF \
             -DBUILD_GUI=${{ matrix.build_gui }} \
             -DBUILD_TESTS=OFF
 
@@ -193,7 +204,7 @@ jobs:
 
   release:
     name: Publish Release
-    needs: build
+    needs: [ lint, build ]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:

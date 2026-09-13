@@ -127,7 +127,7 @@ TEST(Codec, Encoder_LastChunkFlagIsSet) {
     const auto [packets, manifest] = encode_test_data(encoder, input_data, 0, true);
     for (const auto &[bytes]: packets) {
         const auto flags = static_cast<uint8_t>(bytes[FLAGS_OFF]);
-        EXPECT_NE(flags & LastChunk, 0);
+        EXPECT_NE(flags & FLAG_LAST_CHUNK, 0);
     }
 }
 
@@ -137,7 +137,7 @@ TEST(Codec, Encoder_LastChunkFlagNotSetForMiddleChunk) {
     const auto [packets, manifest] = encode_test_data(encoder, input_data, 0, false);
     for (const auto &[bytes]: packets) {
         const auto flags = static_cast<uint8_t>(bytes[FLAGS_OFF]);
-        EXPECT_EQ(flags & LastChunk, 0);
+        EXPECT_EQ(flags & FLAG_LAST_CHUNK, 0);
     }
 }
 
@@ -155,7 +155,7 @@ TEST(Codec, Decoder_ParsesValidPacket) {
     const Encoder encoder(make_test_file_id());
     const auto [packets, manifest] = encode_test_data(encoder, input_data);
 
-    const std::optional<DecodedPacket> parsed = Decoder::parse_packet(packet_span(packets[0]));
+    const std::optional<ParsedPacket> parsed = parse_packet(packet_span(packets[0]));
     ASSERT_TRUE(parsed.has_value());
     EXPECT_EQ(parsed->header.magic, MAGIC_ID);
     EXPECT_EQ(parsed->header.version, VERSION_ID_V2);
@@ -173,7 +173,7 @@ TEST(Codec, Decoder_RejectsInvalidMagic) {
     corrupted_packet[2] = std::byte{0};
     corrupted_packet[3] = std::byte{0};
 
-    const std::optional<DecodedPacket> parsed = Decoder::parse_packet(corrupted_packet);
+    const std::optional<ParsedPacket> parsed = parse_packet(corrupted_packet);
     EXPECT_FALSE(parsed.has_value());
 }
 
@@ -185,7 +185,7 @@ TEST(Codec, Decoder_RejectsTruncatedPacket) {
     const auto &source_bytes = packets[0].bytes;
     const std::vector truncated_packet(source_bytes.begin(), source_bytes.begin() + 100);
 
-    const std::optional<DecodedPacket> parsed = Decoder::parse_packet(truncated_packet);
+    const std::optional<ParsedPacket> parsed = parse_packet(truncated_packet);
     EXPECT_FALSE(parsed.has_value());
 }
 
@@ -194,9 +194,9 @@ TEST(Codec, Decoder_ValidatesCrcOnParsedPacket) {
     const Encoder encoder(make_test_file_id());
     const auto [packets, manifest] = encode_test_data(encoder, input_data);
 
-    const std::optional<DecodedPacket> parsed = Decoder::parse_packet(packet_span(packets[0]));
+    const std::optional<ParsedPacket> parsed = parse_packet(packet_span(packets[0]));
     ASSERT_TRUE(parsed.has_value());
-    EXPECT_TRUE(Decoder::validate_packet_crc(*parsed));
+    EXPECT_TRUE(verify_packet_checksum(*parsed));
 }
 
 TEST(Codec, Decoder_ValidatesCrcOnRawBytes) {
@@ -204,7 +204,7 @@ TEST(Codec, Decoder_ValidatesCrcOnRawBytes) {
     const Encoder encoder(make_test_file_id());
     const auto [packets, manifest] = encode_test_data(encoder, input_data);
 
-    const bool crc_valid = Decoder::validate_raw_packet_crc(packet_span(packets[0]));
+    const bool crc_valid = parse_and_verify_packet(packet_span(packets[0])).has_value();
     EXPECT_TRUE(crc_valid);
 }
 
@@ -217,7 +217,7 @@ TEST(Codec, Decoder_DetectsCorruptedPayload) {
                                  packets[0].bytes.end());
     corrupted_packet[HEADER_SIZE_V2] ^= std::byte{0xFF};
 
-    const bool crc_valid = Decoder::validate_raw_packet_crc(corrupted_packet);
+    const bool crc_valid = parse_and_verify_packet(corrupted_packet).has_value();
     EXPECT_FALSE(crc_valid);
 }
 
@@ -279,7 +279,7 @@ TEST(Codec, Encoder_EncryptedFlagIsSet) {
     const auto [packets, manifest] = encode_test_data(encoder, input_data, 0, false, true);
     for (const auto &[bytes]: packets) {
         const auto flags = static_cast<uint8_t>(bytes[FLAGS_OFF]);
-        EXPECT_NE(flags & Encrypted, 0);
+        EXPECT_NE(flags & FLAG_ENCRYPTED, 0);
     }
 }
 
@@ -403,4 +403,44 @@ TEST(Codec, Decoder_IncompleteChunkNotAccessible) {
 
     EXPECT_FALSE(decoder.is_chunk_complete(0));
     EXPECT_FALSE(decoder.get_chunk_data(0).has_value());
+}
+
+TEST(Codec, Encoder_AllPacketsPassChecksumForUnalignedChunk) {
+    const std::vector<std::byte> input_data = make_test_data(SYMBOL_SIZE_BYTES * 16 + 100);
+    const Encoder encoder(make_test_file_id());
+    const auto [packets, manifest] = encode_test_data(encoder, input_data);
+
+    bool saw_partial_symbol = false;
+    for (const Packet &packet: packets) {
+        const auto parsed = parse_and_verify_packet(packet_span(packet));
+        ASSERT_TRUE(parsed.has_value());
+        saw_partial_symbol |= parsed->header.payload_len < parsed->header.symbol_size;
+    }
+    EXPECT_TRUE(saw_partial_symbol);
+}
+
+TEST(Codec, Decoder_AcceptsLegacyPartialSymbolChecksum) {
+    const std::vector<std::byte> input_data = make_test_data(SYMBOL_SIZE_BYTES * 16 + 100);
+    const Encoder encoder(make_test_file_id());
+    auto [packets, manifest] = encode_test_data(encoder, input_data);
+
+    const auto partial = std::ranges::find_if(packets, [](const Packet &packet) {
+        const auto parsed = parse_packet(packet_span(packet));
+        return parsed && parsed->header.payload_len < parsed->header.symbol_size;
+    });
+    ASSERT_NE(partial, packets.end());
+
+    const PacketHeader header = parse_packet(packet_span(*partial))->header;
+    const std::span<std::byte> bytes(partial->bytes);
+    write_packet_header(bytes.first(HEADER_SIZE_V2), header,
+                        bytes.subspan(HEADER_SIZE_V2, header.payload_len), header.hash_algorithm());
+
+    EXPECT_TRUE(parse_and_verify_packet(packet_span(*partial)).has_value());
+
+    Decoder decoder;
+    const bool decoded = feed_all_packets_to_decoder(decoder, packets);
+    EXPECT_TRUE(decoded);
+    const auto recovered = decoder.get_chunk_data(0);
+    ASSERT_TRUE(recovered.has_value());
+    EXPECT_EQ(*recovered, input_data);
 }

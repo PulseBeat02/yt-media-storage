@@ -19,6 +19,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -27,14 +28,8 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 
-#include "configuration.h"
-#include "encoder.h"
-
-FrameLayout compute_frame_layout();
-
-FrameLayout compute_frame_layout(int width, int height);
-
-std::size_t max_packet_bytes_per_frame();
+#include "frame_layout.h"
+#include "packet_format.h"
 
 class VideoEncoder {
 public:
@@ -56,29 +51,31 @@ public:
 
     void finalize();
 
-    [[nodiscard]] int64_t frames_written() const { return frame_index; }
+    [[nodiscard]] int64_t frames_written() const { return frame_index_; }
 
     [[nodiscard]] static int packets_per_frame();
 
 private:
-    AVFormatContext *format_ctx = nullptr;
-    AVCodecContext *codec_ctx = nullptr;
-    AVStream *stream = nullptr;
-    AVFrame *frame = nullptr;
-    AVPacket *av_packet = nullptr;
+    AVFormatContext *format_ctx_ = nullptr;
+    AVCodecContext *codec_ctx_ = nullptr;
+    AVStream *stream_ = nullptr;
+    AVFrame *frame_ = nullptr;
+    AVPacket *av_packet_ = nullptr;
 
-    std::vector<std::byte> frame_data_buffer;
+    std::vector<std::byte> frame_data_buffer_;
     FrameLayout layout_{};
-    int64_t frame_index = 0;
-    bool finalized = false;
+    int64_t frame_index_ = 0;
+    bool finalized_ = false;
 
     void init_encoder(const std::string &output_path);
 
-    void embed_data_in_frame(const std::vector<std::byte> &data) const;
+    void release();
+
+    void write_pending_packets();
 
     void encode_frame();
 
-    void flush_encoder() const;
-
     void flush_frame_buffer();
+
+    void flush_encoder();
 };

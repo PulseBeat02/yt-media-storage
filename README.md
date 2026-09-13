@@ -105,6 +105,9 @@ This produces two executables and one shared library:
 - `media_storage_gui` — Graphical user interface
 - `libmedia_storage.so` / `media_storage.dll` — Embeddable shared library
 
+By default the core is compiled for the build machine's CPU (`-march=native` / `/arch:AVX2`). Pass
+`-DMEDIA_STORAGE_NATIVE_ARCH=OFF` to produce binaries that run on any CPU of the target architecture.
+
 ## Testing
 
 Tests use [Google Test](https://github.com/google/googletest).
@@ -135,7 +138,7 @@ Or run the test binary directly for verbose output:
 #### Live Streaming (Twitch / YouTube)
 
 ```
-./media_storage stream-encode --input <file> --url <rtmp://...> [--bitrate <kbps>] [--width <w> --height <h>] [--encrypt --password <pwd>]
+./media_storage stream-encode --input <file> --url <rtmp://...> [--bitrate <kbps>] [--width <w> --height <h>] [--fps <n>] [--encrypt --password <pwd>] [--hash <crc32|xxhash>]
 ./media_storage stream-decode --url <stream_url> --output <file> [--password <pwd>]
 ```
 
@@ -234,7 +237,7 @@ int main(void) {
     ms_result_t result;
     ms_status_t status = ms_encode(&opts, &result);
     if (status != MS_OK) {
-        fprintf(stderr, "Error: %s\n", ms_status_string(status));
+        fprintf(stderr, "Error: %s (%s)\n", ms_status_string(status), ms_last_error());
         return 1;
     }
 

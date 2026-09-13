@@ -32,10 +32,6 @@ target_link_libraries(media_storage_tests PRIVATE
         GTest::gtest_main
 )
 
-target_include_directories(media_storage_tests PRIVATE
-        "${CMAKE_SOURCE_DIR}/src"
-)
-
 if (WIN32)
     add_custom_command(TARGET media_storage_tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -46,4 +42,4 @@ if (WIN32)
 endif ()
 
 include(GoogleTest)
-gtest_discover_tests(media_storage_tests)
+gtest_discover_tests(media_storage_tests DISCOVERY_TIMEOUT 60)

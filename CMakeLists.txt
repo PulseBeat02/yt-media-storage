@@ -15,13 +15,14 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 cmake_minimum_required(VERSION 3.22)
-project(media_storage LANGUAGES CXX)
+project(media_storage VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(BUILD_TESTS "Build test suite" OFF)
 option(MEDIA_STORAGE_STATIC_BINARIES "Build fully static executables" OFF)
+option(MEDIA_STORAGE_NATIVE_ARCH "Optimize for the build machine's CPU (binaries may not run on older CPUs)" ON)
 option(BUILD_GUI "Build the Qt GUI executable" ON)
 
 find_package(PkgConfig REQUIRED)
@@ -30,17 +31,16 @@ if (BUILD_GUI)
     find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
 endif ()
 
-# Enable Qt MOC, UIC, and RCC for GUI only
-set(CMAKE_AUTOMOC OFF)
-set(CMAKE_AUTOUIC OFF)
-set(CMAKE_AUTORCC OFF)
-
 pkg_check_modules(AVCODEC REQUIRED IMPORTED_TARGET libavcodec)
 pkg_check_modules(AVFORMAT REQUIRED IMPORTED_TARGET libavformat)
 pkg_check_modules(AVUTIL REQUIRED IMPORTED_TARGET libavutil)
 pkg_check_modules(SWSCALE REQUIRED IMPORTED_TARGET libswscale)
 pkg_check_modules(SWRESAMPLE REQUIRED IMPORTED_TARGET libswresample)
 pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
+
+if (MSVC)
+    add_compile_options(/utf-8)
+endif ()
 
 set(CORE_LINK_LIBS
         PkgConfig::AVCODEC
@@ -59,7 +59,10 @@ if (MEDIA_STORAGE_STATIC_BINARIES)
     add_library(media_storage_lib STATIC)
 else ()
     add_library(media_storage_lib SHARED)
-    target_compile_definitions(media_storage_lib PRIVATE MEDIA_STORAGE_BUILD_SHARED)
+    target_compile_definitions(media_storage_lib
+            PRIVATE MEDIA_STORAGE_BUILD_SHARED
+            INTERFACE MEDIA_STORAGE_SHARED
+    )
 endif ()
 
 add_executable(media_storage)
@@ -72,13 +75,13 @@ target_link_libraries(media_storage_core PUBLIC ${CORE_LINK_LIBS})
 
 target_link_libraries(media_storage_lib PRIVATE $<BUILD_INTERFACE:media_storage_core>)
 target_include_directories(media_storage_lib PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
 set_target_properties(media_storage_lib PROPERTIES
         OUTPUT_NAME media_storage
-        VERSION 1.0.0
-        SOVERSION 1
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
 )
 
 target_link_libraries(media_storage PRIVATE media_storage_lib)
@@ -88,6 +91,7 @@ if (BUILD_GUI)
             Qt6::Core
             Qt6::Widgets
     )
+    set_target_properties(media_storage_gui PROPERTIES AUTOMOC ON)
 endif ()
 
 if (MEDIA_STORAGE_STATIC_BINARIES)
@@ -110,31 +114,16 @@ if (MEDIA_STORAGE_STATIC_BINARIES)
     endif ()
 endif ()
 
-if (BUILD_GUI)
-    set_target_properties(media_storage_gui PROPERTIES AUTOMOC ON AUTOUIC ON)
-endif ()
-if (MSVC)
-    set(_msvc_arch_flags "")
-    if (CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64|X86|x86|i[36]86")
-        set(_msvc_arch_flags "/arch:AVX2")
-    endif ()
-    target_compile_options(media_storage_core PRIVATE
-            $<$<CONFIG:Release>:/O2>
-            ${_msvc_arch_flags}
-    )
-    if (BUILD_GUI)
-        target_compile_options(media_storage_gui PRIVATE
-                $<$<CONFIG:Release>:/O2>
-                ${_msvc_arch_flags}
-        )
-    endif ()
-else ()
-    target_compile_options(media_storage_core PRIVATE -march=native)
-    if (BUILD_GUI)
-        if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i386")
-            target_compile_options(media_storage_gui PRIVATE -O2 -mssse3)
-        else ()
-            target_compile_options(media_storage_gui PRIVATE -O2 -march=native)
+if (MEDIA_STORAGE_NATIVE_ARCH)
+    if (MSVC)
+        if (CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64|X86|x86|i[36]86")
+            target_compile_options(media_storage_core PRIVATE /arch:AVX2)
+        endif ()
+    else ()
+        include(CheckCXXCompilerFlag)
+        check_cxx_compiler_flag(-march=native MEDIA_STORAGE_HAS_MARCH_NATIVE)
+        if (MEDIA_STORAGE_HAS_MARCH_NATIVE)
+            target_compile_options(media_storage_core PRIVATE -march=native)
         endif ()
     endif ()
 endif ()

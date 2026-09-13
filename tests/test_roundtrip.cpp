@@ -86,11 +86,11 @@ TEST(Roundtrip, MultipleChunks) {
     const Encoder encoder(make_test_file_id());
     Decoder decoder;
 
-    const ChunkedStorageData chunked = chunkByteData(original_data);
+    const ChunkedStorageData chunked = chunk_byte_data(original_data);
     const auto num_chunks = static_cast<uint32_t>(chunked.chunks.size());
 
     for (uint32_t chunk_index = 0; chunk_index < num_chunks; ++chunk_index) {
-        const std::span<const std::byte> chunk = chunkSpan(chunked, chunk_index);
+        const std::span<const std::byte> chunk = chunk_span(chunked, chunk_index);
         const bool is_last = (chunk_index == num_chunks - 1);
         encode_and_feed(encoder, decoder, chunk, chunk_index, is_last);
     }
@@ -171,11 +171,11 @@ TEST(Roundtrip, MultipleChunks_Sha256ManifestVerification) {
     const Encoder encoder(make_test_file_id());
     Decoder decoder;
 
-    const ChunkedStorageData chunked = chunkByteData(original_data);
+    const ChunkedStorageData chunked = chunk_byte_data(original_data);
     const auto num_chunks = static_cast<uint32_t>(chunked.chunks.size());
 
     for (uint32_t chunk_index = 0; chunk_index < num_chunks; ++chunk_index) {
-        const std::span<const std::byte> chunk = chunkSpan(chunked, chunk_index);
+        const std::span<const std::byte> chunk = chunk_span(chunked, chunk_index);
         const bool is_last = (chunk_index == num_chunks - 1);
 
         auto [packets, manifest] = encoder.encode_chunk(chunk_index, chunk, is_last);
@@ -251,12 +251,12 @@ TEST(Roundtrip, ExactTwoChunkBoundary) {
     const Encoder encoder(make_test_file_id());
     Decoder decoder;
 
-    const ChunkedStorageData chunked = chunkByteData(original_data);
+    const ChunkedStorageData chunked = chunk_byte_data(original_data);
     const auto num_chunks = static_cast<uint32_t>(chunked.chunks.size());
     ASSERT_EQ(num_chunks, 2u);
 
     for (uint32_t i = 0; i < num_chunks; ++i) {
-        encode_and_feed(encoder, decoder, chunkSpan(chunked, i), i, i == num_chunks - 1);
+        encode_and_feed(encoder, decoder, chunk_span(chunked, i), i, i == num_chunks - 1);
     }
 
     const auto assembled = decoder.assemble_file(num_chunks);
@@ -270,12 +270,12 @@ TEST(Roundtrip, ManyChunks) {
     const Encoder encoder(make_test_file_id());
     Decoder decoder;
 
-    const ChunkedStorageData chunked = chunkByteData(original_data);
+    const ChunkedStorageData chunked = chunk_byte_data(original_data);
     const auto num_chunks = static_cast<uint32_t>(chunked.chunks.size());
     EXPECT_EQ(num_chunks, 6u);
 
     for (uint32_t i = 0; i < num_chunks; ++i) {
-        encode_and_feed(encoder, decoder, chunkSpan(chunked, i), i, i == num_chunks - 1);
+        encode_and_feed(encoder, decoder, chunk_span(chunked, i), i, i == num_chunks - 1);
     }
 
     const auto assembled = decoder.assemble_file(num_chunks);

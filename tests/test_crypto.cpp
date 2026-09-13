@@ -62,6 +62,13 @@ std::vector<std::byte> make_patterned_data(const std::size_t byte_count, const u
 
 } // namespace
 
+TEST(Crypto, GenerateFileId_ProducesDistinctIds) {
+    const FileId first = generate_file_id();
+    const FileId second = generate_file_id();
+    EXPECT_NE(first, second);
+    EXPECT_NE(first, FileId{});
+}
+
 TEST(Crypto, DeriveKey_SameInputProducesSameKey) {
     static constexpr std::byte password[] = {std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
     const std::array<std::byte, 16> salt = make_salt(0x00);
@@ -164,7 +171,7 @@ TEST(Crypto, Decrypt_WrongKeyThrows) {
     std::array<std::byte, CRYPTO_KEY_BYTES> wrong_key = key;
     wrong_key[0] ^= std::byte{1};
 
-    EXPECT_THROW(decrypt_chunk(ciphertext, wrong_key, file_id, 0u), std::runtime_error);
+    EXPECT_THROW(static_cast<void>(decrypt_chunk(ciphertext, wrong_key, file_id, 0u)), std::runtime_error);
 }
 
 TEST(Crypto, Decrypt_WrongChunkIndexThrows) {
@@ -176,7 +183,7 @@ TEST(Crypto, Decrypt_WrongChunkIndexThrows) {
 
     const std::vector<std::byte> ciphertext = encrypt_chunk(plaintext, key, file_id, correct_index);
 
-    EXPECT_THROW(decrypt_chunk(ciphertext, key, file_id, wrong_index), std::runtime_error);
+    EXPECT_THROW(static_cast<void>(decrypt_chunk(ciphertext, key, file_id, wrong_index)), std::runtime_error);
 }
 
 TEST(Crypto, ReadPlainSizeFromHeader_ReadsCorrectValue) {
@@ -221,7 +228,7 @@ TEST(Crypto, Decrypt_TooSmallBufferThrows) {
     const auto key = make_test_key();
     const auto file_id = make_test_file_id();
 
-    EXPECT_THROW(decrypt_chunk(tiny, key, file_id, 0u), std::runtime_error);
+    EXPECT_THROW(static_cast<void>(decrypt_chunk(tiny, key, file_id, 0u)), std::runtime_error);
 }
 
 TEST(Crypto, DecryptChunkInto_UndersizedOutputThrows) {

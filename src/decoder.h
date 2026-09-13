@@ -18,37 +18,18 @@
 
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
-#include <string>
 #include <span>
+#include <string>
 #include <vector>
 
 #include "configuration.h"
+#include "crypto.h"
 #include "integrity.h"
-
-struct PacketHeader {
-    uint32_t magic = 0;
-    uint8_t version = 0;
-    uint8_t flags = 0;
-    std::array<std::byte, 16> file_id{};
-    uint32_t chunk_index = 0;
-    uint32_t chunk_size = 0;
-    uint32_t original_size = 0; // v2 only; equals chunk_size for v1
-    uint16_t symbol_size = 0;
-    uint32_t k = 0; // num source symbols
-    uint32_t esi = 0; // encoding symbol id (block id)
-    uint16_t payload_len = 0;
-    uint32_t crc = 0;
-};
-
-struct DecodedPacket {
-    PacketHeader header;
-    std::vector<std::byte> payload;
-    std::array<std::byte, HEADER_SIZE_V2> raw_header{};
-};
+#include "packet_format.h"
 
 struct ChunkDecodeResult {
     uint32_t chunk_index = 0;
@@ -61,15 +42,9 @@ class ChunkDecoder {
 public:
     explicit ChunkDecoder(uint32_t chunk_index, uint32_t chunk_size, uint32_t k, uint16_t symbol_size);
 
-    ~ChunkDecoder();
+    ChunkDecoder(ChunkDecoder &&) noexcept = default;
 
-    ChunkDecoder(const ChunkDecoder &) = delete;
-
-    ChunkDecoder &operator=(const ChunkDecoder &) = delete;
-
-    ChunkDecoder(ChunkDecoder &&other) noexcept;
-
-    ChunkDecoder &operator=(ChunkDecoder &&other) noexcept;
+    ChunkDecoder &operator=(ChunkDecoder &&) noexcept = default;
 
     [[nodiscard]] bool add_packet(uint32_t esi, std::span<const std::byte> payload);
 
@@ -81,14 +56,20 @@ public:
 
     [[nodiscard]] uint32_t chunk_index() const { return chunk_index_; }
 
+    [[nodiscard]] uint32_t num_source_symbols() const { return k_; }
+
     [[nodiscard]] uint32_t packets_received() const { return packets_received_; }
 
 private:
+    struct CodecDeleter {
+        void operator()(void *codec) const;
+    };
+
     uint32_t chunk_index_;
     uint32_t chunk_size_;
     uint32_t k_;
     uint16_t symbol_size_;
-    void *codec_ = nullptr;
+    std::unique_ptr<void, CodecDeleter> codec_;
     bool decoded_ = false;
     uint32_t packets_received_ = 0;
     std::vector<std::byte> decoded_data_;
@@ -96,29 +77,25 @@ private:
 
 class Decoder {
 public:
-    using FileId = std::array<std::byte, 16>;
+    using FileId = ::FileId;
 
-    Decoder();
+    Decoder() = default;
 
-    [[nodiscard]] static std::optional<DecodedPacket> parse_packet(std::span<const std::byte> packet_data);
+    [[nodiscard]] std::optional<ChunkDecodeResult> process_packet(std::span<const std::byte> packet_data,
+                                                                  bool compute_sha256 = true);
 
-    [[nodiscard]] static bool validate_packet_crc(const DecodedPacket &packet);
-
-    [[nodiscard]] static bool validate_raw_packet_crc(std::span<const std::byte> packet_data);
-
-    [[nodiscard]] std::optional<ChunkDecodeResult> process_packet(std::span<const std::byte> packet_data, bool compute_sha256 = true);
-
-    [[nodiscard]] std::optional<ChunkDecodeResult> process_packet(const DecodedPacket &packet, bool compute_sha256 = true);
+    [[nodiscard]] std::optional<ChunkDecodeResult> process_verified_packet(const ParsedPacket &packet,
+                                                                           bool compute_sha256 = true);
 
     [[nodiscard]] bool is_chunk_complete(uint32_t chunk_index) const;
 
     [[nodiscard]] std::optional<std::vector<std::byte> > get_chunk_data(uint32_t chunk_index) const;
 
-    [[nodiscard]] std::optional<FileId> file_id() const { return id; }
+    [[nodiscard]] std::optional<FileId> file_id() const { return file_id_; }
 
-    [[nodiscard]] size_t total_packets_received() const { return total_packets_; }
+    [[nodiscard]] std::size_t total_packets_received() const { return total_packets_; }
 
-    [[nodiscard]] size_t chunks_completed() const { return completed_count_; }
+    [[nodiscard]] std::size_t chunks_completed() const { return completed_count_; }
 
     [[nodiscard]] std::vector<uint32_t> completed_chunk_indices() const;
 
@@ -126,19 +103,25 @@ public:
 
     [[nodiscard]] bool write_assembled_file(const std::string &output_path, uint32_t expected_chunks) const;
 
-    void set_decrypt_key(std::span<const std::byte, 32> key);
+    void set_decrypt_key(std::span<const std::byte, CRYPTO_KEY_BYTES> key);
 
     void clear_decrypt_key();
 
     [[nodiscard]] bool is_encrypted() const { return encrypted_; }
 
 private:
-    std::optional<FileId> id;
+    std::optional<FileId> file_id_;
     bool encrypted_ = false;
-    std::array<std::byte, 32> decrypt_key_{};
+    CryptoKey decrypt_key_{};
     bool decrypt_key_set_ = false;
-    std::vector<std::optional<ChunkDecoder> > active_decoders;
-    std::vector<std::optional<std::vector<std::byte> > > completed_chunks;
-    size_t completed_count_ = 0;
-    size_t total_packets_ = 0;
+    std::vector<std::optional<ChunkDecoder> > active_decoders_;
+    std::vector<std::optional<std::vector<std::byte> > > completed_chunks_;
+    std::size_t completed_count_ = 0;
+    std::size_t total_packets_ = 0;
+
+    [[nodiscard]] bool ready_to_assemble(uint32_t expected_chunks) const;
+
+    [[nodiscard]] std::optional<std::vector<std::size_t> > plain_chunk_sizes(uint32_t expected_chunks) const;
+
+    [[nodiscard]] bool decrypt_chunk_to(uint32_t chunk_index, std::span<std::byte> out) const;
 };

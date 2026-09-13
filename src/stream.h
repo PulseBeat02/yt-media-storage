@@ -19,17 +19,18 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
-#include <libavutil/opt.h>
 }
 
 #include "configuration.h"
-#include "encoder.h"
+#include "frame_layout.h"
+#include "packet_format.h"
 
 class StreamEncoder {
 public:
@@ -55,7 +56,9 @@ public:
 
     [[nodiscard]] int64_t frames_written() const { return frame_index_; }
 
-    [[nodiscard]] static int packets_per_frame();
+    [[nodiscard]] int packets_per_frame() const { return ::packets_per_frame(layout_); }
+
+    [[nodiscard]] const FrameLayout &layout() const { return layout_; }
 
 private:
     AVFormatContext *format_ctx_ = nullptr;
@@ -82,15 +85,19 @@ private:
 
     void init_stream(const std::string &rtmp_url, int bitrate_kbps);
 
+    void init_video_encoder(int bitrate_kbps);
+
     void init_audio_encoder();
+
+    void release();
+
+    void write_pending_packets(AVCodecContext *codec_ctx, const AVStream *stream, bool ignore_errors);
 
     void write_audio_up_to(int64_t video_pts);
 
-    void embed_data_in_frame(const std::vector<std::byte> &data) const;
-
     void encode_frame();
 
-    void flush_encoder() const;
-
     void flush_frame_buffer();
+
+    void flush_encoders();
 };

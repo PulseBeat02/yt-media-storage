@@ -16,40 +16,17 @@
 
 #include "decoder.h"
 
-#include "configuration.h"
-#include "crypto.h"
 #include "libs/wirehair/wirehair.h"
+#include "wirehair_init.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <fstream>
-#include <mutex>
 #include <stdexcept>
 
-static std::once_flag ensure_init;
-
-static void ensureWirehairInit() {
-    std::call_once(ensure_init, [] {
-        if (const WirehairResult result = wirehair_init(); result != Wirehair_Success) {
-            throw std::runtime_error("wirehair_init failed");
-        }
-    });
-}
-
-static uint8_t readByte(std::span<const std::byte> buffer, const std::size_t offset) {
-    return static_cast<uint8_t>(buffer[offset]);
-}
-
-static uint16_t readU16LE(const std::span<const std::byte> buffer, const std::size_t offset) {
-    uint16_t value;
-    std::memcpy(&value, buffer.data() + offset, sizeof(value));
-    return value;
-}
-
-static uint32_t readU32LE(const std::span<const std::byte> buffer, const std::size_t offset) {
-    uint32_t value;
-    std::memcpy(&value, buffer.data() + offset, sizeof(value));
-    return value;
+void ChunkDecoder::CodecDeleter::operator()(void *codec) const {
+    wirehair_free(static_cast<WirehairCodec>(codec));
 }
 
 ChunkDecoder::ChunkDecoder(const uint32_t chunk_index, const uint32_t chunk_size, const uint32_t k,
@@ -58,90 +35,39 @@ ChunkDecoder::ChunkDecoder(const uint32_t chunk_index, const uint32_t chunk_size
       , chunk_size_(chunk_size)
       , k_(k)
       , symbol_size_(symbol_size) {
-    ensureWirehairInit();
-    codec_ = wirehair_decoder_create(nullptr, chunk_size_, symbol_size_);
+    ensure_wirehair_initialized();
+    codec_.reset(wirehair_decoder_create(nullptr, chunk_size_, symbol_size_));
     if (!codec_) {
         throw std::runtime_error("wirehair_decoder_create failed");
     }
-}
-
-ChunkDecoder::~ChunkDecoder() {
-    if (codec_) {
-        wirehair_free(static_cast<WirehairCodec>(codec_));
-        codec_ = nullptr;
-    }
-}
-
-ChunkDecoder::ChunkDecoder(ChunkDecoder &&other) noexcept
-    : chunk_index_(other.chunk_index_)
-      , chunk_size_(other.chunk_size_)
-      , k_(other.k_)
-      , symbol_size_(other.symbol_size_)
-      , codec_(other.codec_)
-      , decoded_(other.decoded_)
-      , packets_received_(other.packets_received_)
-      , decoded_data_(std::move(other.decoded_data_)) {
-    other.codec_ = nullptr;
-}
-
-ChunkDecoder &ChunkDecoder::operator=(ChunkDecoder &&other) noexcept {
-    if (this != &other) {
-        if (codec_) {
-            wirehair_free(static_cast<WirehairCodec>(codec_));
-        }
-        chunk_index_ = other.chunk_index_;
-        chunk_size_ = other.chunk_size_;
-        k_ = other.k_;
-        symbol_size_ = other.symbol_size_;
-        codec_ = other.codec_;
-        decoded_ = other.decoded_;
-        packets_received_ = other.packets_received_;
-        decoded_data_ = std::move(other.decoded_data_);
-        other.codec_ = nullptr;
-    }
-    return *this;
 }
 
 bool ChunkDecoder::add_packet(const uint32_t esi, const std::span<const std::byte> payload) {
     if (decoded_) {
         return true;
     }
-
     if (!codec_) {
         throw std::runtime_error("codec is null");
     }
 
     ++packets_received_;
 
-    const auto *payloadData = reinterpret_cast<const uint8_t *>(payload.data());
-    const auto payloadSize = static_cast<uint32_t>(payload.size());
-
-    WirehairResult result = wirehair_decode(
-        static_cast<WirehairCodec>(codec_),
-        esi,
-        payloadData,
-        payloadSize
-    );
-
-    if (result == Wirehair_Success) {
-        decoded_data_.resize(chunk_size_);
-        result = wirehair_recover(
-            static_cast<WirehairCodec>(codec_),
-            decoded_data_.data(),
-            chunk_size_
-        );
-
-        if (result != Wirehair_Success) {
-            throw std::runtime_error("wirehair_recover failed");
-        }
-
-        decoded_ = true;
-        return true;
-    }
+    const auto codec = static_cast<WirehairCodec>(codec_.get());
+    const WirehairResult result = wirehair_decode(codec, esi, payload.data(),
+                                                  static_cast<uint32_t>(payload.size()));
     if (result == Wirehair_NeedMore) {
         return false;
     }
-    throw std::runtime_error("wirehair_decode failed with error");
+    if (result != Wirehair_Success) {
+        throw std::runtime_error("wirehair_decode failed with error");
+    }
+
+    decoded_data_.resize(chunk_size_);
+    if (wirehair_recover(codec, decoded_data_.data(), chunk_size_) != Wirehair_Success) {
+        throw std::runtime_error("wirehair_recover failed");
+    }
+    decoded_ = true;
+    return true;
 }
 
 std::vector<std::byte> ChunkDecoder::get_decoded_data() const {
@@ -158,266 +84,68 @@ std::vector<std::byte> ChunkDecoder::consume_decoded_data() {
     return std::move(decoded_data_);
 }
 
-Decoder::Decoder() = default;
-
-std::optional<DecodedPacket> Decoder::parse_packet(const std::span<const std::byte> packet_data) {
-    if (packet_data.size() < HEADER_SIZE) {
-        return std::nullopt;
-    }
-
-    const uint8_t version = readByte(packet_data, VERSION_OFF);
-    const size_t header_size = (version == VERSION_ID_V2) ? HEADER_SIZE_V2 : HEADER_SIZE;
-    if (version != VERSION_ID && version != VERSION_ID_V2) {
-        return std::nullopt;
-    }
-    if (packet_data.size() < header_size) {
-        return std::nullopt;
-    }
-
-    DecodedPacket result;
-    auto &[magic, v, flags, file_id, chunk_index, chunk_size, original_size, symbol_size, k, esi, payload_len, crc] =
-            result.header;
-
-    magic = readU32LE(packet_data, MAGIC_OFF);
-    if (magic != MAGIC_ID) {
-        return std::nullopt;
-    }
-
-    v = version;
-    flags = readByte(packet_data, FLAGS_OFF);
-
-    std::memcpy(file_id.data(), packet_data.data() + FILE_ID_OFF, FILE_ID_SIZE);
-    chunk_index = readU32LE(packet_data, CHUNK_INDEX_OFF);
-    chunk_size = readU32LE(packet_data, CHUNK_SIZE_OFF);
-    if (version == VERSION_ID_V2) {
-        original_size = readU32LE(packet_data, ORIGINAL_SIZE_OFF);
-    } else {
-        original_size = chunk_size;
-    }
-    symbol_size = readU16LE(packet_data, SYMBOL_SIZE_OFF);
-    k = readU32LE(packet_data, K_OFF);
-    esi = readU32LE(packet_data, ESI_OFF);
-    payload_len = readU16LE(packet_data, PAYLOAD_LEN_OFF);
-    crc = readU32LE(packet_data, (version == VERSION_ID_V2) ? CRC_OFF_V2 : CRC_OFF);
-
-    if (const size_t expected_total = header_size + symbol_size; packet_data.size() < expected_total) {
-        return std::nullopt;
-    }
-    std::memcpy(result.raw_header.data(), packet_data.data(), header_size);
-
-    result.payload.resize(symbol_size);
-    std::memcpy(result.payload.data(), packet_data.data() + header_size, symbol_size);
-
-    return result;
-}
-
-bool Decoder::validate_raw_packet_crc(const std::span<const std::byte> packet_data) {
-    if (packet_data.size() < HEADER_SIZE) {
-        return false;
-    }
-
-    const uint8_t version = readByte(packet_data, VERSION_OFF);
-    const size_t header_size = (version == VERSION_ID_V2) ? HEADER_SIZE_V2 : HEADER_SIZE;
-    const size_t crc_offset = (version == VERSION_ID_V2) ? CRC_OFF_V2 : CRC_OFF;
-    if (version != VERSION_ID && version != VERSION_ID_V2) {
-        return false;
-    }
-    if (packet_data.size() < header_size) {
-        return false;
-    }
-
-    const uint16_t symbol_size = readU16LE(packet_data, SYMBOL_SIZE_OFF);
-    if (packet_data.size() < header_size + symbol_size) {
-        return false;
-    }
-
-    const uint32_t stored_crc = readU32LE(packet_data, crc_offset);
-    const uint8_t flags = readByte(packet_data, FLAGS_OFF);
-    const HashAlgorithm algo = (flags & UseXXHash) ? HashAlgorithm::XXHash32 : HashAlgorithm::CRC32;
-
-    const auto header_span = packet_data.subspan(0, header_size);
-    const auto payload_span = packet_data.subspan(header_size, symbol_size);
-    const uint32_t computed_crc = packet_checksum(header_span, payload_span, crc_offset, algo, CRC_SIZE);
-
-    return stored_crc == computed_crc;
-}
-
-bool Decoder::validate_packet_crc(const DecodedPacket &packet) {
-    const bool is_v2 = (packet.header.version == VERSION_ID_V2);
-    const size_t header_size = is_v2 ? HEADER_SIZE_V2 : HEADER_SIZE;
-    const size_t crc_offset = is_v2 ? CRC_OFF_V2 : CRC_OFF;
-
-    auto header = packet.raw_header;
-    constexpr uint32_t zero_crc = 0;
-    std::memcpy(header.data() + crc_offset, &zero_crc, sizeof(zero_crc));
-
-    const std::span<const std::byte> headerSpan(header.data(), header_size);
-    const std::span payloadSpan(packet.payload.data(), packet.payload.size());
-    const HashAlgorithm algo = (packet.header.flags & UseXXHash) ? HashAlgorithm::XXHash32 : HashAlgorithm::CRC32;
-    const uint32_t computed_crc = packet_checksum(headerSpan, payloadSpan, crc_offset, algo, CRC_SIZE);
-
-    return computed_crc == packet.header.crc;
-}
-
-namespace {
-    struct ParsedPacketView {
-        PacketHeader header;
-        std::span<const std::byte> payload;
-    };
-}
-
-static std::optional<ParsedPacketView> parse_and_validate_packet(const std::span<const std::byte> packet_data) {
-    if (packet_data.size() < HEADER_SIZE) {
-        return std::nullopt;
-    }
-
-    ParsedPacketView result;
-    auto &[magic, v, flags, file_id, chunk_index, chunk_size, original_size, symbol_size, k, esi, payload_len, crc] =
-            result.header;
-
-    v = readByte(packet_data, VERSION_OFF);
-    if (v != VERSION_ID && v != VERSION_ID_V2) {
-        return std::nullopt;
-    }
-    const size_t header_size = (v == VERSION_ID_V2) ? HEADER_SIZE_V2 : HEADER_SIZE;
-    const size_t crc_offset = (v == VERSION_ID_V2) ? CRC_OFF_V2 : CRC_OFF;
-    if (packet_data.size() < header_size) {
-        return std::nullopt;
-    }
-
-    magic = readU32LE(packet_data, MAGIC_OFF);
-    if (magic != MAGIC_ID) {
-        return std::nullopt;
-    }
-
-    flags = readByte(packet_data, FLAGS_OFF);
-    std::memcpy(file_id.data(), packet_data.data() + FILE_ID_OFF, FILE_ID_SIZE);
-    chunk_index = readU32LE(packet_data, CHUNK_INDEX_OFF);
-    chunk_size = readU32LE(packet_data, CHUNK_SIZE_OFF);
-    original_size = (v == VERSION_ID_V2) ? readU32LE(packet_data, ORIGINAL_SIZE_OFF) : chunk_size;
-    symbol_size = readU16LE(packet_data, SYMBOL_SIZE_OFF);
-    k = readU32LE(packet_data, K_OFF);
-    esi = readU32LE(packet_data, ESI_OFF);
-    payload_len = readU16LE(packet_data, PAYLOAD_LEN_OFF);
-
-    if (packet_data.size() < header_size + symbol_size) {
-        return std::nullopt;
-    }
-
-    crc = readU32LE(packet_data, crc_offset);
-    const auto header_span = packet_data.subspan(0, header_size);
-    const auto payload_span = packet_data.subspan(header_size, symbol_size);
-    if (const HashAlgorithm algo = (flags & UseXXHash) ? HashAlgorithm::XXHash32 : HashAlgorithm::CRC32; packet_checksum(header_span, payload_span, crc_offset, algo, CRC_SIZE) != crc) {
-        return std::nullopt;
-    }
-
-    result.payload = payload_span;
-    return result;
-}
-
-std::optional<ChunkDecodeResult> Decoder::process_packet(const std::span<const std::byte> packet_data, const bool compute_sha256) {
-    ++total_packets_;
-
-    const auto parsed = parse_and_validate_packet(packet_data);
+std::optional<ChunkDecodeResult> Decoder::process_packet(const std::span<const std::byte> packet_data,
+                                                         const bool compute_sha256) {
+    const auto parsed = parse_and_verify_packet(packet_data);
     if (!parsed) {
+        ++total_packets_;
         return std::nullopt;
     }
-
-    const PacketHeader &hdr = parsed->header;
-    if (!id) {
-        id = hdr.file_id;
-        encrypted_ = (hdr.flags & Encrypted) != 0;
-    }
-
-    if (hdr.chunk_index < completed_chunks.size() && completed_chunks[hdr.chunk_index].has_value()) {
-        return std::nullopt;
-    }
-
-    if (hdr.chunk_index >= active_decoders.size()) {
-        active_decoders.resize(hdr.chunk_index + 1);
-    }
-    if (!active_decoders[hdr.chunk_index].has_value()) {
-        active_decoders[hdr.chunk_index].emplace(hdr.chunk_index, hdr.chunk_size, hdr.k, hdr.symbol_size);
-    }
-
-    if (ChunkDecoder &decoder = *active_decoders[hdr.chunk_index]; decoder.add_packet(hdr.esi, parsed->payload)) {
-        ChunkDecodeResult result;
-        result.chunk_index = hdr.chunk_index;
-        result.data = decoder.consume_decoded_data();
-        const uint32_t copy_len = std::min(static_cast<uint32_t>(result.data.size()), hdr.original_size);
-        result.data.resize(copy_len);
-        if (compute_sha256) {
-            result.sha256 = sha256(std::span<const std::byte>(result.data.data(), result.data.size()));
-        }
-        result.success = true;
-        if (hdr.chunk_index >= completed_chunks.size()) {
-            completed_chunks.resize(hdr.chunk_index + 1);
-        }
-        completed_chunks[hdr.chunk_index] = std::move(result.data);
-        ++completed_count_;
-        active_decoders[hdr.chunk_index].reset();
-
-        return result;
-    }
-
-    return std::nullopt;
+    return process_verified_packet(*parsed, compute_sha256);
 }
 
-std::optional<ChunkDecodeResult> Decoder::process_packet(const DecodedPacket &packet, const bool compute_sha256) {
+std::optional<ChunkDecodeResult> Decoder::process_verified_packet(const ParsedPacket &packet,
+                                                                  const bool compute_sha256) {
     ++total_packets_;
-    if (!validate_packet_crc(packet)) {
-        return std::nullopt;
-    }
 
     const PacketHeader &hdr = packet.header;
-    if (!id) {
-        id = hdr.file_id;
-        encrypted_ = (hdr.flags & Encrypted) != 0;
+    if (!file_id_) {
+        file_id_ = hdr.file_id;
+        encrypted_ = (hdr.flags & FLAG_ENCRYPTED) != 0;
     }
 
-    if (hdr.chunk_index < completed_chunks.size() && completed_chunks[hdr.chunk_index].has_value()) {
+    if (is_chunk_complete(hdr.chunk_index)) {
         return std::nullopt;
     }
 
-    if (hdr.chunk_index >= active_decoders.size()) {
-        active_decoders.resize(hdr.chunk_index + 1);
+    if (hdr.chunk_index >= active_decoders_.size()) {
+        active_decoders_.resize(hdr.chunk_index + 1);
     }
-    if (!active_decoders[hdr.chunk_index].has_value()) {
-        active_decoders[hdr.chunk_index].emplace(hdr.chunk_index, hdr.chunk_size, hdr.k, hdr.symbol_size);
-    }
-
-    ChunkDecoder &decoder = *active_decoders[hdr.chunk_index];
-    if (const std::span payloadSpan(packet.payload.data(), packet.payload.size()); decoder.add_packet(
-        hdr.esi, payloadSpan)) {
-        ChunkDecodeResult result;
-        result.chunk_index = hdr.chunk_index;
-        result.data = decoder.consume_decoded_data();
-        const uint32_t copy_len = std::min(static_cast<uint32_t>(result.data.size()), hdr.original_size);
-        result.data.resize(copy_len);
-        if (compute_sha256) {
-            result.sha256 = sha256(std::span<const std::byte>(result.data.data(), result.data.size()));
-        }
-        result.success = true;
-        if (hdr.chunk_index >= completed_chunks.size()) {
-            completed_chunks.resize(hdr.chunk_index + 1);
-        }
-        completed_chunks[hdr.chunk_index] = std::move(result.data);
-        ++completed_count_;
-        active_decoders[hdr.chunk_index].reset();
-
-        return result;
+    std::optional<ChunkDecoder> &slot = active_decoders_[hdr.chunk_index];
+    if (!slot) {
+        slot.emplace(hdr.chunk_index, hdr.chunk_size, hdr.k, hdr.symbol_size);
     }
 
-    return std::nullopt;
+    if (!slot->add_packet(hdr.esi, packet.payload)) {
+        return std::nullopt;
+    }
+
+    ChunkDecodeResult result;
+    result.chunk_index = hdr.chunk_index;
+    result.data = slot->consume_decoded_data();
+    result.data.resize(std::min(static_cast<uint32_t>(result.data.size()), hdr.original_size));
+    if (compute_sha256) {
+        result.sha256 = sha256(result.data);
+    }
+    result.success = true;
+
+    if (hdr.chunk_index >= completed_chunks_.size()) {
+        completed_chunks_.resize(hdr.chunk_index + 1);
+    }
+    completed_chunks_[hdr.chunk_index] = result.data;
+    ++completed_count_;
+    slot.reset();
+
+    return result;
 }
 
 bool Decoder::is_chunk_complete(const uint32_t chunk_index) const {
-    return chunk_index < completed_chunks.size() && completed_chunks[chunk_index].has_value();
+    return chunk_index < completed_chunks_.size() && completed_chunks_[chunk_index].has_value();
 }
 
 std::optional<std::vector<std::byte> > Decoder::get_chunk_data(const uint32_t chunk_index) const {
-    if (chunk_index < completed_chunks.size() && completed_chunks[chunk_index].has_value()) {
-        return *completed_chunks[chunk_index];
+    if (is_chunk_complete(chunk_index)) {
+        return *completed_chunks_[chunk_index];
     }
     return std::nullopt;
 }
@@ -425,16 +153,16 @@ std::optional<std::vector<std::byte> > Decoder::get_chunk_data(const uint32_t ch
 std::vector<uint32_t> Decoder::completed_chunk_indices() const {
     std::vector<uint32_t> indices;
     indices.reserve(completed_count_);
-    for (uint32_t i = 0; i < completed_chunks.size(); ++i) {
-        if (completed_chunks[i].has_value()) {
+    for (uint32_t i = 0; i < completed_chunks_.size(); ++i) {
+        if (completed_chunks_[i].has_value()) {
             indices.push_back(i);
         }
     }
     return indices;
 }
 
-void Decoder::set_decrypt_key(const std::span<const std::byte, 32> key) {
-    std::memcpy(decrypt_key_.data(), key.data(), 32);
+void Decoder::set_decrypt_key(const std::span<const std::byte, CRYPTO_KEY_BYTES> key) {
+    std::memcpy(decrypt_key_.data(), key.data(), CRYPTO_KEY_BYTES);
     decrypt_key_set_ = true;
 }
 
@@ -445,110 +173,107 @@ void Decoder::clear_decrypt_key() {
     }
 }
 
-namespace {
-    std::optional<std::vector<std::size_t> > compute_chunk_sizes(
-        const std::vector<std::optional<std::vector<std::byte> > > &chunks,
-        const uint32_t expected_chunks,
-        const bool encrypted,
-        const bool decrypt_key_set) {
-        std::vector<std::size_t> sizes(expected_chunks);
-        for (uint32_t idx = 0; idx < expected_chunks; ++idx) {
-            if (idx >= chunks.size() || !chunks[idx].has_value()) {
-                return std::nullopt;
-            }
-            const auto &chunk = *chunks[idx];
-            if (encrypted && decrypt_key_set) {
-                if (chunk.size() < CRYPTO_PLAIN_SIZE_HEADER) {
-                    return std::nullopt;
-                }
-                sizes[idx] = read_plain_size_from_header(chunk);
-                if (sizes[idx] > CHUNK_SIZE_BYTES) {
-                    return std::nullopt;
-                }
-            } else {
-                sizes[idx] = chunk.size();
-            }
+bool Decoder::ready_to_assemble(const uint32_t expected_chunks) const {
+    if (completed_count_ != expected_chunks || completed_chunks_.size() > expected_chunks) {
+        return false;
+    }
+    if (!file_id_ || (encrypted_ && !decrypt_key_set_)) {
+        return false;
+    }
+    for (uint32_t i = 0; i < expected_chunks; ++i) {
+        if (!is_chunk_complete(i)) {
+            return false;
         }
-        return sizes;
+    }
+    return true;
+}
+
+std::optional<std::vector<std::size_t> > Decoder::plain_chunk_sizes(const uint32_t expected_chunks) const {
+    if (!ready_to_assemble(expected_chunks)) {
+        return std::nullopt;
     }
 
-    std::vector<std::size_t> compute_prefix_offsets(const std::vector<std::size_t> &sizes) {
-        std::vector<std::size_t> offsets(sizes.size() + 1);
-        offsets[0] = 0;
-        for (std::size_t i = 0; i < sizes.size(); ++i) {
-            offsets[i + 1] = offsets[i] + sizes[i];
+    std::vector<std::size_t> sizes(expected_chunks);
+    for (uint32_t i = 0; i < expected_chunks; ++i) {
+        const auto &chunk = *completed_chunks_[i];
+        if (!encrypted_) {
+            sizes[i] = chunk.size();
+            continue;
         }
-        return offsets;
+        if (chunk.size() < CRYPTO_PLAIN_SIZE_HEADER) {
+            return std::nullopt;
+        }
+        sizes[i] = read_plain_size_from_header(chunk);
+        if (sizes[i] > CHUNK_SIZE_BYTES) {
+            return std::nullopt;
+        }
     }
+    return sizes;
+}
 
-    void decrypt_and_copy_into(
-        std::vector<std::byte> &result,
-        const std::vector<std::optional<std::vector<std::byte> > > &chunks,
-        const uint32_t expected_chunks,
-        const std::vector<std::size_t> &offsets,
-        const std::vector<std::size_t> &sizes,
-        const bool encrypted,
-        const bool decrypt_key_set,
-        const std::array<std::byte, 32> &decrypt_key,
-        const std::array<std::byte, 16> &file_id) {
-#pragma omp parallel for schedule(static)
-        for (int i = 0; i < static_cast<int>(expected_chunks); ++i) {
-            const auto &chunk = *chunks[i];
-            const std::size_t copy_size = sizes[i];
-            if (encrypted && decrypt_key_set) {
-                decrypt_chunk_into(
-                    std::span<std::byte>(result.data() + offsets[i], copy_size),
-                    chunk, decrypt_key, file_id, static_cast<uint32_t>(i));
-            } else {
-                std::memcpy(result.data() + offsets[i], chunk.data(), copy_size);
-            }
-        }
+bool Decoder::decrypt_chunk_to(const uint32_t chunk_index, const std::span<std::byte> out) const {
+    try {
+        decrypt_chunk_into(out, *completed_chunks_[chunk_index], decrypt_key_, *file_id_, chunk_index);
+        return true;
+    } catch (...) {
+        return false;
     }
 }
 
 std::optional<std::vector<std::byte> > Decoder::assemble_file(const uint32_t expected_chunks) const {
-    if (completed_count_ != expected_chunks) {
-        return std::nullopt;
-    }
-    if (completed_chunks.size() > expected_chunks) {
-        return std::nullopt;
-    }
-    if (encrypted_ && !decrypt_key_set_) {
-        return std::nullopt;
-    }
-    if (!id) {
+    const auto sizes = plain_chunk_sizes(expected_chunks);
+    if (!sizes) {
         return std::nullopt;
     }
 
-    const auto chunk_sizes = compute_chunk_sizes(
-        completed_chunks, expected_chunks, encrypted_, decrypt_key_set_);
-    if (!chunk_sizes) {
+    std::vector<std::size_t> offsets(expected_chunks + 1, 0);
+    for (uint32_t i = 0; i < expected_chunks; ++i) {
+        offsets[i + 1] = offsets[i] + (*sizes)[i];
+    }
+
+    std::vector<std::byte> result(offsets[expected_chunks]);
+    std::atomic<bool> failed{false};
+
+#pragma omp parallel for schedule(static)
+    for (int i = 0; i < static_cast<int>(expected_chunks); ++i) {
+        const std::span<std::byte> out(result.data() + offsets[i], (*sizes)[i]);
+        if (encrypted_) {
+            if (!decrypt_chunk_to(static_cast<uint32_t>(i), out)) {
+                failed = true;
+            }
+        } else {
+            std::memcpy(out.data(), completed_chunks_[i]->data(), out.size());
+        }
+    }
+
+    if (failed) {
         return std::nullopt;
     }
-    const auto offsets = compute_prefix_offsets(*chunk_sizes);
-    std::vector<std::byte> result(offsets[expected_chunks]);
-    decrypt_and_copy_into(result, completed_chunks, expected_chunks, offsets,
-                          *chunk_sizes, encrypted_, decrypt_key_set_, decrypt_key_, *id);
     return result;
 }
 
 bool Decoder::write_assembled_file(const std::string &output_path, const uint32_t expected_chunks) const {
-    if (completed_count_ != expected_chunks) {
+    const auto sizes = plain_chunk_sizes(expected_chunks);
+    if (!sizes) {
         return false;
     }
-    if (completed_chunks.size() > expected_chunks) {
-        return false;
-    }
-    for (uint32_t i = 0; i < expected_chunks; ++i) {
-        if (i >= completed_chunks.size() || !completed_chunks[i].has_value()) {
+
+    std::vector<std::vector<std::byte> > decrypted;
+    if (encrypted_) {
+        decrypted.resize(expected_chunks);
+        std::atomic<bool> failed{false};
+
+#pragma omp parallel for schedule(static)
+        for (int i = 0; i < static_cast<int>(expected_chunks); ++i) {
+            decrypted[i].resize((*sizes)[i]);
+            if (!decrypt_chunk_to(static_cast<uint32_t>(i), decrypted[i])) {
+                failed = true;
+            }
+        }
+
+        if (failed) {
             return false;
         }
-    }
-    if (encrypted_ && !decrypt_key_set_) {
-        return false;
-    }
-    if (!id) {
-        return false;
     }
 
     std::ofstream out(output_path, std::ios::binary);
@@ -556,51 +281,12 @@ bool Decoder::write_assembled_file(const std::string &output_path, const uint32_
         return false;
     }
 
-    if (encrypted_ && decrypt_key_set_) {
-        std::vector<std::size_t> sizes(expected_chunks);
-        for (uint32_t i = 0; i < expected_chunks; ++i) {
-            const auto &chunk = *completed_chunks[i];
-            if (chunk.size() < CRYPTO_PLAIN_SIZE_HEADER) {
-                return false;
-            }
-            sizes[i] = read_plain_size_from_header(chunk);
-            if (sizes[i] > CHUNK_SIZE_BYTES) {
-                return false;
-            }
-        }
-
-        std::vector<std::vector<std::byte>> decrypted_chunks(expected_chunks);
-        bool decrypt_error = false;
-
-#pragma omp parallel for schedule(static)
-        for (int i = 0; i < static_cast<int>(expected_chunks); ++i) {
-            if (decrypt_error) continue;
-            try {
-                decrypted_chunks[i].resize(sizes[i]);
-                decrypt_chunk_into(
-                    std::span<std::byte>(decrypted_chunks[i].data(), sizes[i]),
-                    *completed_chunks[static_cast<uint32_t>(i)],
-                    decrypt_key_, *id, static_cast<uint32_t>(i));
-            } catch (...) {
-                decrypt_error = true;
-            }
-        }
-
-        if (decrypt_error) return false;
-
-        for (uint32_t i = 0; i < expected_chunks; ++i) {
-            out.write(reinterpret_cast<const char *>(decrypted_chunks[i].data()),
-                      static_cast<std::streamsize>(sizes[i]));
-            if (!out.good()) return false;
-        }
-    } else {
-        for (uint32_t i = 0; i < expected_chunks; ++i) {
-            const auto &chunk = *completed_chunks[i];
-            out.write(reinterpret_cast<const char *>(chunk.data()),
-                      static_cast<std::streamsize>(chunk.size()));
-            if (!out.good()) return false;
+    for (uint32_t i = 0; i < expected_chunks; ++i) {
+        const std::vector<std::byte> &chunk = encrypted_ ? decrypted[i] : *completed_chunks_[i];
+        out.write(reinterpret_cast<const char *>(chunk.data()), static_cast<std::streamsize>(chunk.size()));
+        if (!out.good()) {
+            return false;
         }
     }
-
     return true;
 }

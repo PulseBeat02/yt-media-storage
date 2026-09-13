@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 #include <utility>
 
 #if defined(__AVX2__) || defined(__AVX__)
@@ -31,7 +32,7 @@
 #elif defined(__SSE2__) || (defined(_MSC_VER) && (defined(_M_X64) || defined(_M_AMD64)))
 #include <emmintrin.h>
 #define DCT_USE_SSE2 1
-#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
+#elif defined(__aarch64__) || defined(_M_ARM64)
 #include <arm_neon.h>
 #define DCT_USE_NEON 1
 #endif
@@ -102,6 +103,10 @@ inline constexpr std::pair<int, int> EMBED_POSITIONS[] = {
     {1, 1},
     {0, 2},
 };
+
+static_assert(BITS_PER_BLOCK >= 1 && BITS_PER_BLOCK <= static_cast<int>(std::size(EMBED_POSITIONS)),
+              "BITS_PER_BLOCK must not exceed the number of embed positions");
+static_assert(8 % BITS_PER_BLOCK == 0, "BITS_PER_BLOCK must divide 8");
 
 struct CosineTable {
     float data[8][8];

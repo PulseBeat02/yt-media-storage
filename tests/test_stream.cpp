@@ -33,6 +33,7 @@
 #include <fstream>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -70,21 +71,11 @@ namespace {
                   static_cast<std::streamsize>(data.size()));
     }
 
-    std::vector<std::byte> read_file(const std::string &path) {
-        std::ifstream ifs(path, std::ios::binary | std::ios::ate);
-        if (!ifs.is_open()) return {};
-        const auto size = ifs.tellg();
-        ifs.seekg(0);
-        std::vector<std::byte> data(size);
-        ifs.read(reinterpret_cast<char *>(data.data()),
-                 size);
-        return data;
-    }
-
     void stream_encode_file(const std::string &input_path, const std::string &output_flv,
                             const int bitrate_kbps, const int width, const int height,
                             const bool encrypt = false,
-                            const std::string &password = {}) {
+                            const std::string &password = {},
+                            const int fps = FRAME_FPS) {
         const FileChunkReader reader(input_path.c_str(), encrypt ? CHUNK_SIZE_PLAIN_MAX_ENCRYPTED : 0);
         const std::size_t num_chunks = reader.num_chunks();
         const auto file_id = make_test_file_id();
@@ -96,7 +87,7 @@ namespace {
             key = derive_key(pw, file_id);
         }
 
-        StreamEncoder stream_encoder(output_flv, bitrate_kbps, width, height);
+        StreamEncoder stream_encoder(output_flv, bitrate_kbps, width, height, fps);
 
         for (std::size_t i = 0; i < num_chunks; ++i) {
             std::vector<std::byte> chunk_data = reader.read_chunk(i);
@@ -133,7 +124,7 @@ namespace {
                     uint32_t chunk_idx = 0;
                     std::memcpy(&chunk_idx, pkt_data.data() + CHUNK_INDEX_OFF, sizeof(chunk_idx));
                     if (chunk_idx > max_chunk_index) max_chunk_index = chunk_idx;
-                    if (flags & LastChunk) {
+                    if (flags & FLAG_LAST_CHUNK) {
                         found_last_chunk = true;
                         last_chunk_index = chunk_idx;
                     }
@@ -300,7 +291,7 @@ TEST(Stream, MKV_Roundtrip) {
                     const auto flags = static_cast<uint8_t>(pkt_data[FLAGS_OFF]);
                     uint32_t idx = 0;
                     std::memcpy(&idx, pkt_data.data() + CHUNK_INDEX_OFF, sizeof(idx));
-                    if (flags & LastChunk) {
+                    if (flags & FLAG_LAST_CHUNK) {
                         found_last = true;
                         last_chunk_index = idx;
                     }
@@ -363,13 +354,46 @@ TEST(Stream, Roundtrip_720p) {
     EXPECT_EQ(decoded, original);
 }
 
+TEST(Stream, Roundtrip_60fps) {
+    const auto original = make_random_data(65536);
+    const TempFile input("test_stream_60fps_input.bin");
+    const TempFile flv("test_stream_60fps.flv");
+    write_file(input.path, original);
+
+    ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1280, 720, false, {}, 60));
+    ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+    const auto decoded = stream_decode_file(flv.path);
+    EXPECT_EQ(decoded, original);
+}
+
+TEST(Stream, Roundtrip_1fps) {
+    const auto original = make_random_data(32768);
+    const TempFile input("test_stream_1fps_input.bin");
+    const TempFile flv("test_stream_1fps.flv");
+    write_file(input.path, original);
+
+    ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 4000, 1280, 720, false, {}, 1));
+    ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+    const auto decoded = stream_decode_file(flv.path);
+    EXPECT_EQ(decoded, original);
+}
+
+TEST(Stream, InvalidParametersThrow) {
+    EXPECT_THROW(StreamEncoder("unused.flv", 8000, 1280, 720, 0), std::invalid_argument);
+    EXPECT_THROW(StreamEncoder("unused.flv", 0, 1280, 720, 30), std::invalid_argument);
+    EXPECT_THROW(StreamEncoder("unused.flv", 8000, 16, 16, 30), std::invalid_argument);
+}
+
 TEST(Stream, PacketsPerFrame_ReturnsPositive) {
     const int ppf = VideoEncoder::packets_per_frame();
     EXPECT_GT(ppf, 0);
+    EXPECT_EQ(ppf, packets_per_frame(compute_frame_layout()));
 
-    const int sppf = StreamEncoder::packets_per_frame();
-    EXPECT_GT(sppf, 0);
-    EXPECT_EQ(ppf, sppf);
+    const int stream_ppf = packets_per_frame(compute_frame_layout(FRAME_WIDTH_STREAM, FRAME_HEIGHT_STREAM));
+    EXPECT_GT(stream_ppf, 0);
+    EXPECT_LE(stream_ppf, ppf);
 }
 
 TEST(Stream, MaxPacketBytesPerFrame_MatchesLayout) {

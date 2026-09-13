@@ -21,9 +21,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <span>
 #include <string>
 #include <vector>
-#include <span>
 
 struct ChunkSlice {
     std::size_t offset = 0;
@@ -35,11 +35,11 @@ struct ChunkedStorageData {
     std::vector<ChunkSlice> chunks;
 };
 
-ChunkedStorageData chunkByteData(std::span<const std::byte> data);
+[[nodiscard]] ChunkedStorageData chunk_byte_data(std::span<const std::byte> data);
 
-ChunkedStorageData chunkFile(const char *path, std::size_t chunk_size = 0);
+[[nodiscard]] ChunkedStorageData chunk_file(const char *path, std::size_t chunk_size = 0);
 
-inline std::span<const std::byte> chunkSpan(const ChunkedStorageData &cs, const std::size_t i) {
+[[nodiscard]] inline std::span<const std::byte> chunk_span(const ChunkedStorageData &cs, const std::size_t i) {
     const auto &[offset, length] = cs.chunks[i];
     return {cs.storage.data() + offset, length};
 }
@@ -59,21 +59,32 @@ public:
     FileChunkReader &operator=(FileChunkReader &&) = delete;
 
     [[nodiscard]] std::size_t num_chunks() const { return num_chunks_; }
+
     [[nodiscard]] std::size_t file_size() const { return file_size_; }
+
     [[nodiscard]] std::size_t chunk_size() const { return chunk_size_; }
+
+    [[nodiscard]] bool is_mapped() const { return mapped_ != nullptr; }
 
     [[nodiscard]] std::vector<std::byte> read_chunk(std::size_t index) const;
 
     [[nodiscard]] std::span<const std::byte> chunk_view(std::size_t index) const;
 
 private:
-    std::string path_;
-    std::size_t file_size_;
+    std::size_t file_size_ = 0;
     std::size_t chunk_size_;
-    std::size_t num_chunks_;
+    std::size_t num_chunks_ = 0;
     const std::byte *mapped_ = nullptr;
-    void *mapping_handle_ = nullptr;
+#if defined(_WIN32)
     void *file_handle_ = nullptr;
+    void *mapping_handle_ = nullptr;
+#else
+    int fd_ = -1;
+#endif
     mutable std::ifstream file_;
     mutable std::size_t file_pos_ = 0;
+
+    void map_file(const char *path);
+
+    [[nodiscard]] ChunkSlice chunk_slice(std::size_t index) const;
 };

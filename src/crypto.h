@@ -24,31 +24,35 @@
 #include <span>
 #include <vector>
 
+#include "configuration.h"
+
 constexpr std::size_t CRYPTO_KEY_BYTES = 32u;
-constexpr std::size_t CRYPTO_PLAIN_SIZE_HEADER = 4u;
 
-uint32_t read_plain_size_from_header(std::span<const std::byte> chunk);
+using CryptoKey = std::array<std::byte, CRYPTO_KEY_BYTES>;
 
-std::array<std::byte, CRYPTO_KEY_BYTES> derive_key(
-    std::span<const std::byte> password,
-    std::span<const std::byte, 16> salt);
+[[nodiscard]] FileId generate_file_id();
 
-std::vector<std::byte> encrypt_chunk(
+[[nodiscard]] uint32_t read_plain_size_from_header(std::span<const std::byte> chunk);
+
+[[nodiscard]] CryptoKey derive_key(std::span<const std::byte> password,
+                                   std::span<const std::byte, FILE_ID_SIZE> salt);
+
+[[nodiscard]] std::vector<std::byte> encrypt_chunk(
     std::span<const std::byte> plain,
     std::span<const std::byte, CRYPTO_KEY_BYTES> key,
-    std::span<const std::byte, 16> file_id,
+    std::span<const std::byte, FILE_ID_SIZE> file_id,
     uint32_t chunk_index);
 
-std::vector<std::byte> decrypt_chunk(
+[[nodiscard]] std::vector<std::byte> decrypt_chunk(
     std::span<const std::byte> chunk_from_decoder,
     std::span<const std::byte, CRYPTO_KEY_BYTES> key,
-    std::span<const std::byte, 16> file_id,
+    std::span<const std::byte, FILE_ID_SIZE> file_id,
     uint32_t chunk_index);
 
 void decrypt_chunk_into(std::span<std::byte> out,
                         std::span<const std::byte> chunk_from_decoder,
                         std::span<const std::byte, CRYPTO_KEY_BYTES> key,
-                        std::span<const std::byte, 16> file_id,
+                        std::span<const std::byte, FILE_ID_SIZE> file_id,
                         uint32_t chunk_index);
 
 void secure_zero(std::span<std::byte> data);

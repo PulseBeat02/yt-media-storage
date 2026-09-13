@@ -338,3 +338,76 @@ TEST(API, EncodeProgressCancellation) {
 
     EXPECT_EQ(ms_encode(&enc_opts, nullptr), MS_ERR_ENCODE_FAILED);
 }
+
+TEST(API, LastError_DescribesFailureAndClearsOnSuccess) {
+    EXPECT_EQ(ms_encode(nullptr, nullptr), MS_ERR_INVALID_ARGS);
+    EXPECT_GT(std::strlen(ms_last_error()), 0u);
+
+    const TempFile input("api_last_error_input.bin");
+    const TempFile encoded("api_last_error.mkv");
+    write_test_file(input.path_str, 1024);
+
+    ms_encode_options_t opts{};
+    opts.input_path = input.c_str();
+    opts.output_path = encoded.c_str();
+    ASSERT_EQ(ms_encode(&opts, nullptr), MS_OK);
+    EXPECT_STREQ(ms_last_error(), "");
+}
+
+TEST(API, Decode_WrongPasswordReturnsCryptoError) {
+    const TempFile input("api_wrongpw_input.bin");
+    const TempFile encoded("api_wrongpw.mkv");
+    const TempFile decoded("api_wrongpw_output.bin");
+
+    write_test_file(input.path_str, 16384);
+    const std::string password = "correct horse";
+    const std::string wrong_password = "battery staple";
+
+    ms_encode_options_t enc_opts{};
+    enc_opts.input_path = input.c_str();
+    enc_opts.output_path = encoded.c_str();
+    enc_opts.encrypt = 1;
+    enc_opts.password = password.c_str();
+    enc_opts.password_len = password.size();
+    ASSERT_EQ(ms_encode(&enc_opts, nullptr), MS_OK);
+
+    ms_decode_options_t dec_opts{};
+    dec_opts.input_path = encoded.c_str();
+    dec_opts.output_path = decoded.c_str();
+    dec_opts.password = wrong_password.c_str();
+    dec_opts.password_len = wrong_password.size();
+    EXPECT_EQ(ms_decode(&dec_opts, nullptr), MS_ERR_CRYPTO);
+    EXPECT_FALSE(std::filesystem::exists(decoded.path_str));
+}
+
+TEST(API, Decode_EncryptedWithoutPasswordReturnsCryptoError) {
+    const TempFile input("api_nopw_dec_input.bin");
+    const TempFile encoded("api_nopw_dec.mkv");
+    const TempFile decoded("api_nopw_dec_output.bin");
+
+    write_test_file(input.path_str, 4096);
+    const std::string password = "secret";
+
+    ms_encode_options_t enc_opts{};
+    enc_opts.input_path = input.c_str();
+    enc_opts.output_path = encoded.c_str();
+    enc_opts.encrypt = 1;
+    enc_opts.password = password.c_str();
+    enc_opts.password_len = password.size();
+    ASSERT_EQ(ms_encode(&enc_opts, nullptr), MS_OK);
+
+    ms_decode_options_t dec_opts{};
+    dec_opts.input_path = encoded.c_str();
+    dec_opts.output_path = decoded.c_str();
+    EXPECT_EQ(ms_decode(&dec_opts, nullptr), MS_ERR_CRYPTO);
+}
+
+TEST(API, Encode_InputIsDirectoryDoesNotThrow) {
+    const std::string directory = std::filesystem::temp_directory_path().string();
+    const TempFile output("api_dir_input.mkv");
+
+    ms_encode_options_t opts{};
+    opts.input_path = directory.c_str();
+    opts.output_path = output.c_str();
+    EXPECT_NE(ms_encode(&opts, nullptr), MS_OK);
+}

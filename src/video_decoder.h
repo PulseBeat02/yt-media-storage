@@ -19,6 +19,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -28,10 +29,12 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-#include "video_encoder.h"
+#include "frame_layout.h"
 
 class VideoDecoder {
 public:
+    using PacketList = std::vector<std::vector<std::byte> >;
+
     explicit VideoDecoder(const std::string &input_path);
 
     ~VideoDecoder();
@@ -44,9 +47,9 @@ public:
 
     VideoDecoder &operator=(VideoDecoder &&) = delete;
 
-    std::vector<std::vector<std::byte> > decode_next_frame();
+    [[nodiscard]] PacketList decode_next_frame();
 
-    std::vector<std::vector<std::byte> > decode_all_frames();
+    [[nodiscard]] PacketList decode_all_frames();
 
     [[nodiscard]] int64_t frames_read() const { return frame_index_; }
 
@@ -67,22 +70,19 @@ private:
     bool eof_ = false;
     bool is_gray8_ = false;
     FrameLayout layout_{};
-    std::vector<std::byte> extract_buffer_{};
+    std::vector<std::byte> extract_buffer_;
 
     void init_decoder(const std::string &input_path);
 
-    [[nodiscard]] std::vector<std::byte> extract_data_from_frame() const;
+    void release();
+
+    [[nodiscard]] const AVFrame *gray_plane_frame() const;
 
     void extract_data_into(std::vector<std::byte> &dest) const;
 
-    [[nodiscard]] std::vector<std::vector<std::byte> > extract_packets_from_frame() const;
+    static void extract_packets_from_buffer(std::vector<std::byte> &accumulated, PacketList &out_packets);
 
-    static void extract_packets_from_buffer(std::vector<std::byte> &accumulated,
-                                            std::vector<std::vector<std::byte> > &out_packets);
+    [[nodiscard]] PacketList consume_decoded_frame();
 
-    void prepare_frame_for_extraction();
-
-    [[nodiscard]] std::vector<std::vector<std::byte> > accumulate_frame_and_extract_packets();
-
-    [[nodiscard]] std::vector<std::vector<std::byte> > flush_decoder_and_collect_packets();
+    [[nodiscard]] PacketList flush_decoder_and_collect_packets();
 };

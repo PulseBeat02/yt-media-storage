@@ -20,8 +20,10 @@
 #include "configuration.h"
 
 #include <atomic>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <random>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -31,7 +33,9 @@ namespace {
 
 std::filesystem::path make_unique_temp_path() {
     static std::atomic<std::uint64_t> counter{0};
-    const std::string filename = "chunker_test_" + std::to_string(counter.fetch_add(1)) + ".bin";
+    static const auto process_token = std::random_device{}();
+    const std::string filename = "chunker_test_" + std::to_string(process_token) + "_" +
+                                 std::to_string(counter.fetch_add(1)) + ".bin";
     return std::filesystem::temp_directory_path() / filename;
 }
 
@@ -87,7 +91,7 @@ void expect_chunks_cover_data(const ChunkedStorageData &chunked,
 TEST(Chunker, ChunkByteData_EmptyInput) {
     const std::vector<std::byte> empty_data;
     const std::span empty_span(empty_data.data(), empty_data.size());
-    const auto [storage, chunks] = chunkByteData(empty_span);
+    const auto [storage, chunks] = chunk_byte_data(empty_span);
     ASSERT_EQ(chunks.size(), 1u);
     EXPECT_EQ(chunks[0].offset, 0u);
     EXPECT_EQ(chunks[0].length, 0u);
@@ -97,7 +101,7 @@ TEST(Chunker, ChunkByteData_EmptyInput) {
 TEST(Chunker, ChunkByteData_SmallInput) {
     const std::vector<std::byte> small_data = make_patterned_data(100);
     const std::span data_span(small_data.data(), small_data.size());
-    const auto [storage, chunks] = chunkByteData(data_span);
+    const auto [storage, chunks] = chunk_byte_data(data_span);
     ASSERT_EQ(chunks.size(), 1u);
     EXPECT_EQ(chunks[0].offset, 0u);
     EXPECT_EQ(chunks[0].length, 100u);
@@ -106,7 +110,7 @@ TEST(Chunker, ChunkByteData_SmallInput) {
 TEST(Chunker, ChunkByteData_ExactChunkSize) {
     const std::vector<std::byte> exact_data = make_patterned_data(CHUNK_SIZE_BYTES);
     const std::span data_span(exact_data.data(), exact_data.size());
-    const auto [storage, chunks] = chunkByteData(data_span);
+    const auto [storage, chunks] = chunk_byte_data(data_span);
     ASSERT_EQ(chunks.size(), 1u);
     EXPECT_EQ(chunks[0].offset, 0u);
     EXPECT_EQ(chunks[0].length, CHUNK_SIZE_BYTES);
@@ -116,7 +120,7 @@ TEST(Chunker, ChunkByteData_MultipleChunks) {
     constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2 + CHUNK_SIZE_BYTES / 2;
     const std::vector<std::byte> large_data = make_patterned_data(total_size);
     const std::span data_span(large_data.data(), large_data.size());
-    const auto [storage, chunks] = chunkByteData(data_span);
+    const auto [storage, chunks] = chunk_byte_data(data_span);
     ASSERT_EQ(chunks.size(), 3u);
     EXPECT_EQ(chunks[0].length, CHUNK_SIZE_BYTES);
     EXPECT_EQ(chunks[1].length, CHUNK_SIZE_BYTES);
@@ -126,7 +130,7 @@ TEST(Chunker, ChunkByteData_MultipleChunks) {
 TEST(Chunker, ChunkByteData_StoragePreservesData) {
     const std::vector<std::byte> original_data = make_patterned_data(5000, 17);
     const std::span data_span(original_data.data(), original_data.size());
-    const ChunkedStorageData chunked = chunkByteData(data_span);
+    const ChunkedStorageData chunked = chunk_byte_data(data_span);
     expect_chunks_cover_data(chunked, original_data);
 }
 
@@ -134,17 +138,17 @@ TEST(Chunker, ChunkSpan_ReturnsCorrectSlice) {
     constexpr std::size_t total_size = CHUNK_SIZE_BYTES + 42;
     const std::vector<std::byte> input_data = make_patterned_data(total_size);
     const std::span data_span(input_data.data(), input_data.size());
-    const ChunkedStorageData chunked = chunkByteData(data_span);
+    const ChunkedStorageData chunked = chunk_byte_data(data_span);
 
     ASSERT_EQ(chunked.chunks.size(), 2u);
 
     for (std::size_t chunk_index = 0; chunk_index < chunked.chunks.size(); ++chunk_index) {
-        const std::span<const std::byte> chunk_span = chunkSpan(chunked, chunk_index);
+        const std::span<const std::byte> slice = chunk_span(chunked, chunk_index);
         const auto &[offset, length] = chunked.chunks[chunk_index];
-        EXPECT_EQ(chunk_span.size(), length);
-        EXPECT_EQ(chunk_span.data(), chunked.storage.data() + offset);
-        for (std::size_t byte_index = 0; byte_index < chunk_span.size(); ++byte_index) {
-            EXPECT_EQ(chunk_span[byte_index], chunked.storage[offset + byte_index]);
+        EXPECT_EQ(slice.size(), length);
+        EXPECT_EQ(slice.data(), chunked.storage.data() + offset);
+        for (std::size_t byte_index = 0; byte_index < slice.size(); ++byte_index) {
+            EXPECT_EQ(slice[byte_index], chunked.storage[offset + byte_index]);
         }
     }
 }
@@ -155,8 +159,8 @@ TEST(Chunker, ChunkFile_MatchesByteData) {
     const TempFile temp_file(original_data);
 
     const std::span data_span(original_data.data(), original_data.size());
-    const auto [storage, chunks] = chunkByteData(data_span);
-    const auto [from_storage, from_chunks] = chunkFile(temp_file.path_cstr());
+    const auto [storage, chunks] = chunk_byte_data(data_span);
+    const auto [from_storage, from_chunks] = chunk_file(temp_file.path_cstr());
 
     EXPECT_EQ(storage, from_storage);
     ASSERT_EQ(chunks.size(), from_chunks.size());
@@ -297,7 +301,7 @@ TEST(Chunker, FileChunkReader_NonExistentFileThrows) {
 }
 
 TEST(Chunker, ChunkFile_NonExistentFileThrows) {
-    EXPECT_THROW(chunkFile("/tmp/nonexistent_chunker_test_12345.bin"), std::runtime_error);
+    EXPECT_THROW(static_cast<void>(chunk_file("/tmp/nonexistent_chunker_test_12345.bin")), std::runtime_error);
 }
 
 TEST(Chunker, ChunkFile_CustomChunkSize) {
@@ -305,7 +309,7 @@ TEST(Chunker, ChunkFile_CustomChunkSize) {
     const std::vector<std::byte> original_data = make_patterned_data(120, 5);
     const TempFile temp_file(original_data);
 
-    const auto [storage, chunks] = chunkFile(temp_file.path_cstr(), custom_chunk);
+    const auto [storage, chunks] = chunk_file(temp_file.path_cstr(), custom_chunk);
 
     ASSERT_EQ(chunks.size(), 3u);
     EXPECT_EQ(chunks[0].length, 50u);
@@ -318,7 +322,7 @@ TEST(Chunker, ChunkByteData_ExactlyTwoChunks) {
     constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2;
     const std::vector<std::byte> data = make_patterned_data(total_size);
     const std::span data_span(data.data(), data.size());
-    const auto [storage, chunks] = chunkByteData(data_span);
+    const auto [storage, chunks] = chunk_byte_data(data_span);
     ASSERT_EQ(chunks.size(), 2u);
     EXPECT_EQ(chunks[0].length, CHUNK_SIZE_BYTES);
     EXPECT_EQ(chunks[1].length, CHUNK_SIZE_BYTES);
@@ -326,7 +330,7 @@ TEST(Chunker, ChunkByteData_ExactlyTwoChunks) {
 
 TEST(Chunker, ChunkFile_EmptyFile) {
     const TempFile temp_file({});
-    const auto [storage, chunks] = chunkFile(temp_file.path_cstr());
+    const auto [storage, chunks] = chunk_file(temp_file.path_cstr());
     ASSERT_EQ(chunks.size(), 1u);
     EXPECT_EQ(chunks[0].length, 0u);
     EXPECT_TRUE(storage.empty());

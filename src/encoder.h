@@ -18,7 +18,6 @@
 
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -27,46 +26,32 @@
 
 #include "configuration.h"
 #include "integrity.h"
-
-struct Packet {
-    std::array<std::byte, PACKET_SIZE> bytes{};
-};
+#include "packet_format.h"
 
 struct ChunkManifestEntry {
     uint32_t chunk_index = 0;
     uint32_t chunk_size = 0;
     uint32_t original_size = 0;
     Sha256Digest sha256{};
-    uint32_t N = 0;
-    uint16_t T = 0;
+    uint32_t num_source_symbols = 0;
+    uint16_t symbol_size = 0;
 };
 
 class Encoder {
 public:
-    using FileId = std::array<std::byte, 16>;
+    using FileId = ::FileId;
 
     explicit Encoder(FileId file_id, HashAlgorithm hash_algo = HashAlgorithm::CRC32);
 
     [[nodiscard]] std::pair<std::vector<Packet>, ChunkManifestEntry>
     encode_chunk(uint32_t chunk_index, std::span<const std::byte> chunk_data, bool is_last_chunk,
-                bool encrypted = false) const;
+                 bool encrypted = false) const;
 
-    [[nodiscard]] const FileId &file_id() const { return id; }
+    [[nodiscard]] const FileId &file_id() const { return file_id_; }
+
+    [[nodiscard]] HashAlgorithm hash_algorithm() const { return hash_algo_; }
 
 private:
-    FileId id;
-    HashAlgorithm algo_;
-
-    void write_packet_header(
-        std::span<std::byte> dest,
-        uint32_t chunk_index,
-        uint32_t chunk_size,
-        uint32_t original_size,
-        uint16_t symbol_size,
-        uint32_t num_source,
-        uint32_t block_id,
-        uint16_t payload_length,
-        uint8_t flags,
-        std::span<const std::byte> payload
-    ) const;
+    FileId file_id_;
+    HashAlgorithm hash_algo_;
 };

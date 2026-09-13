@@ -42,6 +42,11 @@ extern "C" {
 #   endif
 #endif
 
+#define MS_VERSION_MAJOR 1
+#define MS_VERSION_MINOR 0
+#define MS_VERSION_PATCH 0
+#define MS_VERSION_STRING "1.0.0"
+
 typedef enum {
     MS_OK = 0,
     MS_ERR_INVALID_ARGS = 1,
@@ -173,6 +178,8 @@ MS_API ms_status_t ms_stream_decode(const ms_stream_decode_options_t *options, m
  * The returned pointer is valid for the lifetime of the program.
  */
 MS_API const char *ms_status_string(ms_status_t status);
+
+MS_API const char *ms_last_error(void);
 
 /**
  * Return the library version string (e.g. "1.0.0").

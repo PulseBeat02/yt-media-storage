@@ -18,32 +18,23 @@
 #include <QStyleFactory>
 
 #include "drive_manager_ui.h"
+#include "media_storage.h"
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
-    
-    // Set application properties
+
     QApplication::setApplicationName("YouTube Media Storage");
     QApplication::setApplicationDisplayName("Drive Manager");
-    QApplication::setApplicationVersion("1.0");
+    QApplication::setApplicationVersion(ms_version());
     QApplication::setOrganizationName("Media Storage");
     QApplication::setOrganizationDomain("brandonli.me");
-    
-    // Set application icon (if available)
-    // app.setWindowIcon(QIcon(":/icons/app_icon.png"));
-    
-    // Enable high DPI scaling (deprecated in Qt6, but kept for compatibility)
-    // app.setAttribute(Qt::AA_EnableHighDpiScaling);
-    // app.setAttribute(Qt::AA_UseHighDpiPixmaps);
-    
-    // Set style to a modern look if available
+
     if (QStyleFactory::keys().contains("Fusion")) {
         QApplication::setStyle("Fusion");
     }
-    
-    // Create and show the main window
+
     DriveManagerUI window;
     window.show();
-    
+
     return QApplication::exec();
 }
