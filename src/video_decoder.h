@@ -68,6 +68,8 @@ private:
     int video_stream_index_ = -1;
     int64_t frame_index_ = 0;
     bool eof_ = false;
+    bool draining_ = false;
+    bool pending_packet_ = false;
     bool is_gray8_ = false;
     FrameLayout layout_{};
     std::vector<std::byte> extract_buffer_;
@@ -84,5 +86,5 @@ private:
 
     [[nodiscard]] PacketList consume_decoded_frame();
 
-    [[nodiscard]] PacketList flush_decoder_and_collect_packets();
+    bool feed_next_packet();
 };

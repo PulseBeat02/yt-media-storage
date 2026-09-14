@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -87,9 +88,9 @@ TEST(Codec, Encoder_ProducesCorrectPacketCount) {
     const std::vector<std::byte> input_data = make_test_data(4096);
     const Encoder encoder(make_test_file_id());
     const auto [packets, manifest] = encode_test_data(encoder, input_data);
-    EXPECT_GT(packets.size(), 0u);
-    EXPECT_GE(packets.size(), 32u);
-    EXPECT_LE(packets.size(), 96u);
+    const std::size_t num_source = (input_data.size() + SYMBOL_SIZE_BYTES - 1) / SYMBOL_SIZE_BYTES;
+    const auto repair = static_cast<std::size_t>(std::ceil(static_cast<double>(num_source) * REPAIR_OVERHEAD));
+    EXPECT_EQ(packets.size(), num_source + repair);
 }
 
 TEST(Codec, Encoder_PacketHasCorrectMagic) {
@@ -356,15 +357,16 @@ TEST(Codec, Decoder_GetChunkDataIsCopy) {
 }
 
 TEST(Codec, Decoder_PacketLossResilience) {
-    const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 4);
+    const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 64);
     const Encoder encoder(make_test_file_id());
     const auto [packets, manifest] = encode_test_data(encoder, original_data);
 
-    const std::size_t half = packets.size() / 2;
+    const std::size_t repair = packets.size() - manifest.num_source_symbols;
+    const std::size_t kept = packets.size() - repair / 2;
 
     Decoder decoder;
     bool decoded = false;
-    for (std::size_t i = 0; i < half; ++i) {
+    for (std::size_t i = 0; i < kept; ++i) {
         if (auto result = decoder.process_packet(packet_span(packets[i]));
             result.has_value() && result->success) {
             decoded = true;

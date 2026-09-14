@@ -273,63 +273,54 @@ VideoDecoder::PacketList VideoDecoder::consume_decoded_frame() {
     return packets;
 }
 
-VideoDecoder::PacketList VideoDecoder::flush_decoder_and_collect_packets() {
-    avcodec_send_packet(codec_ctx_, nullptr);
-    PacketList collected;
+bool VideoDecoder::feed_next_packet() {
     while (true) {
-        const int ret = avcodec_receive_frame(codec_ctx_, frame_);
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-            break;
+        if (!pending_packet_) {
+            if (av_read_frame(format_ctx_, av_packet_) < 0) {
+                avcodec_send_packet(codec_ctx_, nullptr);
+                draining_ = true;
+                return false;
+            }
+            if (av_packet_->stream_index != video_stream_index_) {
+                av_packet_unref(av_packet_);
+                continue;
+            }
         }
-        if (ret < 0) {
-            throw std::runtime_error("Error receiving frame");
+        const int send_ret = avcodec_send_packet(codec_ctx_, av_packet_);
+        pending_packet_ = send_ret == AVERROR(EAGAIN);
+        if (pending_packet_) {
+            return true;
         }
-        for (PacketList packets = consume_decoded_frame(); auto &packet: packets) {
-            collected.push_back(std::move(packet));
+        av_packet_unref(av_packet_);
+        if (send_ret == 0) {
+            return true;
         }
     }
-    return collected;
 }
 
 VideoDecoder::PacketList VideoDecoder::decode_next_frame() {
-    if (eof_) {
-        return {};
-    }
-
-    while (true) {
-        if (av_read_frame(format_ctx_, av_packet_) < 0) {
-            eof_ = true;
-            PacketList packets = flush_decoder_and_collect_packets();
-            if (packets.empty() && !extract_buffer_.empty()) {
-                extract_packets_from_buffer(extract_buffer_, packets);
-            }
-            return packets;
-        }
-
-        if (av_packet_->stream_index != video_stream_index_) {
-            av_packet_unref(av_packet_);
-            continue;
-        }
-
-        const int send_ret = avcodec_send_packet(codec_ctx_, av_packet_);
-        av_packet_unref(av_packet_);
-        if (send_ret < 0) {
-            continue;
-        }
-
+    while (!eof_) {
         const int recv_ret = avcodec_receive_frame(codec_ctx_, frame_);
-        if (recv_ret == AVERROR(EAGAIN)) {
-            continue;
+        if (recv_ret == 0) {
+            return consume_decoded_frame();
         }
         if (recv_ret == AVERROR_EOF) {
             eof_ = true;
-            return {};
+            break;
         }
-        if (recv_ret < 0) {
+        if (recv_ret != AVERROR(EAGAIN)) {
             throw std::runtime_error("Error receiving frame");
         }
-        return consume_decoded_frame();
+        if (draining_) {
+            eof_ = true;
+            break;
+        }
+        feed_next_packet();
     }
+
+    PacketList packets;
+    extract_packets_from_buffer(extract_buffer_, packets);
+    return packets;
 }
 
 VideoDecoder::PacketList VideoDecoder::decode_all_frames() {

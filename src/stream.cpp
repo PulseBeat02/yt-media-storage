@@ -175,6 +175,7 @@ void StreamEncoder::init_video_encoder(const int bitrate_kbps) {
         throw std::runtime_error("Failed to copy codec parameters");
     }
     video_stream_->time_base = video_codec_ctx_->time_base;
+    video_stream_->avg_frame_rate = video_codec_ctx_->framerate;
 
     frame_ = av_frame_alloc();
     if (!frame_) {

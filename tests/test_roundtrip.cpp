@@ -301,12 +301,16 @@ TEST(Roundtrip, OutOfOrderPackets) {
 }
 
 TEST(Roundtrip, PacketLossRecovery) {
-    const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 8);
+    const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 64);
     const Encoder encoder(make_test_file_id());
     auto [packets, manifest] = encoder.encode_chunk(0, original_data, true);
 
+    const std::size_t repair = packets.size() - manifest.num_source_symbols;
+    const std::size_t drop_every = packets.size() / (repair / 2);
+
     Decoder decoder;
-    for (std::size_t i = 0; i < packets.size(); i += 2) {
+    for (std::size_t i = 0; i < packets.size(); ++i) {
+        if (i % drop_every == 0) continue;
         (void) decoder.process_packet(packet_span(packets[i]), false);
     }
 
