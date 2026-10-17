@@ -38,6 +38,48 @@ constexpr int SUCCESS_EXIT_CODE = 0;
 
 constexpr const char* PASSWORD = "cli-password";
 
+constexpr const char* BINARY_EXTENSION = ".bin";
+constexpr const char* MATROSKA_EXTENSION = ".mkv";
+constexpr const char* FLV_EXTENSION = ".flv";
+constexpr const char* OUTPUT_EXTENSION = ".out";
+
+constexpr const char* READ_MODE = "r";
+constexpr const char* ARGUMENT_SEPARATOR = " ";
+constexpr const char* MERGE_ERRORS_INTO_OUTPUT = "2>&1";
+
+constexpr const char* ENCODE_COMMAND = "encode";
+constexpr const char* DECODE_COMMAND = "decode";
+constexpr const char* STREAM_ENCODE_COMMAND = "stream-encode";
+constexpr const char* STREAM_DECODE_COMMAND = "stream-decode";
+
+constexpr const char* INPUT_FLAG = "--input";
+constexpr const char* SHORT_INPUT_FLAG = "-i";
+constexpr const char* OUTPUT_FLAG = "--output";
+constexpr const char* SHORT_OUTPUT_FLAG = "-o";
+constexpr const char* URL_FLAG = "--url";
+constexpr const char* SHORT_URL_FLAG = "-u";
+constexpr const char* PASSWORD_FLAG = "--password";
+constexpr const char* SHORT_PASSWORD_FLAG = "-p";
+constexpr const char* ENCRYPT_FLAG = "--encrypt";
+constexpr const char* SHORT_ENCRYPT_FLAG = "-e";
+constexpr const char* HASH_FLAG = "--hash";
+constexpr const char* SHORT_HASH_FLAG = "-H";
+constexpr const char* BITRATE_FLAG = "--bitrate";
+constexpr const char* SHORT_BITRATE_FLAG = "-b";
+constexpr const char* WIDTH_FLAG = "--width";
+constexpr const char* HEIGHT_FLAG = "--height";
+constexpr const char* FRAMES_PER_SECOND_FLAG = "--fps";
+
+constexpr const char* CRC32_ALGORITHM = "crc32";
+constexpr const char* XXHASH_ALGORITHM = "xxhash";
+
+constexpr const char* USAGE_HEADER = "Usage:";
+constexpr const char* MISSING_INPUT_OR_OUTPUT_MESSAGE = "Error: both --input and --output must be specified";
+constexpr const char* MISSING_PASSWORD_MESSAGE = "Error: --encrypt requires --password";
+constexpr const char* MISSING_INPUT_OR_URL_MESSAGE = "Error: --input and --url must be specified for stream-encode";
+constexpr const char* MISSING_URL_OR_OUTPUT_MESSAGE = "Error: --url and --output must be specified for stream-decode";
+constexpr const char* INPUT_FILE_NOT_FOUND_PREFIX = "Error: file not found (input file not found: ";
+
 struct cli_result {
   int exit_code;
   std::string output;
@@ -55,17 +97,25 @@ int exit_code_of(const int status) {
 #endif
 }
 
-cli_result run_cli(const std::string& arguments) {
-  const std::string command = quote(MEDIA_STORAGE_CLI_PATH) + " " + arguments + " 2>&1";
+std::string build_command(const std::vector<std::string>& arguments) {
+  std::string command = quote(MEDIA_STORAGE_CLI_PATH);
+  for (const std::string& argument : arguments) {
+    command += ARGUMENT_SEPARATOR + argument;
+  }
+  return command + ARGUMENT_SEPARATOR + MERGE_ERRORS_INTO_OUTPUT;
+}
+
+cli_result run_cli(const std::vector<std::string>& arguments) {
+  const std::string command = build_command(arguments);
 #ifdef _WIN32
-  FILE* const pipe = _popen(command.c_str(), "r");
+  FILE* const pipe = _popen(command.c_str(), READ_MODE);
 #else
-  FILE* const pipe = popen(command.c_str(), "r");
+  FILE* const pipe = popen(command.c_str(), READ_MODE);
 #endif
   std::string output;
   std::array<char, READ_BUFFER_SIZE> buffer{};
   std::size_t read = 0;
-  while ((read = std::fread(buffer.data(), 1, buffer.size(), pipe)) > 0) {
+  while ((read = std::fread(buffer.data(), sizeof(char), buffer.size(), pipe)) > 0) {
     output.append(buffer.data(), read);
   }
 
@@ -79,7 +129,9 @@ cli_result run_cli(const std::string& arguments) {
 
 class cli_test : public testing::Test {
 protected:
-  cli_test() : input_(".bin"), video_(".mkv"), output_(".out"), input_data_(fixtures::make_pattern(SMALL_INPUT_SIZE)) {
+  cli_test()
+      : input_(BINARY_EXTENSION), video_(MATROSKA_EXTENSION), output_(OUTPUT_EXTENSION),
+        input_data_(fixtures::make_pattern(SMALL_INPUT_SIZE)) {
     fixtures::write_bytes(input_.path(), input_data_);
   }
 
@@ -92,25 +144,25 @@ protected:
 }
 
 TEST_F(cli_test, should_print_usage_without_a_command) {
-  const cli_result result = run_cli("");
+  const cli_result result = run_cli({});
 
-  const bool mentions_usage = result.output.contains("Usage:");
+  const bool mentions_usage = result.output.contains(USAGE_HEADER);
   EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(mentions_usage) << result.output;
 }
 
 TEST_F(cli_test, should_reject_an_unknown_command) {
-  const cli_result result = run_cli("bogus");
+  const cli_result result = run_cli({"bogus"});
 
   const bool mentions_unknown_command_bogus = result.output.contains("Error: unknown command 'bogus'");
-  const bool mentions_usage = result.output.contains("Usage:");
+  const bool mentions_usage = result.output.contains(USAGE_HEADER);
   EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(mentions_unknown_command_bogus) << result.output;
   EXPECT_TRUE(mentions_usage) << result.output;
 }
 
 TEST_F(cli_test, should_reject_an_unknown_argument) {
-  const cli_result result = run_cli("encode --bogus");
+  const cli_result result = run_cli({ENCODE_COMMAND, "--bogus"});
 
   const bool mentions_unknown_or_incomplete_argument =
       result.output.contains("Error: unknown or incomplete argument '--bogus'");
@@ -119,7 +171,7 @@ TEST_F(cli_test, should_reject_an_unknown_argument) {
 }
 
 TEST_F(cli_test, should_reject_a_flag_without_a_value) {
-  const cli_result result = run_cli("encode --input");
+  const cli_result result = run_cli({ENCODE_COMMAND, INPUT_FLAG});
 
   const bool mentions_unknown_or_incomplete_argument =
       result.output.contains("Error: unknown or incomplete argument '--input'");
@@ -128,7 +180,7 @@ TEST_F(cli_test, should_reject_a_flag_without_a_value) {
 }
 
 TEST_F(cli_test, should_reject_a_number_flag_without_a_value) {
-  const cli_result result = run_cli("stream-encode --fps");
+  const cli_result result = run_cli({STREAM_ENCODE_COMMAND, FRAMES_PER_SECOND_FLAG});
 
   const bool mentions_unknown_or_incomplete_argument =
       result.output.contains("Error: unknown or incomplete argument '--fps'");
@@ -137,7 +189,7 @@ TEST_F(cli_test, should_reject_a_number_flag_without_a_value) {
 }
 
 TEST_F(cli_test, should_reject_a_bitrate_that_is_not_positive) {
-  const cli_result result = run_cli("stream-encode --bitrate 0");
+  const cli_result result = run_cli({STREAM_ENCODE_COMMAND, BITRATE_FLAG, "0"});
 
   const bool mentions_bitrate_expects_a_positive =
       result.output.contains("Error: --bitrate expects a positive integer, got '0'");
@@ -146,7 +198,7 @@ TEST_F(cli_test, should_reject_a_bitrate_that_is_not_positive) {
 }
 
 TEST_F(cli_test, should_reject_a_width_that_is_not_a_number) {
-  const cli_result result = run_cli("stream-encode --width wide");
+  const cli_result result = run_cli({STREAM_ENCODE_COMMAND, WIDTH_FLAG, "wide"});
 
   const bool mentions_width_expects_a_positive =
       result.output.contains("Error: --width expects a positive integer, got 'wide'");
@@ -155,7 +207,7 @@ TEST_F(cli_test, should_reject_a_width_that_is_not_a_number) {
 }
 
 TEST_F(cli_test, should_reject_a_height_with_trailing_characters) {
-  const cli_result result = run_cli("stream-encode --height 720p");
+  const cli_result result = run_cli({STREAM_ENCODE_COMMAND, HEIGHT_FLAG, "720p"});
 
   const bool mentions_height_expects_a_positive =
       result.output.contains("Error: --height expects a positive integer, got '720p'");
@@ -164,7 +216,7 @@ TEST_F(cli_test, should_reject_a_height_with_trailing_characters) {
 }
 
 TEST_F(cli_test, should_reject_an_unknown_hash_algorithm) {
-  const cli_result result = run_cli("encode --hash md5");
+  const cli_result result = run_cli({ENCODE_COMMAND, HASH_FLAG, "md5"});
 
   const bool mentions_unknown_hash_algorithm_md5 =
       result.output.contains("Error: unknown hash algorithm 'md5' (use crc32 or xxhash)");
@@ -173,114 +225,113 @@ TEST_F(cli_test, should_reject_an_unknown_hash_algorithm) {
 }
 
 TEST_F(cli_test, should_require_input_and_output_for_encode) {
-  const cli_result result = run_cli("encode --input " + quote(input_.string()));
+  const cli_result result = run_cli({ENCODE_COMMAND, INPUT_FLAG, quote(input_.string())});
 
-  const bool mentions_both_input_and_output =
-      result.output.contains("Error: both --input and --output must be specified");
+  const bool mentions_both_input_and_output = result.output.contains(MISSING_INPUT_OR_OUTPUT_MESSAGE);
   EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(mentions_both_input_and_output) << result.output;
 }
 
 TEST_F(cli_test, should_require_output_for_encode) {
-  const cli_result result = run_cli("encode --output " + quote(video_.string()));
+  const cli_result result = run_cli({ENCODE_COMMAND, OUTPUT_FLAG, quote(video_.string())});
 
-  const bool mentions_both_input_and_output =
-      result.output.contains("Error: both --input and --output must be specified");
+  const bool mentions_both_input_and_output = result.output.contains(MISSING_INPUT_OR_OUTPUT_MESSAGE);
   EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(mentions_both_input_and_output) << result.output;
 }
 
 TEST_F(cli_test, should_require_a_password_when_encrypting) {
-  const cli_result result = run_cli("encode -i " + quote(input_.string()) + " -o " + quote(video_.string()) + " -e");
+  const cli_result result = run_cli({ENCODE_COMMAND, SHORT_INPUT_FLAG, quote(input_.string()), SHORT_OUTPUT_FLAG,
+                                     quote(video_.string()), SHORT_ENCRYPT_FLAG});
 
-  const bool mentions_encrypt_requires_password = result.output.contains("Error: --encrypt requires --password");
+  const bool mentions_encrypt_requires_password = result.output.contains(MISSING_PASSWORD_MESSAGE);
   EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(mentions_encrypt_requires_password) << result.output;
 }
 
 TEST_F(cli_test, should_require_input_and_output_for_decode) {
-  const cli_result missing_output = run_cli("decode --input " + quote(video_.string()));
+  const cli_result missing_output = run_cli({DECODE_COMMAND, INPUT_FLAG, quote(video_.string())});
 
-  const bool missing_output_explained =
-      missing_output.output.contains("Error: both --input and --output must be specified");
+  const bool missing_output_explained = missing_output.output.contains(MISSING_INPUT_OR_OUTPUT_MESSAGE);
   EXPECT_EQ(missing_output.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(missing_output_explained) << missing_output.output;
 
-  const cli_result missing_input = run_cli("decode --output " + quote(output_.string()));
+  const cli_result missing_input = run_cli({DECODE_COMMAND, OUTPUT_FLAG, quote(output_.string())});
 
-  const bool missing_input_explained =
-      missing_input.output.contains("Error: both --input and --output must be specified");
+  const bool missing_input_explained = missing_input.output.contains(MISSING_INPUT_OR_OUTPUT_MESSAGE);
   EXPECT_EQ(missing_input.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(missing_input_explained) << missing_input.output;
 }
 
 TEST_F(cli_test, should_require_input_and_url_for_stream_encode) {
-  const cli_result missing_url = run_cli("stream-encode --input " + quote(input_.string()));
+  const cli_result missing_url = run_cli({STREAM_ENCODE_COMMAND, INPUT_FLAG, quote(input_.string())});
 
-  const bool missing_url_explained =
-      missing_url.output.contains("Error: --input and --url must be specified for stream-encode");
+  const bool missing_url_explained = missing_url.output.contains(MISSING_INPUT_OR_URL_MESSAGE);
   EXPECT_EQ(missing_url.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(missing_url_explained) << missing_url.output;
 
-  const cli_result missing_input = run_cli("stream-encode --url " + quote(video_.string()));
+  const cli_result missing_input = run_cli({STREAM_ENCODE_COMMAND, URL_FLAG, quote(video_.string())});
 
-  const bool missing_input_explained =
-      missing_input.output.contains("Error: --input and --url must be specified for stream-encode");
+  const bool missing_input_explained = missing_input.output.contains(MISSING_INPUT_OR_URL_MESSAGE);
   EXPECT_EQ(missing_input.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(missing_input_explained) << missing_input.output;
 }
 
 TEST_F(cli_test, should_require_a_password_when_stream_encoding_encrypted) {
-  const cli_result result =
-      run_cli("stream-encode -i " + quote(input_.string()) + " -u " + quote(video_.string()) + " --encrypt");
+  const cli_result result = run_cli({STREAM_ENCODE_COMMAND, SHORT_INPUT_FLAG, quote(input_.string()), SHORT_URL_FLAG,
+                                     quote(video_.string()), ENCRYPT_FLAG});
 
-  const bool mentions_encrypt_requires_password = result.output.contains("Error: --encrypt requires --password");
+  const bool mentions_encrypt_requires_password = result.output.contains(MISSING_PASSWORD_MESSAGE);
   EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(mentions_encrypt_requires_password) << result.output;
 }
 
 TEST_F(cli_test, should_require_url_and_output_for_stream_decode) {
-  const cli_result missing_output = run_cli("stream-decode --url " + quote(video_.string()));
+  const cli_result missing_output = run_cli({STREAM_DECODE_COMMAND, URL_FLAG, quote(video_.string())});
 
-  const bool missing_output_explained =
-      missing_output.output.contains("Error: --url and --output must be specified for stream-decode");
+  const bool missing_output_explained = missing_output.output.contains(MISSING_URL_OR_OUTPUT_MESSAGE);
   EXPECT_EQ(missing_output.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(missing_output_explained) << missing_output.output;
 
-  const cli_result missing_url = run_cli("stream-decode --output " + quote(output_.string()));
+  const cli_result missing_url = run_cli({STREAM_DECODE_COMMAND, OUTPUT_FLAG, quote(output_.string())});
 
-  const bool missing_url_explained =
-      missing_url.output.contains("Error: --url and --output must be specified for stream-decode");
+  const bool missing_url_explained = missing_url.output.contains(MISSING_URL_OR_OUTPUT_MESSAGE);
   EXPECT_EQ(missing_url.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(missing_url_explained) << missing_url.output;
 }
 
 TEST_F(cli_test, should_report_a_missing_input_file_on_encode) {
-  const std::string missing = input_.string() + ".missing";
+  const fixtures::temporary_file missing_input(BINARY_EXTENSION);
+  const std::string missing_input_path = missing_input.string();
 
-  const cli_result result = run_cli("encode --input " + quote(missing) + " --output " + quote(video_.string()));
+  const cli_result result =
+      run_cli({ENCODE_COMMAND, INPUT_FLAG, quote(missing_input_path), OUTPUT_FLAG, quote(video_.string())});
 
   const bool mentions_file_not_found_input =
-      result.output.contains("Error: file not found (input file not found: " + missing + ")");
+      result.output.contains(INPUT_FILE_NOT_FOUND_PREFIX + missing_input_path + ")");
   EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(mentions_file_not_found_input) << result.output;
 }
 
 TEST_F(cli_test, should_report_a_missing_input_file_on_decode) {
-  const std::string missing = video_.string() + ".missing";
+  const fixtures::temporary_file missing_video(MATROSKA_EXTENSION);
+  const std::string missing_video_path = missing_video.string();
 
-  const cli_result result = run_cli("decode --input " + quote(missing) + " --output " + quote(output_.string()));
+  const cli_result result =
+      run_cli({DECODE_COMMAND, INPUT_FLAG, quote(missing_video_path), OUTPUT_FLAG, quote(output_.string())});
 
   const bool mentions_file_not_found_input =
-      result.output.contains("Error: file not found (input file not found: " + missing + ")");
+      result.output.contains(INPUT_FILE_NOT_FOUND_PREFIX + missing_video_path + ")");
   EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
   EXPECT_TRUE(mentions_file_not_found_input) << result.output;
 }
 
 TEST_F(cli_test, should_report_a_missing_input_file_on_stream_encode) {
-  const std::string missing = input_.string() + ".missing";
+  const fixtures::temporary_file missing_input(BINARY_EXTENSION);
+  const std::string missing_input_path = missing_input.string();
 
-  const cli_result result = run_cli("stream-encode --input " + quote(missing) + " --url " + quote(video_.string()));
+  const cli_result result =
+      run_cli({STREAM_ENCODE_COMMAND, INPUT_FLAG, quote(missing_input_path), URL_FLAG, quote(video_.string())});
 
   const bool mentions_file_not_found = result.output.contains("Error: file not found");
   EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
@@ -288,8 +339,8 @@ TEST_F(cli_test, should_report_a_missing_input_file_on_stream_encode) {
 }
 
 TEST_F(cli_test, should_round_trip_a_file_through_encode_and_decode) {
-  const cli_result encoded =
-      run_cli("encode --input " + quote(input_.string()) + " --output " + quote(video_.string()) + " --hash crc32");
+  const cli_result encoded = run_cli({ENCODE_COMMAND, INPUT_FLAG, quote(input_.string()), OUTPUT_FLAG,
+                                      quote(video_.string()), HASH_FLAG, CRC32_ALGORITHM});
 
   const bool mentions_encoding_chunk = encoded.output.contains("Encoding chunk 1/1...");
   const bool mentions_encode_complete = encoded.output.contains("Encode complete: 2.9 KB -> ");
@@ -301,7 +352,8 @@ TEST_F(cli_test, should_round_trip_a_file_through_encode_and_decode) {
   EXPECT_TRUE(mentions_packet_count) << encoded.output;
   EXPECT_TRUE(mentions_written_to) << encoded.output;
 
-  const cli_result decoded = run_cli("decode -i " + quote(video_.string()) + " -o " + quote(output_.string()));
+  const cli_result decoded =
+      run_cli({DECODE_COMMAND, SHORT_INPUT_FLAG, quote(video_.string()), SHORT_OUTPUT_FLAG, quote(output_.string())});
 
   const bool mentions_decoding_frame = decoded.output.contains("Decoding frame ");
   const bool mentions_decode_complete = decoded.output.contains("Decode complete: ");
@@ -315,13 +367,14 @@ TEST_F(cli_test, should_round_trip_a_file_through_encode_and_decode) {
 }
 
 TEST_F(cli_test, should_round_trip_an_encrypted_file_with_xxhash) {
-  const cli_result encoded = run_cli("encode -i " + quote(input_.string()) + " -o " + quote(video_.string()) +
-                                     " -e -p " + PASSWORD + " -H xxhash");
+  const cli_result encoded =
+      run_cli({ENCODE_COMMAND, SHORT_INPUT_FLAG, quote(input_.string()), SHORT_OUTPUT_FLAG, quote(video_.string()),
+               SHORT_ENCRYPT_FLAG, SHORT_PASSWORD_FLAG, PASSWORD, SHORT_HASH_FLAG, XXHASH_ALGORITHM});
 
   EXPECT_EQ(encoded.exit_code, SUCCESS_EXIT_CODE);
 
-  const cli_result decoded = run_cli("decode --input " + quote(video_.string()) + " --output " +
-                                     quote(output_.string()) + " --password " + PASSWORD);
+  const cli_result decoded = run_cli({DECODE_COMMAND, INPUT_FLAG, quote(video_.string()), OUTPUT_FLAG,
+                                      quote(output_.string()), PASSWORD_FLAG, PASSWORD});
 
   const std::vector<std::byte> output_bytes = fixtures::read_bytes(output_.path());
   EXPECT_EQ(decoded.exit_code, SUCCESS_EXIT_CODE);
@@ -329,12 +382,13 @@ TEST_F(cli_test, should_round_trip_an_encrypted_file_with_xxhash) {
 }
 
 TEST_F(cli_test, should_report_a_decode_without_the_password) {
-  const cli_result encoded = run_cli("encode -i " + quote(input_.string()) + " -o " + quote(video_.string()) +
-                                     " --encrypt --password " + PASSWORD);
+  const cli_result encoded = run_cli({ENCODE_COMMAND, SHORT_INPUT_FLAG, quote(input_.string()), SHORT_OUTPUT_FLAG,
+                                      quote(video_.string()), ENCRYPT_FLAG, PASSWORD_FLAG, PASSWORD});
 
   EXPECT_EQ(encoded.exit_code, SUCCESS_EXIT_CODE);
 
-  const cli_result decoded = run_cli("decode -i " + quote(video_.string()) + " -o " + quote(output_.string()));
+  const cli_result decoded =
+      run_cli({DECODE_COMMAND, SHORT_INPUT_FLAG, quote(video_.string()), SHORT_OUTPUT_FLAG, quote(output_.string())});
 
   const bool mentions_encryption_decryption_input_is =
       decoded.output.contains("Error: encryption/decryption error (input is encrypted but no password was given)");
@@ -343,11 +397,12 @@ TEST_F(cli_test, should_report_a_decode_without_the_password) {
 }
 
 TEST_F(cli_test, should_round_trip_a_file_through_a_stream) {
-  const fixtures::temporary_file stream(".flv");
+  const fixtures::temporary_file stream(FLV_EXTENSION);
 
   const cli_result encoded =
-      run_cli("stream-encode -i " + quote(input_.string()) + " -u " + quote(stream.string()) +
-              " -b 8000 --width 1280 --height 720 --fps 24 --encrypt --password " + PASSWORD + " --hash xxhash");
+      run_cli({STREAM_ENCODE_COMMAND, SHORT_INPUT_FLAG, quote(input_.string()), SHORT_URL_FLAG, quote(stream.string()),
+               SHORT_BITRATE_FLAG, "8000", WIDTH_FLAG, "1280", HEIGHT_FLAG, "720", FRAMES_PER_SECOND_FLAG, "24",
+               ENCRYPT_FLAG, PASSWORD_FLAG, PASSWORD, HASH_FLAG, XXHASH_ALGORITHM});
 
   const bool mentions_resolution = encoded.output.contains("Resolution: 1280x720 (24 fps)");
   const bool mentions_bitrate = encoded.output.contains("Bitrate: 8000 kbps");
@@ -359,8 +414,8 @@ TEST_F(cli_test, should_round_trip_a_file_through_a_stream) {
   EXPECT_TRUE(mentions_streaming_chunk) << encoded.output;
   EXPECT_TRUE(mentions_stream_encode_complete) << encoded.output;
 
-  const cli_result decoded = run_cli("stream-decode --url " + quote(stream.string()) + " --output " +
-                                     quote(output_.string()) + " -p " + PASSWORD);
+  const cli_result decoded = run_cli({STREAM_DECODE_COMMAND, URL_FLAG, quote(stream.string()), OUTPUT_FLAG,
+                                      quote(output_.string()), SHORT_PASSWORD_FLAG, PASSWORD});
 
   const bool mentions_waiting_for_stream = decoded.output.contains("Waiting for stream...");
   const bool mentions_receiving_frame = decoded.output.contains("Receiving frame ");
@@ -374,14 +429,15 @@ TEST_F(cli_test, should_round_trip_a_file_through_a_stream) {
 }
 
 TEST_F(cli_test, should_report_a_stream_decode_without_the_password) {
-  const fixtures::temporary_file stream(".flv");
+  const fixtures::temporary_file stream(FLV_EXTENSION);
 
-  const cli_result encoded = run_cli("stream-encode --input " + quote(input_.string()) + " --url " +
-                                     quote(stream.string()) + " -e -p " + PASSWORD);
+  const cli_result encoded = run_cli({STREAM_ENCODE_COMMAND, INPUT_FLAG, quote(input_.string()), URL_FLAG,
+                                      quote(stream.string()), SHORT_ENCRYPT_FLAG, SHORT_PASSWORD_FLAG, PASSWORD});
 
   EXPECT_EQ(encoded.exit_code, SUCCESS_EXIT_CODE);
 
-  const cli_result decoded = run_cli("stream-decode -u " + quote(stream.string()) + " -o " + quote(output_.string()));
+  const cli_result decoded = run_cli(
+      {STREAM_DECODE_COMMAND, SHORT_URL_FLAG, quote(stream.string()), SHORT_OUTPUT_FLAG, quote(output_.string())});
 
   const bool mentions_encryption_decryption = decoded.output.contains("Error: encryption/decryption error");
   EXPECT_EQ(decoded.exit_code, FAILURE_EXIT_CODE);
@@ -392,7 +448,8 @@ TEST_F(cli_test, should_format_sizes_in_bytes_and_kilobytes) {
   const std::vector<std::byte> tiny = fixtures::make_pattern(1);
   fixtures::write_bytes(input_.path(), tiny);
 
-  const cli_result encoded = run_cli("encode -i " + quote(input_.string()) + " -o " + quote(video_.string()));
+  const cli_result encoded =
+      run_cli({ENCODE_COMMAND, SHORT_INPUT_FLAG, quote(input_.string()), SHORT_OUTPUT_FLAG, quote(video_.string())});
 
   const bool mentions_bytes = encoded.output.contains("Encode complete: 1.0 B -> ");
   const bool mentions_kilobytes = encoded.output.contains(" KB\n");
