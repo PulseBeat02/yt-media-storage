@@ -62,11 +62,11 @@ void embed_data_into_plane(uint8_t* plane, const int stride, const frame_layout&
   const int covered_width = blocks_per_row * BLOCK_SIZE;
   if (covered_width < layout.frame_width) {
     for (int y = 0; y < covered_rows; ++y) {
-      std::memset(plane + y * stride + covered_width, MID_GRAY, layout.frame_width - covered_width);
+      std::memset(plane + y * stride + covered_width, MIDDLE_GRAY, layout.frame_width - covered_width);
     }
   }
   for (int y = covered_rows; y < layout.frame_height; ++y) {
-    std::memset(plane + y * stride, MID_GRAY, layout.frame_width);
+    std::memset(plane + y * stride, MIDDLE_GRAY, layout.frame_width);
   }
 
   for (int block_index = 0; block_index < active_blocks; ++block_index) {

@@ -42,7 +42,7 @@
 inline constexpr int BLOCK_SIZE = 8;
 inline constexpr int BLOCK_AREA = BLOCK_SIZE * BLOCK_SIZE;
 
-inline constexpr int MID_GRAY = 128;
+inline constexpr int MIDDLE_GRAY = 128;
 inline constexpr float MAXIMUM_GRAY = 255.0f;
 
 inline constexpr std::size_t VECTOR_ALIGNMENT = 32;
@@ -176,7 +176,7 @@ inline const precomputed_blocks& get_precomputed_blocks() {
     precomputed_blocks result{};
     const auto& [data] = get_cosine_table();
 
-    constexpr float dc_value = DCT_SCALE * alpha(0) * alpha(0) * BLOCK_AREA * MID_GRAY;
+    constexpr float dc_value = DCT_SCALE * alpha(0) * alpha(0) * BLOCK_AREA * MIDDLE_GRAY;
 
     float dc_image[BLOCK_SIZE][BLOCK_SIZE];
     for (int x = 0; x < BLOCK_SIZE; ++x) {
