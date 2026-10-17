@@ -19,7 +19,6 @@
 #ifndef MEDIA_STORAGE_AV_UTILS_H
 #define MEDIA_STORAGE_AV_UTILS_H
 
-#include <format>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -42,8 +41,6 @@ inline constexpr const char* CODEC_CONTEXT_ALLOCATION_MESSAGE = "Codec context c
 inline constexpr const char* CODEC_PARAMETERS_COPY_MESSAGE = "Codec parameters could not be copied!";
 inline constexpr const char* VIDEO_STREAM_CREATION_MESSAGE = "Video stream could not be created!";
 
-inline constexpr std::string_view FFMPEG_FAILURE_MESSAGE = "FFmpeg error {} ({}) occurred while trying to {}!";
-
 inline std::string ffmpeg_error_string(const int error_code) {
   char buffer[AV_ERROR_MAX_STRING_SIZE] = {};
   av_strerror(error_code, buffer, sizeof(buffer));
@@ -52,7 +49,8 @@ inline std::string ffmpeg_error_string(const int error_code) {
 
 inline std::string ffmpeg_failure_message(const int error_code, const std::string_view action) {
   const std::string error_text = ffmpeg_error_string(error_code);
-  return std::format(FFMPEG_FAILURE_MESSAGE, error_code, error_text, action);
+  return "FFmpeg error " + std::to_string(error_code) + " (" + error_text + ") occurred while trying to " +
+         std::string(action) + "!";
 }
 
 inline void ensure_fresh_writable_frame(AVFrame* frame) {

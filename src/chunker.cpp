@@ -18,7 +18,6 @@
 #include "configuration.h"
 
 #include <algorithm>
-#include <format>
 #include <stdexcept>
 #include <string>
 
@@ -162,7 +161,8 @@ file_chunk_reader::~file_chunk_reader() {
 
 chunk_slice_type file_chunk_reader::chunk_slice(const std::size_t index) const {
   if (index >= chunk_count_) {
-    const std::string message = std::format("Chunk index {} must be below the chunk count {}!", index, chunk_count_);
+    const std::string message =
+        "Chunk index " + std::to_string(index) + " must be below the chunk count " + std::to_string(chunk_count_) + "!";
     throw std::runtime_error(message);
   }
   const std::size_t offset = index * chunk_size_;

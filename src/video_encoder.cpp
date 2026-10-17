@@ -19,7 +19,6 @@
 #include "av_utils.h"
 #include "configuration.h"
 
-#include <format>
 #include <stdexcept>
 #include <string>
 
@@ -66,7 +65,7 @@ void video_encoder::initialize_encoder(const std::string& output_path) {
 
   const AVCodec* codec = avcodec_find_encoder_by_name(VIDEO_CODEC);
   if (!codec) {
-    const std::string message = std::format("Encoder {} could not be found!", VIDEO_CODEC);
+    const std::string message = "Encoder " + std::string(VIDEO_CODEC) + " could not be found!";
     throw std::runtime_error(message);
   }
 

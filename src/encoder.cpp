@@ -20,7 +20,6 @@
 #include "wirehair_initialization.h"
 
 #include <cmath>
-#include <format>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -75,8 +74,8 @@ std::pair<std::vector<packet>, chunk_manifest_entry> encoder::encode_chunk(const
   ensure_wirehair_initialized();
 
   if (chunk_data.size() > CHUNK_SIZE_BYTES) {
-    const std::string message =
-        std::format("Chunk of {} bytes must not be larger than {} bytes!", chunk_data.size(), CHUNK_SIZE_BYTES);
+    const std::string message = "Chunk of " + std::to_string(chunk_data.size()) + " bytes must not be larger than " +
+                                std::to_string(CHUNK_SIZE_BYTES) + " bytes!";
     throw std::runtime_error(message);
   }
 
@@ -130,7 +129,7 @@ std::pair<std::vector<packet>, chunk_manifest_entry> encoder::encode_chunk(const
     auto* payload_destination = reinterpret_cast<uint8_t*>(packet.bytes.data() + HEADER_SIZE_V2);
     uint32_t write_length = 0;
     if (wirehair_encode(codec, block_id, payload_destination, SYMBOL_SIZE_BYTES, &write_length) != Wirehair_Success) {
-      const std::string message = std::format("Wirehair could not encode block {}!", block_id);
+      const std::string message = "Wirehair could not encode block " + std::to_string(block_id) + "!";
       throw std::runtime_error(message);
     }
 
