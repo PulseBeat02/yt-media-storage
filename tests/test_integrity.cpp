@@ -17,6 +17,8 @@
 #include <gtest/gtest.h>
 
 #include "integrity.h"
+#define XXH_INLINE_ALL
+#include "libs/xxhash.h"
 
 #include <cstring>
 #include <string>
@@ -178,4 +180,54 @@ TEST(Integrity, XXHash_EmptyPayload) {
     const uint32_t hash = packet_xxhash32(header, empty_payload, 0);
     const uint32_t hash_again = packet_xxhash32(header, empty_payload, 0);
     EXPECT_EQ(hash, hash_again);
+}
+
+TEST(Integrity, should_checksum_the_header_bytes_after_the_crc_field) {
+    const std::vector<std::byte> header = bytes_from_string("ab\x11\x22\x33\x44trail");
+    const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
+    constexpr std::size_t crc_offset = 2;
+    constexpr std::size_t crc_size = 4;
+    std::vector<std::byte> zeroed_header = header;
+    std::memset(zeroed_header.data() + crc_offset, 0, crc_size);
+
+    const uint32_t crc = packet_crc32(header, payload, crc_offset);
+
+    EXPECT_EQ(crc, crc32_mpeg2_concat(zeroed_header, payload));
+}
+
+TEST(Integrity, should_hash_the_header_bytes_after_the_hash_field) {
+    const std::vector<std::byte> header = bytes_from_string("ab\x11\x22\x33\x44trail");
+    const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
+    constexpr std::size_t hash_offset = 2;
+    constexpr std::size_t hash_size = 4;
+    constexpr XXH32_hash_t seed = 0;
+    std::vector<std::byte> zeroed_packet = header;
+    std::memset(zeroed_packet.data() + hash_offset, 0, hash_size);
+    zeroed_packet.insert(zeroed_packet.end(), payload.begin(), payload.end());
+
+    const uint32_t hash = packet_xxhash32(header, payload, hash_offset);
+
+    EXPECT_EQ(hash, XXH32(zeroed_packet.data(), zeroed_packet.size(), seed));
+}
+
+TEST(Integrity, should_reject_a_crc_field_that_is_not_four_bytes) {
+    std::vector<std::byte> header = bytes_from_string("\x01\x02\x03\x04\x05\x06");
+    const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
+    constexpr std::size_t crc_offset = 2;
+    constexpr std::size_t short_crc_size = 2;
+    write_u32_le(header, crc_offset, packet_crc32(header, payload, crc_offset));
+
+    const bool verified = verify_packet_crc32(header, payload, crc_offset, short_crc_size);
+
+    EXPECT_FALSE(verified);
+}
+
+TEST(Integrity, should_reject_a_crc_field_that_ends_past_the_header) {
+    const std::vector<std::byte> header = bytes_from_string("\x01\x02\x03\x04\x05\x06");
+    const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
+    constexpr std::size_t crc_offset = 3;
+
+    const bool verified = verify_packet_crc32(header, payload, crc_offset);
+
+    EXPECT_FALSE(verified);
 }
