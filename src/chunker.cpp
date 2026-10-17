@@ -35,6 +35,14 @@ constexpr const char* FILE_OPEN_FAILURE_MESSAGE = "File could not be opened!";
 constexpr const char* FILE_SIZE_FAILURE_MESSAGE = "Size of the file could not be determined!";
 constexpr const char* FILE_READ_FAILURE_MESSAGE = "File could not be read!";
 
+#if defined(_WIN32)
+constexpr DWORD MAPPING_SIZE_OF_FILE = 0;
+constexpr DWORD FILE_START_OFFSET = 0;
+constexpr SIZE_T WHOLE_MAPPING = 0;
+#else
+constexpr off_t FILE_START_OFFSET = 0;
+#endif
+
 std::vector<chunk_slice_type> slice_into_chunks(const std::size_t size, const std::size_t chunk_size) {
   std::vector<chunk_slice_type> chunks;
   if (size == 0) {
@@ -49,7 +57,7 @@ std::vector<chunk_slice_type> slice_into_chunks(const std::size_t size, const st
 }
 
 std::size_t effective_chunk_size(const std::size_t chunk_size) {
-  return chunk_size > 0 ? chunk_size : CHUNK_SIZE_BYTES;
+  return chunk_size != AUTOMATIC_CHUNK_SIZE ? chunk_size : CHUNK_SIZE_BYTES;
 }
 }
 
@@ -107,12 +115,13 @@ void file_chunk_reader::map_file(const char* path) {
       CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (file == INVALID_HANDLE_VALUE)
     return;
-  HANDLE mapping = CreateFileMappingA(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
+  HANDLE mapping =
+      CreateFileMappingA(file, nullptr, PAGE_READONLY, MAPPING_SIZE_OF_FILE, MAPPING_SIZE_OF_FILE, nullptr);
   if (!mapping) {
     CloseHandle(file);
     return;
   }
-  const void* view = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
+  const void* view = MapViewOfFile(mapping, FILE_MAP_READ, FILE_START_OFFSET, FILE_START_OFFSET, WHOLE_MAPPING);
   if (!view) {
     CloseHandle(mapping);
     CloseHandle(file);
@@ -125,7 +134,7 @@ void file_chunk_reader::map_file(const char* path) {
   const int file_descriptor = ::open(path, O_RDONLY);
   if (file_descriptor < 0)
     return;
-  const void* view = ::mmap(nullptr, file_size_, PROT_READ, MAP_SHARED, file_descriptor, 0);
+  const void* view = ::mmap(nullptr, file_size_, PROT_READ, MAP_SHARED, file_descriptor, FILE_START_OFFSET);
   if (view == MAP_FAILED) {
     ::close(file_descriptor);
     return;

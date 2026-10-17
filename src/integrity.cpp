@@ -28,24 +28,36 @@
 
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <cstring>
 
 namespace {
 constexpr char HEXADECIMAL_DIGITS[] = "0123456789ABCDEF";
+constexpr std::size_t HEXADECIMAL_DIGITS_PER_BYTE = 2;
+constexpr unsigned BITS_PER_HEXADECIMAL_DIGIT = 4;
+constexpr unsigned HEXADECIMAL_DIGIT_MASK = 0x0F;
+
+constexpr uint16_t CRC_WIDTH_BITS = CRC_SIZE * CHAR_BIT;
+
+constexpr XXH32_hash_t XXHASH_SEED = 0;
+
+#if defined(__APPLE__)
+constexpr std::size_t MAXIMUM_DIGEST_STEP = 1u << 30;
+#endif
 
 std::string bytes_to_hexadecimal(const std::span<const std::byte> input) {
-  std::string hexadecimal(input.size() * 2, '\0');
+  std::string hexadecimal(input.size() * HEXADECIMAL_DIGITS_PER_BYTE, '\0');
   char* out = hexadecimal.data();
   for (const std::byte input_byte : input) {
     const auto value = std::to_integer<unsigned char>(input_byte);
-    *out++ = HEXADECIMAL_DIGITS[value >> 4];
-    *out++ = HEXADECIMAL_DIGITS[value & 0x0F];
+    *out++ = HEXADECIMAL_DIGITS[value >> BITS_PER_HEXADECIMAL_DIGIT];
+    *out++ = HEXADECIMAL_DIGITS[value & HEXADECIMAL_DIGIT_MASK];
   }
   return hexadecimal;
 }
 
-const CRC::Table<uint32_t, 32>& crc_table() {
-  static const CRC::Table<uint32_t, 32> table = CRC::CRC_32_MPEG2().MakeTable();
+const CRC::Table<uint32_t, CRC_WIDTH_BITS>& crc_table() {
+  static const CRC::Table<uint32_t, CRC_WIDTH_BITS> table = CRC::CRC_32_MPEG2().MakeTable();
   return table;
 }
 
@@ -70,7 +82,7 @@ sha256_digest sha256(const std::span<const std::byte> data) {
   CC_SHA256_CTX context;
   CC_SHA256_Init(&context);
   for (std::size_t offset = 0; offset < data.size();) {
-    const auto step = static_cast<CC_LONG>(std::min<std::size_t>(data.size() - offset, 1u << 30));
+    const auto step = static_cast<CC_LONG>(std::min<std::size_t>(data.size() - offset, MAXIMUM_DIGEST_STEP));
     CC_SHA256_Update(&context, begin + offset, step);
     offset += step;
   }
@@ -88,9 +100,10 @@ uint32_t crc32_mpeg2(const std::span<const std::byte> data, const uint32_t seed)
   if (seed == 0) {
     return CRC::Calculate(data.data(), data.size(), crc_table());
   }
-  const uint8_t seed_bytes[4] = {static_cast<uint8_t>(seed & 0xFFu), static_cast<uint8_t>((seed >> 8) & 0xFFu),
-                                 static_cast<uint8_t>((seed >> 16) & 0xFFu),
-                                 static_cast<uint8_t>((seed >> 24) & 0xFFu)};
+  uint8_t seed_bytes[sizeof(seed)];
+  for (std::size_t i = 0; i < sizeof(seed); ++i) {
+    seed_bytes[i] = static_cast<uint8_t>(seed >> (i * CHAR_BIT));
+  }
   const uint32_t crc = CRC::Calculate(seed_bytes, sizeof(seed_bytes), crc_table());
   return CRC::Calculate(data.data(), data.size(), crc_table(), crc);
 }
@@ -104,8 +117,8 @@ uint32_t packet_crc32(const std::span<const std::byte> header, const std::span<c
                       const std::size_t crc_offset, const std::size_t crc_size) {
   const auto& table = crc_table();
   uint32_t crc = CRC::Calculate(header.data(), crc_offset, table);
-  if (crc_size == 4) {
-    constexpr uint8_t zeros[4] = {0, 0, 0, 0};
+  if (crc_size == CRC_SIZE) {
+    constexpr uint8_t zeros[CRC_SIZE] = {};
     crc = CRC::Calculate(zeros, sizeof(zeros), table, crc);
   }
   if (const std::size_t after_crc = crc_offset + crc_size; after_crc < header.size()) {
@@ -117,10 +130,10 @@ uint32_t packet_crc32(const std::span<const std::byte> header, const std::span<c
 uint32_t packet_xxhash32(const std::span<const std::byte> header, const std::span<const std::byte> payload,
                          const std::size_t crc_offset, const std::size_t crc_size) {
   XXH32_state_t state;
-  XXH32_reset(&state, 0);
+  XXH32_reset(&state, XXHASH_SEED);
   XXH32_update(&state, header.data(), crc_offset);
-  if (crc_size == 4) {
-    constexpr uint8_t zeros[4] = {0, 0, 0, 0};
+  if (crc_size == CRC_SIZE) {
+    constexpr uint8_t zeros[CRC_SIZE] = {};
     XXH32_update(&state, zeros, sizeof(zeros));
   }
   if (const std::size_t after_crc = crc_offset + crc_size; after_crc < header.size()) {
@@ -141,7 +154,7 @@ uint32_t packet_checksum(const std::span<const std::byte> header, const std::spa
 
 bool verify_packet_crc32(const std::span<const std::byte> header, const std::span<const std::byte> payload,
                          const std::size_t crc_offset, const std::size_t crc_size) {
-  if (crc_size != 4 || crc_offset + 4 > header.size()) {
+  if (crc_size != CRC_SIZE || crc_offset + CRC_SIZE > header.size()) {
     return false;
   }
   const uint32_t stored = read_uint32_little_endian(header, crc_offset);

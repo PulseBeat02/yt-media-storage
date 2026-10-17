@@ -21,6 +21,7 @@
 #include "dct_common.h"
 #include "packet_format.h"
 
+#include <climits>
 #include <cstring>
 #include <functional>
 #include <span>
@@ -28,6 +29,19 @@
 #include <string>
 
 namespace {
+constexpr int ANY_STREAM = -1;
+constexpr int NO_RELATED_STREAM = -1;
+
+constexpr std::size_t BUFFERED_FRAMES = 2;
+
+constexpr int64_t UNKNOWN_FRAME_COUNT = -1;
+
+constexpr int16_t PROJECTION_WEIGHTS[] = {8035, 6811, 4551, 1598};
+
+#if defined(DCT_USE_NEON)
+constexpr int SEEDED_ROWS = 2;
+#endif
+
 std::size_t packet_size_at(const std::span<const std::byte> data) {
   if (data.size() <= VERSION_OFFSET) {
     return HEADER_SIZE + SYMBOL_SIZE_BYTES;
@@ -45,18 +59,19 @@ bool starts_with_magic(const std::span<const std::byte> data) {
   return magic == MAGIC_ID;
 }
 
-constexpr int16_t PROJECTION_WEIGHTS[4] = {8035, 6811, 4551, 1598};
-
-int32_t project_columns(const int (&columns)[8]) {
-  return PROJECTION_WEIGHTS[0] * (columns[0] - columns[7]) + PROJECTION_WEIGHTS[1] * (columns[1] - columns[6]) +
-         PROJECTION_WEIGHTS[2] * (columns[2] - columns[5]) + PROJECTION_WEIGHTS[3] * (columns[3] - columns[4]);
+int32_t project_columns(const int (&columns)[BLOCK_SIZE]) {
+  int32_t projection = 0;
+  for (std::size_t i = 0; i < std::size(PROJECTION_WEIGHTS); ++i) {
+    projection += PROJECTION_WEIGHTS[i] * (columns[i] - columns[BLOCK_SIZE - 1 - i]);
+  }
+  return projection;
 }
 
 template <typename GrayOf> int32_t project_block(const uint8_t* block, const int stride, const GrayOf& gray_of) {
-  int columns[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-  for (int y = 0; y < 8; ++y) {
+  int columns[BLOCK_SIZE] = {};
+  for (int y = 0; y < BLOCK_SIZE; ++y) {
     const uint8_t* row = block + y * stride;
-    for (int x = 0; x < 8; ++x) {
+    for (int x = 0; x < BLOCK_SIZE; ++x) {
       columns[x] += gray_of(row[x]);
     }
   }
@@ -66,7 +81,7 @@ template <typename GrayOf> int32_t project_block(const uint8_t* block, const int
 #if defined(DCT_USE_NEON)
 int32_t project_block(const uint8_t* block, const int stride, const std::identity&) {
   uint16x8_t accumulator = vaddl_u8(vld1_u8(block), vld1_u8(block + stride));
-  for (int y = 2; y < 8; ++y) {
+  for (int y = SEEDED_ROWS; y < BLOCK_SIZE; ++y) {
     accumulator = vaddw_u8(accumulator, vld1_u8(block + y * stride));
   }
   const int16x4_t low = vreinterpret_s16_u16(vget_low_u16(accumulator));
@@ -80,7 +95,7 @@ template <typename GrayOf>
 void extract_data_into(std::vector<std::byte>& destination, const AVFrame& source, const frame_layout& layout,
                        const GrayOf& gray_of) {
   const int blocks_per_row = layout.blocks_per_row;
-  constexpr int blocks_per_byte = 8 / BITS_PER_BLOCK;
+  constexpr int blocks_per_byte = CHAR_BIT / BITS_PER_BLOCK;
   const int total_bytes = layout.total_blocks / blocks_per_byte;
 
   const uint8_t* source_base = source.data[0];
@@ -93,11 +108,11 @@ void extract_data_into(std::vector<std::byte>& destination, const AVFrame& sourc
   if constexpr (BITS_PER_BLOCK == 1) {
     for (int byte_index = 0; byte_index < total_bytes; ++byte_index) {
       uint8_t current_byte = 0;
-      for (int block_in_byte = 0; block_in_byte < 8; ++block_in_byte) {
-        const int block_index = byte_index * 8 + block_in_byte;
+      for (int block_in_byte = 0; block_in_byte < blocks_per_byte; ++block_in_byte) {
+        const int block_index = byte_index * blocks_per_byte + block_in_byte;
         const int block_row = block_index / blocks_per_row;
         const int block_column = block_index % blocks_per_row;
-        const uint8_t* block = source_base + block_row * 8 * source_stride + block_column * 8;
+        const uint8_t* block = source_base + block_row * BLOCK_SIZE * source_stride + block_column * BLOCK_SIZE;
         const int32_t projection = project_block(block, source_stride, gray_of);
         current_byte = static_cast<uint8_t>((current_byte << 1) | (projection > 0 ? 1 : 0));
       }
@@ -111,14 +126,14 @@ void extract_data_into(std::vector<std::byte>& destination, const AVFrame& sourc
       uint8_t current_byte = 0;
       for (int block_in_byte = 0; block_in_byte < blocks_per_byte; ++block_in_byte) {
         const int block_index = byte_index * blocks_per_byte + block_in_byte;
-        const int base_x = (block_index % blocks_per_row) * 8;
-        const int base_y = (block_index / blocks_per_row) * 8;
+        const int base_x = (block_index % blocks_per_row) * BLOCK_SIZE;
+        const int base_y = (block_index / blocks_per_row) * BLOCK_SIZE;
 
-        alignas(32) float block_flat[64];
-        for (int y = 0; y < 8; ++y) {
+        alignas(VECTOR_ALIGNMENT) float block_flat[BLOCK_AREA];
+        for (int y = 0; y < BLOCK_SIZE; ++y) {
           const uint8_t* row = source_base + (base_y + y) * source_stride + base_x;
-          for (int x = 0; x < 8; ++x) {
-            block_flat[y * 8 + x] = static_cast<float>(gray_of(row[x]));
+          for (int x = 0; x < BLOCK_SIZE; ++x) {
+            block_flat[y * BLOCK_SIZE + x] = static_cast<float>(gray_of(row[x]));
           }
         }
 
@@ -176,7 +191,8 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
     throw std::runtime_error(message);
   }
 
-  video_stream_index_ = av_find_best_stream(format_context_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+  video_stream_index_ =
+      av_find_best_stream(format_context_, AVMEDIA_TYPE_VIDEO, ANY_STREAM, NO_RELATED_STREAM, nullptr, NO_FLAGS);
   if (video_stream_index_ < 0) {
     const std::string message = "Input has no video stream!";
     throw std::runtime_error(message);
@@ -199,7 +215,7 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
     throw std::runtime_error(CODEC_PARAMETERS_COPY_MESSAGE);
   }
 
-  codec_context_->thread_count = 0;
+  codec_context_->thread_count = AUTOMATIC_THREAD_COUNT;
   codec_context_->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
 
   status = avcodec_open2(codec_context_, codec, nullptr);
@@ -225,7 +241,7 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
     gray_frame_->format = AV_PIX_FMT_GRAY8;
     gray_frame_->width = codec_context_->width;
     gray_frame_->height = codec_context_->height;
-    if (av_frame_get_buffer(gray_frame_, 0) < 0) {
+    if (av_frame_get_buffer(gray_frame_, DEFAULT_ALIGNMENT) < 0) {
       const std::string message = "Gray frame buffer could not be allocated!";
       throw std::runtime_error(message);
     }
@@ -245,7 +261,7 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
   }
 
   layout_ = compute_frame_layout(codec_context_->width, codec_context_->height);
-  extract_buffer_.reserve(static_cast<std::size_t>(layout_.bytes_per_frame) * 2);
+  extract_buffer_.reserve(static_cast<std::size_t>(layout_.bytes_per_frame) * BUFFERED_FRAMES);
 }
 
 int64_t video_decoder::total_frames() const {
@@ -260,7 +276,7 @@ int64_t video_decoder::total_frames() const {
                                          : FRAMES_PER_SECOND;
     return static_cast<int64_t>(duration_seconds * frames_per_second);
   }
-  return -1;
+  return UNKNOWN_FRAME_COUNT;
 }
 
 const AVFrame* video_decoder::gray_plane_frame() const {
@@ -293,7 +309,7 @@ video_decoder::packet_list video_decoder::consume_decoded_frame() {
     extract_data_into(extract_buffer_, *frame_, layout_, [&table](const uint8_t value) { return table[value]; });
   } else {
     if (!is_gray8_) {
-      sws_scale(sws_context_, frame_->data, frame_->linesize, 0, frame_->height, gray_frame_->data,
+      sws_scale(sws_context_, frame_->data, frame_->linesize, FIRST_ROW, frame_->height, gray_frame_->data,
                 gray_frame_->linesize);
     }
     extract_data_into(extract_buffer_, *gray_plane_frame(), layout_, std::identity{});

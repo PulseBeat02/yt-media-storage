@@ -20,6 +20,7 @@
 #include "dct_common.h"
 
 #include <algorithm>
+#include <climits>
 #include <cstring>
 
 frame_layout compute_frame_layout() {
@@ -30,11 +31,11 @@ frame_layout compute_frame_layout(const int width, const int height) {
   frame_layout layout{};
   layout.frame_width = width;
   layout.frame_height = height;
-  layout.blocks_per_row = width / 8;
-  layout.blocks_per_column = height / 8;
+  layout.blocks_per_row = width / BLOCK_SIZE;
+  layout.blocks_per_column = height / BLOCK_SIZE;
   layout.total_blocks = layout.blocks_per_row * layout.blocks_per_column;
   layout.bits_per_frame = layout.total_blocks * BITS_PER_BLOCK;
-  layout.bytes_per_frame = layout.bits_per_frame / 8;
+  layout.bytes_per_frame = layout.bits_per_frame / CHAR_BIT;
   return layout;
 }
 
@@ -51,40 +52,40 @@ void embed_data_into_plane(uint8_t* plane, const int stride, const frame_layout&
   const auto& blocks = get_precomputed_blocks();
   const auto& patterns = blocks.patterns;
 
-  const std::size_t total_bits = data.size() * 8;
+  const std::size_t total_bits = data.size() * CHAR_BIT;
   const int active_blocks = static_cast<int>(
       std::min(static_cast<std::size_t>(layout.total_blocks), (total_bits + BITS_PER_BLOCK - 1) / BITS_PER_BLOCK));
   const auto* source = reinterpret_cast<const uint8_t*>(data.data());
   const int blocks_per_row = layout.blocks_per_row;
 
-  const int covered_rows = blocks_per_row > 0 ? (active_blocks / blocks_per_row) * 8 : 0;
-  const int covered_width = blocks_per_row * 8;
+  const int covered_rows = blocks_per_row > 0 ? (active_blocks / blocks_per_row) * BLOCK_SIZE : 0;
+  const int covered_width = blocks_per_row * BLOCK_SIZE;
   if (covered_width < layout.frame_width) {
     for (int y = 0; y < covered_rows; ++y) {
-      std::memset(plane + y * stride + covered_width, 128, layout.frame_width - covered_width);
+      std::memset(plane + y * stride + covered_width, MID_GRAY, layout.frame_width - covered_width);
     }
   }
   for (int y = covered_rows; y < layout.frame_height; ++y) {
-    std::memset(plane + y * stride, 128, layout.frame_width);
+    std::memset(plane + y * stride, MID_GRAY, layout.frame_width);
   }
 
   for (int block_index = 0; block_index < active_blocks; ++block_index) {
-    const int base_x = (block_index % blocks_per_row) * 8;
-    const int base_y = (block_index / blocks_per_row) * 8;
+    const int base_x = (block_index % blocks_per_row) * BLOCK_SIZE;
+    const int base_y = (block_index / blocks_per_row) * BLOCK_SIZE;
 
     const std::size_t bit_start = static_cast<std::size_t>(block_index) * BITS_PER_BLOCK;
     const std::size_t bit_end = std::min(bit_start + BITS_PER_BLOCK, total_bits);
 
     int pattern = 0;
     for (std::size_t bit_index = bit_start; bit_index < bit_end; ++bit_index) {
-      const int bit_position = 7 - static_cast<int>(bit_index % 8);
-      pattern = (pattern << 1) | ((source[bit_index / 8] >> bit_position) & 1);
+      const int bit_position = CHAR_BIT - 1 - static_cast<int>(bit_index % CHAR_BIT);
+      pattern = (pattern << 1) | ((source[bit_index / CHAR_BIT] >> bit_position) & 1);
     }
     pattern <<= BITS_PER_BLOCK - static_cast<int>(bit_end - bit_start);
 
     const auto& block = patterns[pattern];
-    for (int y = 0; y < 8; ++y) {
-      std::memcpy(plane + (base_y + y) * stride + base_x, block[y], 8);
+    for (int y = 0; y < BLOCK_SIZE; ++y) {
+      std::memcpy(plane + (base_y + y) * stride + base_x, block[y], BLOCK_SIZE);
     }
   }
 }

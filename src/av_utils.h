@@ -29,6 +29,12 @@ extern "C" {
 #include <libavutil/frame.h>
 }
 
+inline constexpr int DEFAULT_ALIGNMENT = 0;
+inline constexpr int AUTOMATIC_THREAD_COUNT = 0;
+inline constexpr int FIRST_ROW = 0;
+inline constexpr int NO_B_FRAMES = 0;
+inline constexpr int NO_FLAGS = 0;
+
 inline constexpr const char* FRAME_ALLOCATION_MESSAGE = "Frame could not be allocated!";
 inline constexpr const char* FRAME_BUFFER_ALLOCATION_MESSAGE = "Frame buffer could not be allocated!";
 inline constexpr const char* PACKET_ALLOCATION_MESSAGE = "Packet could not be allocated!";
@@ -60,7 +66,7 @@ inline void ensure_fresh_writable_frame(AVFrame* frame) {
   frame->format = format;
   frame->width = width;
   frame->height = height;
-  if (av_frame_get_buffer(frame, 0) < 0) {
+  if (av_frame_get_buffer(frame, DEFAULT_ALIGNMENT) < 0) {
     throw std::runtime_error(FRAME_BUFFER_ALLOCATION_MESSAGE);
   }
 }

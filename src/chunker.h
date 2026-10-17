@@ -26,6 +26,8 @@
 #include <string>
 #include <vector>
 
+inline constexpr std::size_t AUTOMATIC_CHUNK_SIZE = 0;
+
 struct chunk_slice_type {
   std::size_t offset = 0;
   std::size_t length = 0;
@@ -38,7 +40,7 @@ struct chunked_storage_data {
 
 [[nodiscard]] chunked_storage_data chunk_byte_data(std::span<const std::byte> data);
 
-[[nodiscard]] chunked_storage_data chunk_file(const char* path, std::size_t chunk_size = 0);
+[[nodiscard]] chunked_storage_data chunk_file(const char* path, std::size_t chunk_size = AUTOMATIC_CHUNK_SIZE);
 
 [[nodiscard]] inline std::span<const std::byte> chunk_span(const chunked_storage_data& chunked_data,
                                                            const std::size_t index) {
@@ -48,7 +50,7 @@ struct chunked_storage_data {
 
 class file_chunk_reader {
 public:
-  explicit file_chunk_reader(const char* path, std::size_t chunk_size = 0);
+  explicit file_chunk_reader(const char* path, std::size_t chunk_size = AUTOMATIC_CHUNK_SIZE);
 
   ~file_chunk_reader();
 

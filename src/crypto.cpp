@@ -16,6 +16,7 @@
 
 #include "crypto.h"
 
+#include <climits>
 #include <cstring>
 #include <mutex>
 #include <sodium.h>
@@ -26,6 +27,7 @@ static_assert(FILE_ID_SIZE == crypto_pwhash_SALTBYTES);
 static_assert(CRYPTO_KEY_BYTES == crypto_aead_xchacha20poly1305_ietf_KEYBYTES);
 static_assert(CRYPTO_AEAD_TAG_BYTES == crypto_aead_xchacha20poly1305_ietf_ABYTES);
 static_assert(FILE_ID_SIZE + sizeof(uint32_t) <= crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+static_assert(CRYPTO_PLAIN_SIZE_HEADER == sizeof(uint32_t));
 
 namespace {
 constexpr const char* CHUNK_TOO_SMALL_MESSAGE = "Chunk is too small to decrypt!";
@@ -47,18 +49,16 @@ void ensure_sodium_initialized() {
 nonce build_nonce(const std::span<const std::byte, FILE_ID_SIZE> file_id, const uint32_t chunk_index) {
   nonce nonce{};
   std::memcpy(nonce.data(), file_id.data(), FILE_ID_SIZE);
-  nonce[FILE_ID_SIZE] = static_cast<unsigned char>(chunk_index & 0xff);
-  nonce[FILE_ID_SIZE + 1] = static_cast<unsigned char>((chunk_index >> 8) & 0xff);
-  nonce[FILE_ID_SIZE + 2] = static_cast<unsigned char>((chunk_index >> 16) & 0xff);
-  nonce[FILE_ID_SIZE + 3] = static_cast<unsigned char>((chunk_index >> 24) & 0xff);
+  for (std::size_t i = 0; i < sizeof(chunk_index); ++i) {
+    nonce[FILE_ID_SIZE + i] = static_cast<unsigned char>(chunk_index >> (i * CHAR_BIT));
+  }
   return nonce;
 }
 
 void write_plain_size_header(std::span<std::byte> out, const uint32_t plain_size) {
-  out[0] = static_cast<std::byte>(plain_size & 0xff);
-  out[1] = static_cast<std::byte>((plain_size >> 8) & 0xff);
-  out[2] = static_cast<std::byte>((plain_size >> 16) & 0xff);
-  out[3] = static_cast<std::byte>((plain_size >> 24) & 0xff);
+  for (std::size_t i = 0; i < sizeof(plain_size); ++i) {
+    out[i] = static_cast<std::byte>(plain_size >> (i * CHAR_BIT));
+  }
 }
 }
 
@@ -71,10 +71,9 @@ file_id_type generate_file_id() {
 
 uint32_t read_plain_size_from_header(const std::span<const std::byte> chunk) {
   uint32_t plain_size = 0;
-  plain_size |= static_cast<uint32_t>(static_cast<uint8_t>(chunk[0]));
-  plain_size |= static_cast<uint32_t>(static_cast<uint8_t>(chunk[1])) << 8;
-  plain_size |= static_cast<uint32_t>(static_cast<uint8_t>(chunk[2])) << 16;
-  plain_size |= static_cast<uint32_t>(static_cast<uint8_t>(chunk[3])) << 24;
+  for (std::size_t i = 0; i < sizeof(plain_size); ++i) {
+    plain_size |= static_cast<uint32_t>(static_cast<uint8_t>(chunk[i])) << (i * CHAR_BIT);
+  }
   return plain_size;
 }
 

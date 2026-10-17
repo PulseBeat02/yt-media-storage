@@ -27,6 +27,8 @@
 #include <type_traits>
 
 namespace {
+constexpr std::size_t MINIMUM_SOURCE_SYMBOLS = 2;
+
 struct wirehair_codec_deleter {
   void operator()(const WirehairCodec codec) const {
     wirehair_free(codec);
@@ -78,7 +80,7 @@ std::pair<std::vector<packet>, chunk_manifest_entry> encoder::encode_chunk(const
     throw std::runtime_error(message);
   }
 
-  constexpr std::size_t minimum_size = SYMBOL_SIZE_BYTES * 2;
+  constexpr std::size_t minimum_size = SYMBOL_SIZE_BYTES * MINIMUM_SOURCE_SYMBOLS;
   std::vector<std::byte> padded_data;
   std::span<const std::byte> data_to_encode = chunk_data;
   if (chunk_data.size() < minimum_size) {

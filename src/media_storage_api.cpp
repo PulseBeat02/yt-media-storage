@@ -45,6 +45,10 @@
 namespace {
 constexpr int DEFAULT_STREAM_CONNECT_TIMEOUT_SECONDS = 30;
 
+constexpr const char* CANCELLED_MESSAGE = "cancelled by progress callback";
+constexpr const char* INPUT_AND_OUTPUT_REQUIRED_MESSAGE = "input_path and output_path are required";
+constexpr const char* INPUT_NOT_FOUND_MESSAGE = "input file not found: ";
+
 thread_local std::string last_error;
 
 void set_last_error(std::string message) {
@@ -158,7 +162,7 @@ struct encode_job {
     for (std::size_t batch_start = 0; batch_start < chunk_count; batch_start += batch_size) {
       if (progress && progress(batch_start, chunk_count, progress_user) != 0) {
         pending.wait();
-        return fail(MS_ERR_ENCODE_FAILED, "cancelled by progress callback");
+        return fail(MS_ERR_ENCODE_FAILED, CANCELLED_MESSAGE);
       }
 
       batch_results results = pending.get();
@@ -200,7 +204,7 @@ ms_status_t consume_video(video_decoder& video, decoder& decoder, const ms_progr
       break;
     }
     if (progress && progress(static_cast<uint64_t>(video.frames_read()), total_for_progress, progress_user) != 0) {
-      return fail(MS_ERR_DECODE_FAILED, "cancelled by progress callback");
+      return fail(MS_ERR_DECODE_FAILED, CANCELLED_MESSAGE);
     }
 
     for (const auto& packet_bytes : video.decode_next_frame()) {
@@ -274,7 +278,7 @@ ms_status_t encode_file(const char* input_path_c_string, const bool encrypt, con
 
   const std::string input_path(input_path_c_string);
   if (!std::filesystem::exists(input_path)) {
-    return fail(MS_ERR_FILE_NOT_FOUND, "input file not found: " + input_path);
+    return fail(MS_ERR_FILE_NOT_FOUND, INPUT_NOT_FOUND_MESSAGE + input_path);
   }
   if (std::error_code error_code; !std::filesystem::is_regular_file(input_path, error_code)) {
     return fail(MS_ERR_INVALID_ARGS, "input is not a regular file: " + input_path);
@@ -282,7 +286,8 @@ ms_status_t encode_file(const char* input_path_c_string, const bool encrypt, con
   input_size = file_size_or_zero(input_path);
 
   try {
-    const file_chunk_reader reader(input_path.c_str(), encrypt ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : 0);
+    const file_chunk_reader reader(input_path.c_str(),
+                                   encrypt ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : AUTOMATIC_CHUNK_SIZE);
     if (reader.file_size() > 0 && !reader.is_mapped()) {
       return fail(MS_ERR_IO, "failed to memory-map input file: " + input_path);
     }
@@ -305,7 +310,7 @@ ms_status_t encode_file(const char* input_path_c_string, const bool encrypt, con
 ms_status_t ms_encode(const ms_encode_options_t* options, ms_result_t* result) {
   set_last_error({});
   if (!options || !options->input_path || !options->output_path) {
-    return fail(MS_ERR_INVALID_ARGS, "input_path and output_path are required");
+    return fail(MS_ERR_INVALID_ARGS, INPUT_AND_OUTPUT_REQUIRED_MESSAGE);
   }
 
   const std::string output_path(options->output_path);
@@ -355,13 +360,13 @@ ms_status_t ms_stream_encode(const ms_stream_encode_options_t* options, ms_resul
 ms_status_t ms_decode(const ms_decode_options_t* options, ms_result_t* result) {
   set_last_error({});
   if (!options || !options->input_path || !options->output_path) {
-    return fail(MS_ERR_INVALID_ARGS, "input_path and output_path are required");
+    return fail(MS_ERR_INVALID_ARGS, INPUT_AND_OUTPUT_REQUIRED_MESSAGE);
   }
 
   const std::string input_path(options->input_path);
   const std::string output_path(options->output_path);
   if (!std::filesystem::exists(input_path)) {
-    return fail(MS_ERR_FILE_NOT_FOUND, "input file not found: " + input_path);
+    return fail(MS_ERR_FILE_NOT_FOUND, INPUT_NOT_FOUND_MESSAGE + input_path);
   }
 
   decoder decoder;

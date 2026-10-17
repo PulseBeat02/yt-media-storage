@@ -38,11 +38,26 @@ constexpr int64_t AUDIO_BIT_RATE = 128000;
 constexpr int AUDIO_CHANNELS = 2;
 constexpr int KEYFRAME_INTERVAL_SECONDS = 2;
 
+constexpr const char* RTMP_CONTAINER_FORMAT = "flv";
+constexpr const char* H264_ENCODER = "libx264";
+constexpr const char* X264_PRESET = "ultrafast";
+constexpr const char* X264_TUNE = "zerolatency";
+
+constexpr int64_t BITS_PER_KILOBIT = 1000;
+constexpr int64_t RATE_CONTROL_BUFFER_SECONDS = 2;
+
+constexpr int Y_PLANE = 0;
+constexpr int U_PLANE = 1;
+constexpr int V_PLANE = 2;
+
+constexpr int CHROMA_SUBSAMPLING = 2;
+constexpr int NEUTRAL_CHROMA = 128;
+
 AVSampleFormat preferred_sample_format(const AVCodec* codec) {
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(61, 13, 100)
   const AVSampleFormat* formats = nullptr;
   int count = 0;
-  if (avcodec_get_supported_config(nullptr, codec, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0,
+  if (avcodec_get_supported_config(nullptr, codec, AV_CODEC_CONFIG_SAMPLE_FORMAT, NO_FLAGS,
                                    reinterpret_cast<const void**>(&formats), &count) == 0 &&
       formats && count > 0) {
     return formats[0];
@@ -112,7 +127,7 @@ void stream_encoder::release() {
 }
 
 void stream_encoder::initialize_stream(const std::string& rtmp_url, const int bitrate_kilobits_per_second) {
-  int status = avformat_alloc_output_context2(&format_context_, nullptr, "flv", rtmp_url.c_str());
+  int status = avformat_alloc_output_context2(&format_context_, nullptr, RTMP_CONTAINER_FORMAT, rtmp_url.c_str());
   if (status < 0 || !format_context_) {
     const std::string message = "Output context of the RTMP stream could not be created!";
     throw std::runtime_error(message);
@@ -142,7 +157,7 @@ void stream_encoder::initialize_stream(const std::string& rtmp_url, const int bi
 }
 
 void stream_encoder::initialize_video_encoder(const int bitrate_kilobits_per_second) {
-  const AVCodec* codec = avcodec_find_encoder_by_name("libx264");
+  const AVCodec* codec = avcodec_find_encoder_by_name(H264_ENCODER);
   if (!codec) {
     const std::string message = "Encoder libx264 could not be found, so FFmpeg may lack x264 support!";
     throw std::runtime_error(message);
@@ -163,16 +178,16 @@ void stream_encoder::initialize_video_encoder(const int bitrate_kilobits_per_sec
   video_codec_context_->time_base = {1, frames_per_second_};
   video_codec_context_->framerate = {frames_per_second_, 1};
   video_codec_context_->gop_size = frames_per_second_ * KEYFRAME_INTERVAL_SECONDS;
-  video_codec_context_->max_b_frames = 0;
+  video_codec_context_->max_b_frames = NO_B_FRAMES;
   video_codec_context_->pix_fmt = AV_PIX_FMT_YUV420P;
-  video_codec_context_->bit_rate = static_cast<int64_t>(bitrate_kilobits_per_second) * 1000;
+  video_codec_context_->bit_rate = static_cast<int64_t>(bitrate_kilobits_per_second) * BITS_PER_KILOBIT;
   video_codec_context_->rc_max_rate = video_codec_context_->bit_rate;
-  video_codec_context_->rc_buffer_size = static_cast<int>(video_codec_context_->bit_rate * 2);
-  video_codec_context_->thread_count = 0;
+  video_codec_context_->rc_buffer_size = static_cast<int>(video_codec_context_->bit_rate * RATE_CONTROL_BUFFER_SECONDS);
+  video_codec_context_->thread_count = AUTOMATIC_THREAD_COUNT;
   video_codec_context_->thread_type = FF_THREAD_SLICE;
 
-  av_opt_set(video_codec_context_->priv_data, "preset", "ultrafast", 0);
-  av_opt_set(video_codec_context_->priv_data, "tune", "zerolatency", 0);
+  av_opt_set(video_codec_context_->priv_data, "preset", X264_PRESET, NO_FLAGS);
+  av_opt_set(video_codec_context_->priv_data, "tune", X264_TUNE, NO_FLAGS);
 
   if (format_context_->oformat->flags & AVFMT_GLOBALHEADER) {
     video_codec_context_->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -198,7 +213,7 @@ void stream_encoder::initialize_video_encoder(const int bitrate_kilobits_per_sec
   frame_->format = AV_PIX_FMT_YUV420P;
   frame_->width = width_;
   frame_->height = height_;
-  if (av_frame_get_buffer(frame_, 0) < 0) {
+  if (av_frame_get_buffer(frame_, DEFAULT_ALIGNMENT) < 0) {
     throw std::runtime_error(FRAME_BUFFER_ALLOCATION_MESSAGE);
   }
 }
@@ -264,7 +279,7 @@ void stream_encoder::initialize_audio_encoder() {
   audio_frame_->sample_rate = audio_codec_context_->sample_rate;
   audio_frame_->nb_samples = audio_codec_context_->frame_size;
 
-  if (av_frame_get_buffer(audio_frame_, 0) < 0) {
+  if (av_frame_get_buffer(audio_frame_, DEFAULT_ALIGNMENT) < 0) {
     const std::string message = "Audio frame buffer could not be allocated!";
     throw std::runtime_error(message);
   }
@@ -333,12 +348,12 @@ void stream_encoder::write_audio_up_to(const int64_t video_pts) {
 void stream_encoder::encode_frame() {
   ensure_fresh_writable_frame(frame_);
 
-  embed_data_into_plane(frame_->data[0], frame_->linesize[0], layout_, frame_data_buffer_);
-  const int chroma_height = height_ / 2;
-  const int chroma_width = width_ / 2;
+  embed_data_into_plane(frame_->data[Y_PLANE], frame_->linesize[Y_PLANE], layout_, frame_data_buffer_);
+  const int chroma_height = height_ / CHROMA_SUBSAMPLING;
+  const int chroma_width = width_ / CHROMA_SUBSAMPLING;
   for (int y = 0; y < chroma_height; ++y) {
-    std::memset(frame_->data[1] + y * frame_->linesize[1], 128, chroma_width);
-    std::memset(frame_->data[2] + y * frame_->linesize[2], 128, chroma_width);
+    std::memset(frame_->data[U_PLANE] + y * frame_->linesize[U_PLANE], NEUTRAL_CHROMA, chroma_width);
+    std::memset(frame_->data[V_PLANE] + y * frame_->linesize[V_PLANE], NEUTRAL_CHROMA, chroma_width);
   }
 
   frame_->pts = frame_index_++;

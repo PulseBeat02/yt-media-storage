@@ -85,9 +85,9 @@ void video_encoder::initialize_encoder(const std::string& output_path) {
   codec_context_->time_base = {1, FRAMES_PER_SECOND};
   codec_context_->framerate = {FRAMES_PER_SECOND, 1};
   codec_context_->gop_size = FRAMES_PER_SECOND;
-  codec_context_->max_b_frames = 0;
+  codec_context_->max_b_frames = NO_B_FRAMES;
   codec_context_->pix_fmt = AV_PIX_FMT_GRAY8;
-  codec_context_->thread_count = 0;
+  codec_context_->thread_count = AUTOMATIC_THREAD_COUNT;
   codec_context_->thread_type = FF_THREAD_SLICE;
 
   if (format_context_->oformat->flags & AVFMT_GLOBALHEADER) {
@@ -114,7 +114,7 @@ void video_encoder::initialize_encoder(const std::string& output_path) {
   frame_->format = codec_context_->pix_fmt;
   frame_->width = codec_context_->width;
   frame_->height = codec_context_->height;
-  if (av_frame_get_buffer(frame_, 0) < 0) {
+  if (av_frame_get_buffer(frame_, DEFAULT_ALIGNMENT) < 0) {
     throw std::runtime_error(FRAME_BUFFER_ALLOCATION_MESSAGE);
   }
 

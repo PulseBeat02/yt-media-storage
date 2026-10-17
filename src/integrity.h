@@ -25,6 +25,8 @@
 #include <span>
 #include <string>
 
+#include "configuration.h"
+
 constexpr std::size_t SHA256_HASH_SIZE = 32;
 
 enum class hash_algorithm_type {
@@ -47,15 +49,16 @@ struct sha256_digest {
 [[nodiscard]] uint32_t crc32_mpeg2_concat(std::span<const std::byte> first, std::span<const std::byte> second);
 
 [[nodiscard]] uint32_t packet_crc32(std::span<const std::byte> header, std::span<const std::byte> payload,
-                                    std::size_t crc_offset, std::size_t crc_size = 4);
+                                    std::size_t crc_offset, std::size_t crc_size = CRC_SIZE);
 
 [[nodiscard]] uint32_t packet_xxhash32(std::span<const std::byte> header, std::span<const std::byte> payload,
-                                       std::size_t crc_offset, std::size_t crc_size = 4);
+                                       std::size_t crc_offset, std::size_t crc_size = CRC_SIZE);
 
 [[nodiscard]] uint32_t packet_checksum(std::span<const std::byte> header, std::span<const std::byte> payload,
-                                       std::size_t crc_offset, hash_algorithm_type algorithm, std::size_t crc_size = 4);
+                                       std::size_t crc_offset, hash_algorithm_type algorithm,
+                                       std::size_t crc_size = CRC_SIZE);
 
 [[nodiscard]] bool verify_packet_crc32(std::span<const std::byte> header, std::span<const std::byte> payload,
-                                       std::size_t crc_offset, std::size_t crc_size = 4);
+                                       std::size_t crc_offset, std::size_t crc_size = CRC_SIZE);
 
 #endif

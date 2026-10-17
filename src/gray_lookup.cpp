@@ -16,6 +16,8 @@
 
 #include "gray_lookup.h"
 
+#include "av_utils.h"
+
 #include <algorithm>
 #include <memory>
 #include <random>
@@ -26,9 +28,6 @@ extern "C" {
 }
 
 namespace {
-
-constexpr int DEFAULT_ALIGNMENT = 0;
-constexpr int FIRST_ROW = 0;
 
 constexpr std::minstd_rand::result_type CALIBRATION_SEED = 0x6D73;
 constexpr int RANDOM_BYTE_SHIFT = 16;
