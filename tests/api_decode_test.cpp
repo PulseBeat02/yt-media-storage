@@ -28,7 +28,6 @@
 #include "fixtures.h"
 #include "media_storage.h"
 #include "packet_format.h"
-#include "video_encoder.h"
 
 namespace {
 
@@ -59,12 +58,6 @@ void write_encoded_pattern(const fixtures::temporary_file& input, const fixtures
 
   const ms_status_t encode_status = ms_encode(&options, nullptr);
   ASSERT_EQ(encode_status, MS_OK);
-}
-
-void write_video(const std::string& path, const std::vector<packet>& packets) {
-  video_encoder encoder(path);
-  encoder.encode_packets(packets);
-  encoder.finalize();
 }
 
 ms_status_t decode_file(const fixtures::temporary_file& video, const fixtures::temporary_file& output) {
@@ -149,7 +142,7 @@ TEST(api_decode_test, should_retry_opening_a_stream_once_a_second_until_the_time
 TEST(api_decode_test, should_report_a_video_without_packets) {
   const fixtures::temporary_file video(MATROSKA_EXTENSION);
   const fixtures::temporary_file output(BINARY_EXTENSION);
-  write_video(video.string(), {packet{}});
+  fixtures::write_video(video.string(), {packet{}});
 
   const ms_status_t status = decode_file(video, output);
 
@@ -165,7 +158,7 @@ TEST(api_decode_test, should_report_how_many_chunks_an_incomplete_video_holds) {
   const std::vector<std::byte> chunk = fixtures::make_pattern(INPUT_SIZE);
   const std::vector<packet> last_chunk_packets =
       encoder.encode_chunk(LAST_CHUNK_INDEX, chunk, chunk_position::LAST).first;
-  write_video(video.string(), last_chunk_packets);
+  fixtures::write_video(video.string(), last_chunk_packets);
 
   const ms_status_t status = decode_file(video, output);
 

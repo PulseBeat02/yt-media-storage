@@ -39,14 +39,6 @@ constexpr std::size_t THIRD_CHUNK_OFFSET = THIRD_CHUNK_INDEX * CUSTOM_CHUNK_SIZE
 
 constexpr const char* BINARY_EXTENSION = ".bin";
 
-std::vector<std::byte> make_patterned_data(const std::size_t size, const unsigned char multiplier = 1) {
-  std::vector<std::byte> data(size);
-  for (std::size_t i = 0; i < size; ++i) {
-    data[i] = static_cast<std::byte>(static_cast<unsigned char>((i * multiplier) & fixtures::BYTE_MASK));
-  }
-  return data;
-}
-
 void expect_chunks_cover_data(const chunked_storage_data& chunked, const std::vector<std::byte>& original) {
   std::size_t total_length = 0;
   for (const auto& [offset, length] : chunked.chunks) {
@@ -73,7 +65,7 @@ TEST(chunker_test, should_chunk_empty_data_into_no_chunks) {
 }
 
 TEST(chunker_test, should_chunk_small_data_into_one_chunk) {
-  const std::vector<std::byte> small_data = make_patterned_data(100);
+  const std::vector<std::byte> small_data = fixtures::make_stepped_data(100);
   const std::span data_span(small_data.data(), small_data.size());
   const auto [storage, chunks] = chunk_byte_data(data_span);
   const std::size_t chunk_count = chunks.size();
@@ -83,7 +75,7 @@ TEST(chunker_test, should_chunk_small_data_into_one_chunk) {
 }
 
 TEST(chunker_test, should_chunk_data_of_one_chunk_size_into_one_chunk) {
-  const std::vector<std::byte> exact_data = make_patterned_data(CHUNK_SIZE_BYTES);
+  const std::vector<std::byte> exact_data = fixtures::make_stepped_data(CHUNK_SIZE_BYTES);
   const std::span data_span(exact_data.data(), exact_data.size());
   const auto [storage, chunks] = chunk_byte_data(data_span);
   const std::size_t chunk_count = chunks.size();
@@ -94,7 +86,7 @@ TEST(chunker_test, should_chunk_data_of_one_chunk_size_into_one_chunk) {
 
 TEST(chunker_test, should_chunk_large_data_into_several_chunks) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2 + CHUNK_SIZE_BYTES / 2;
-  const std::vector<std::byte> large_data = make_patterned_data(total_size);
+  const std::vector<std::byte> large_data = fixtures::make_stepped_data(total_size);
   const std::span data_span(large_data.data(), large_data.size());
   const auto [storage, chunks] = chunk_byte_data(data_span);
   const std::size_t chunk_count = chunks.size();
@@ -105,7 +97,7 @@ TEST(chunker_test, should_chunk_large_data_into_several_chunks) {
 }
 
 TEST(chunker_test, should_keep_the_data_in_its_chunks) {
-  const std::vector<std::byte> original_data = make_patterned_data(5000, 17);
+  const std::vector<std::byte> original_data = fixtures::make_stepped_data(5000, 17);
   const std::span data_span(original_data.data(), original_data.size());
   const chunked_storage_data chunked = chunk_byte_data(data_span);
   expect_chunks_cover_data(chunked, original_data);
@@ -113,7 +105,7 @@ TEST(chunker_test, should_keep_the_data_in_its_chunks) {
 
 TEST(chunker_test, should_return_the_slice_of_a_chunk) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES + 42;
-  const std::vector<std::byte> input_data = make_patterned_data(total_size);
+  const std::vector<std::byte> input_data = fixtures::make_stepped_data(total_size);
   const std::span data_span(input_data.data(), input_data.size());
   const chunked_storage_data chunked = chunk_byte_data(data_span);
 
@@ -136,7 +128,7 @@ TEST(chunker_test, should_return_the_slice_of_a_chunk) {
 
 TEST(chunker_test, should_chunk_a_file_like_its_bytes) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES + 99;
-  const std::vector<std::byte> original_data = make_patterned_data(total_size, 3);
+  const std::vector<std::byte> original_data = fixtures::make_stepped_data(total_size, 3);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   fixtures::write_bytes(input.path(), original_data);
 
@@ -215,7 +207,7 @@ TEST(chunker_test, should_read_two_chunks_from_a_file_just_over_one_chunk) {
 
 TEST(chunker_test, should_read_the_contents_of_each_chunk) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES + 50;
-  const std::vector<std::byte> original_data = make_patterned_data(total_size, 11);
+  const std::vector<std::byte> original_data = fixtures::make_stepped_data(total_size, 11);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   fixtures::write_bytes(input.path(), original_data);
 
@@ -243,7 +235,7 @@ TEST(chunker_test, should_read_the_contents_of_each_chunk) {
 
 TEST(chunker_test, should_read_chunks_of_a_custom_size) {
   constexpr std::size_t total_size = 250;
-  const std::vector<std::byte> original_data = make_patterned_data(total_size);
+  const std::vector<std::byte> original_data = fixtures::make_stepped_data(total_size);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   fixtures::write_bytes(input.path(), original_data);
 
@@ -289,7 +281,7 @@ TEST(chunker_test, should_fail_to_read_a_chunk_past_the_end) {
 
 TEST(chunker_test, should_read_chunks_in_any_order) {
   constexpr std::size_t total_size = 300;
-  const std::vector<std::byte> original_data = make_patterned_data(total_size, 7);
+  const std::vector<std::byte> original_data = fixtures::make_stepped_data(total_size, 7);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   fixtures::write_bytes(input.path(), original_data);
 
@@ -311,7 +303,7 @@ TEST(chunker_test, should_read_chunks_in_any_order) {
 }
 
 TEST(chunker_test, should_read_the_same_chunk_twice) {
-  const std::vector<std::byte> original_data = make_patterned_data(200, 13);
+  const std::vector<std::byte> original_data = fixtures::make_stepped_data(200, 13);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   fixtures::write_bytes(input.path(), original_data);
 
@@ -338,7 +330,7 @@ TEST(chunker_test, should_fail_to_chunk_a_missing_file) {
 
 TEST(chunker_test, should_chunk_a_file_into_chunks_of_a_custom_size) {
   constexpr std::size_t custom_chunk = 50;
-  const std::vector<std::byte> original_data = make_patterned_data(120, 5);
+  const std::vector<std::byte> original_data = fixtures::make_stepped_data(120, 5);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   fixtures::write_bytes(input.path(), original_data);
 
@@ -355,7 +347,7 @@ TEST(chunker_test, should_chunk_a_file_into_chunks_of_a_custom_size) {
 
 TEST(chunker_test, should_chunk_data_of_two_chunk_sizes_into_two_chunks) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2;
-  const std::vector<std::byte> data = make_patterned_data(total_size);
+  const std::vector<std::byte> data = fixtures::make_stepped_data(total_size);
   const std::span data_span(data.data(), data.size());
   const auto [storage, chunks] = chunk_byte_data(data_span);
   const std::size_t chunk_count = chunks.size();

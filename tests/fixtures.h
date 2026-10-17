@@ -19,22 +19,29 @@
 #ifndef MEDIA_STORAGE_TESTS_FIXTURES_H
 #define MEDIA_STORAGE_TESTS_FIXTURES_H
 
+#include <gtest/gtest.h>
+
+#include "configuration.h"
+#include "packet_format.h"
+#include "video_encoder.h"
+
 #include <cstddef>
 #include <exception>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iterator>
+#include <span>
 #include <string>
 #include <vector>
-
-#include <gtest/gtest.h>
 
 namespace fixtures {
 
 constexpr std::size_t PATTERN_MULTIPLIER = 131;
 constexpr std::size_t PATTERN_OFFSET = 17;
 constexpr std::size_t BYTE_MASK = 0xFF;
+
+constexpr std::size_t COUNTING_PERIOD = 251;
 
 constexpr const char* FULL_DEVICE = "/dev/full";
 constexpr const char* NO_FULL_DEVICE_MESSAGE = "This platform has no full device to write to!";
@@ -89,6 +96,30 @@ inline std::vector<std::byte> make_pattern(const std::size_t size) {
   return data;
 }
 
+inline std::vector<std::byte> make_counting_data(const std::size_t size) {
+  std::vector<std::byte> data(size);
+  for (std::size_t i = 0; i < size; ++i) {
+    data[i] = static_cast<std::byte>(i % COUNTING_PERIOD);
+  }
+  return data;
+}
+
+inline std::vector<std::byte> make_stepped_data(const std::size_t size, const std::size_t step = 1) {
+  std::vector<std::byte> data(size);
+  for (std::size_t i = 0; i < size; ++i) {
+    data[i] = static_cast<std::byte>((i * step) & BYTE_MASK);
+  }
+  return data;
+}
+
+inline file_id_type make_test_file_id() {
+  file_id_type file_id{};
+  for (std::size_t i = 0; i < file_id.size(); ++i) {
+    file_id[i] = static_cast<std::byte>(i);
+  }
+  return file_id;
+}
+
 inline void write_bytes(const std::filesystem::path& path, const std::vector<std::byte>& data) {
   std::ofstream stream(path, std::ios::binary);
   const bool stream_open = stream.is_open();
@@ -97,10 +128,10 @@ inline void write_bytes(const std::filesystem::path& path, const std::vector<std
   stream.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
 }
 
-inline std::string find_error_message(const std::function<void()>& action) {
+template <typename ExceptionType = std::exception> std::string find_error_message(const std::function<void()>& action) {
   try {
     action();
-  } catch (const std::exception& exception) {
+  } catch (const ExceptionType& exception) {
     return exception.what();
   }
 
@@ -115,6 +146,16 @@ inline std::vector<std::byte> read_bytes(const std::filesystem::path& path) {
     data[i] = static_cast<std::byte>(characters[i]);
   }
   return data;
+}
+
+inline std::span<const std::byte> packet_span(const packet& packet) {
+  return {packet.bytes.data(), packet.bytes.size()};
+}
+
+inline void write_video(const std::string& path, const std::vector<packet>& packets) {
+  video_encoder encoder(path);
+  encoder.encode_packets(packets);
+  encoder.finalize();
 }
 
 }

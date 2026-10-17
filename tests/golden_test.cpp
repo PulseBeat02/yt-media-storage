@@ -36,7 +36,6 @@ extern "C" {
 #include "media_storage.h"
 #include "packet_format.h"
 #include "video_decoder.h"
-#include "video_encoder.h"
 
 namespace {
 
@@ -117,12 +116,6 @@ std::vector<packet> read_packets(const std::string& path) {
   return packets;
 }
 
-void write_video(const std::string& path, const std::vector<packet>& packets) {
-  video_encoder encoder(path);
-  encoder.encode_packets(packets);
-  encoder.finalize();
-}
-
 std::vector<uint8_t> copy_luma_plane(const AVFrame& frame) {
   std::vector<uint8_t> plane;
   plane.reserve(static_cast<std::size_t>(frame.width) * static_cast<std::size_t>(frame.height));
@@ -192,7 +185,7 @@ void expect_identical_frames_from_reference_packets(const char* name) {
   const std::string reference_path = golden_path(name).string();
   const fixtures::temporary_file rendered(MATROSKA_EXTENSION);
   const std::vector<packet> packets = read_packets(reference_path);
-  write_video(rendered.string(), packets);
+  fixtures::write_video(rendered.string(), packets);
 
   const luma_planes expected = read_luma_planes(reference_path);
   const luma_planes actual = read_luma_planes(rendered.string());

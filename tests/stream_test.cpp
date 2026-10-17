@@ -58,14 +58,6 @@ constexpr int HEIGHT_720P = 720;
 constexpr int WIDTH_4K = 3840;
 constexpr int HEIGHT_4K = 2160;
 
-encoder::file_id_type make_test_file_id() {
-  encoder::file_id_type file_id{};
-  for (std::size_t i = 0; i < file_id.size(); ++i) {
-    file_id[i] = std::byte{static_cast<uint8_t>(i)};
-  }
-  return file_id;
-}
-
 void stream_encode_file(const std::string& input_path, const std::string& output_flv,
                         const int bitrate_kilobits_per_second, const int width, const int height,
                         const payload_encryption encryption = payload_encryption::PLAIN,
@@ -74,7 +66,7 @@ void stream_encode_file(const std::string& input_path, const std::string& output
   const file_chunk_reader reader(input_path.c_str(),
                                  encrypted ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : AUTOMATIC_CHUNK_SIZE);
   const std::size_t chunk_count = reader.chunk_count();
-  const file_id_type file_id = make_test_file_id();
+  const file_id_type file_id = fixtures::make_test_file_id();
   const encoder encoder(file_id);
 
   std::array<std::byte, CRYPTO_KEY_BYTES> key{};
@@ -283,7 +275,7 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
   {
     const std::string input_path = input.string();
     const file_chunk_reader reader(input_path.c_str());
-    const file_id_type file_id = make_test_file_id();
+    const file_id_type file_id = fixtures::make_test_file_id();
     const encoder encoder(file_id);
     video_encoder video_encoder(mkv.string());
 
@@ -346,7 +338,7 @@ TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
   {
     const std::string input_path = input.string();
     const file_chunk_reader reader(input_path.c_str());
-    const file_id_type file_id = make_test_file_id();
+    const file_id_type file_id = fixtures::make_test_file_id();
     const encoder encoder(file_id, hash_algorithm_type::XXHASH32);
     stream_encoder stream_encoder(flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P, HEIGHT_1080P);
 
