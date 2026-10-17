@@ -107,14 +107,14 @@ int stream_decode_progress(const uint64_t current, const uint64_t total, void*) 
 }
 
 void print_usage(const char* program) {
-  std::cerr << "Usage:\n"
-            << "  " << program
-            << " encode --input <file> --output <video> [--encrypt --password <pwd>] [--hash <crc32|xxhash>]\n"
-            << "  " << program << " decode --input <video> --output <file> [--password <pwd>]\n"
-            << "  " << program
-            << " stream-encode --input <file> --url <rtmp://...> [--bitrate <kbps>] [--width <w> --height <h>]"
-               " [--fps <n>] [--encrypt --password <pwd>] [--hash <crc32|xxhash>]\n"
-            << "  " << program << " stream-decode --url <stream_url> --output <file> [--password <pwd>]\n";
+  std::cerr
+      << "Usage:\n"
+      << "  " << program
+      << " encode --input <file> --output <video> [--encrypt --password <pwd>] [--hash <crc32|xxhash>]\n"
+      << "  " << program << " decode --input <video> --output <file> [--password <pwd>]\n"
+      << "  " << program
+      << " stream-encode --input <file> --url <rtmp://...> [--bitrate <kbps>] [--width <w> --height <h>] [--fps <n>] [--encrypt --password <pwd>] [--hash <crc32|xxhash>]\n"
+      << "  " << program << " stream-decode --url <stream_url> --output <file> [--password <pwd>]\n";
 }
 
 int report_failure(const ms_status_t status) {

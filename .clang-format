@@ -4,3 +4,4 @@ FixNamespaceComments: false
 PointerAlignment: Left
 AllowShortFunctionsOnASingleLine: None
 InsertBraces: true
+BreakStringLiterals: false

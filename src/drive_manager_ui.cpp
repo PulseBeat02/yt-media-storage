@@ -516,11 +516,11 @@ void drive_manager_ui::setup_menu_bar() {
 }
 
 void drive_manager_ui::show_about() {
-  QMessageBox::about(this, "About",
-                     QString("YouTube Media Storage Drive Manager\n\n"
-                             "Encode and decode files using video storage technology\n"
-                             "Version %1")
-                         .arg(ms_version()));
+  QMessageBox::about(
+      this, "About",
+      QString(
+          "YouTube Media Storage Drive Manager\n\nEncode and decode files using video storage technology\nVersion %1")
+          .arg(ms_version()));
 }
 
 void drive_manager_ui::setup_status_bar() {
