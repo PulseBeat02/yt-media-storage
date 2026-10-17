@@ -21,8 +21,10 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <span>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace {
@@ -266,4 +268,43 @@ TEST(Crypto, Encrypt_DifferentChunkIndicesProduceDifferentCiphertext) {
     const std::vector<std::byte> ct1 = encrypt_chunk(plaintext, key, file_id, 1u);
 
     EXPECT_NE(ct0, ct1);
+}
+
+namespace {
+
+template<typename Action>
+std::string find_runtime_error_message(Action action) {
+    try {
+        action();
+    } catch (const std::runtime_error &exception) {
+        return exception.what();
+    }
+
+    return {};
+}
+
+}
+
+TEST(Crypto, should_reject_a_chunk_without_a_size_header_when_decrypting_in_place) {
+    const auto key = make_test_key();
+    const auto file_id = make_test_file_id();
+    const std::vector<std::byte> chunk(CRYPTO_PLAIN_SIZE_HEADER - 1);
+    std::vector<std::byte> out(CHUNK_SIZE_BYTES);
+
+    const std::string message = find_runtime_error_message([&] { decrypt_chunk_into(out, chunk, key, file_id, 0u); });
+
+    EXPECT_EQ(message, "Decryption failed (chunk too small)");
+}
+
+TEST(Crypto, should_reject_a_size_header_larger_than_a_chunk) {
+    const auto key = make_test_key();
+    const auto file_id = make_test_file_id();
+    std::vector<std::byte> ciphertext = encrypt_chunk(make_patterned_data(64), key, file_id, 0u);
+    const auto oversized = static_cast<uint32_t>(CHUNK_SIZE_BYTES + 1);
+    std::memcpy(ciphertext.data(), &oversized, sizeof(oversized));
+
+    const std::string message =
+            find_runtime_error_message([&] { static_cast<void>(decrypt_chunk(ciphertext, key, file_id, 0u)); });
+
+    EXPECT_EQ(message, "Decryption failed (wrong password or corrupted data)");
 }
