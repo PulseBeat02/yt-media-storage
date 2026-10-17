@@ -133,7 +133,7 @@ void file_chunk_reader::map_file(const char* path) {
   const int file_descriptor = ::open(path, O_RDONLY);
   if (file_descriptor < 0)
     return;
-  const void* view = ::mmap(nullptr, file_size_, PROT_READ, MAP_SHARED, file_descriptor, FILE_START_OFFSET);
+  const void* const view = ::mmap(nullptr, file_size_, PROT_READ, MAP_SHARED, file_descriptor, FILE_START_OFFSET);
   if (view == MAP_FAILED) {
     ::close(file_descriptor);
     return;

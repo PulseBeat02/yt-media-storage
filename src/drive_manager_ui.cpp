@@ -798,7 +798,7 @@ void drive_manager_ui::clear_logs() const {
 }
 
 void drive_manager_ui::remove_selected_files() const {
-  for (const QListWidgetItem* item : file_list_widget_->selectedItems()) {
+  for (const QListWidgetItem* const item : file_list_widget_->selectedItems()) {
     delete file_list_widget_->takeItem(file_list_widget_->row(item));
   }
   update_file_list();

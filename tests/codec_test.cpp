@@ -566,7 +566,7 @@ constexpr std::size_t LARGE_CHUNK_BYTES = 64 * 1024;
 constexpr std::byte KEY_FILL{0x5A};
 constexpr std::byte WRONG_KEY_FILL{0xA5};
 
-template <typename Action> std::string find_runtime_error_message(Action action) {
+template <typename Action> std::string find_runtime_error_message(const Action action) {
   try {
     action();
   } catch (const std::runtime_error& exception) {

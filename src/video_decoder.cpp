@@ -70,7 +70,7 @@ int32_t project_columns(const int (&columns)[BLOCK_SIZE]) {
 template <typename GrayOf> int32_t project_block(const uint8_t* block, const int stride, const GrayOf& gray_of) {
   int columns[BLOCK_SIZE] = {};
   for (int y = 0; y < BLOCK_SIZE; ++y) {
-    const uint8_t* row = block + y * stride;
+    const uint8_t* const row = block + y * stride;
     for (int x = 0; x < BLOCK_SIZE; ++x) {
       columns[x] += gray_of(row[x]);
     }
@@ -98,7 +98,7 @@ void extract_data_into(std::vector<std::byte>& destination, const AVFrame& sourc
   constexpr int blocks_per_byte = CHAR_BIT / BITS_PER_BLOCK;
   const int total_bytes = layout.total_blocks / blocks_per_byte;
 
-  const uint8_t* source_base = source.data[0];
+  const uint8_t* const source_base = source.data[0];
   const int source_stride = source.linesize[0];
 
   const std::size_t base = destination.size();
@@ -112,7 +112,7 @@ void extract_data_into(std::vector<std::byte>& destination, const AVFrame& sourc
         const int block_index = byte_index * blocks_per_byte + block_in_byte;
         const int block_row = block_index / blocks_per_row;
         const int block_column = block_index % blocks_per_row;
-        const uint8_t* block = source_base + block_row * BLOCK_SIZE * source_stride + block_column * BLOCK_SIZE;
+        const uint8_t* const block = source_base + block_row * BLOCK_SIZE * source_stride + block_column * BLOCK_SIZE;
         const int32_t projection = project_block(block, source_stride, gray_of);
         current_byte = static_cast<uint8_t>((current_byte << 1) | (projection > 0 ? 1 : 0));
       }
@@ -131,7 +131,7 @@ void extract_data_into(std::vector<std::byte>& destination, const AVFrame& sourc
 
         alignas(VECTOR_ALIGNMENT) float block_flat[BLOCK_AREA];
         for (int y = 0; y < BLOCK_SIZE; ++y) {
-          const uint8_t* row = source_base + (base_y + y) * source_stride + base_x;
+          const uint8_t* const row = source_base + (base_y + y) * source_stride + base_x;
           for (int x = 0; x < BLOCK_SIZE; ++x) {
             block_flat[y * BLOCK_SIZE + x] = static_cast<float>(gray_of(row[x]));
           }
@@ -198,8 +198,8 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
     throw std::runtime_error(message);
   }
 
-  const AVStream* stream = format_context_->streams[video_stream_index_];
-  const AVCodec* codec = avcodec_find_decoder(stream->codecpar->codec_id);
+  const AVStream* const stream = format_context_->streams[video_stream_index_];
+  const AVCodec* const codec = avcodec_find_decoder(stream->codecpar->codec_id);
   if (!codec) {
     const std::string message = "Decoder could not be found!";
     throw std::runtime_error(message);
@@ -265,7 +265,7 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
 }
 
 int64_t video_decoder::total_frames() const {
-  const AVStream* stream = format_context_->streams[video_stream_index_];
+  const AVStream* const stream = format_context_->streams[video_stream_index_];
   if (stream->nb_frames > 0) {
     return stream->nb_frames;
   }

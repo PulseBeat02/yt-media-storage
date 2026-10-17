@@ -276,7 +276,7 @@ TEST(crypto_test, should_encrypt_each_chunk_index_differently) {
 
 namespace {
 
-template <typename Action> std::string find_runtime_error_message(Action action) {
+template <typename Action> std::string find_runtime_error_message(const Action action) {
   try {
     action();
   } catch (const std::runtime_error& exception) {

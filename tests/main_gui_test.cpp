@@ -98,7 +98,7 @@ TEST(main_gui_test, should_show_the_drive_manager_and_exit_when_its_window_close
   qAddPreRoutine(schedule_inspection);
   std::string program_name = PROGRAM_NAME;
   std::array<char*, ARGUMENT_COUNT + 1> arguments = {program_name.data(), nullptr};
-  int argument_count = ARGUMENT_COUNT;
+  const int argument_count = ARGUMENT_COUNT;
 
   const int exit_code = run_media_storage_gui(argument_count, arguments.data());
 

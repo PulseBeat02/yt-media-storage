@@ -325,7 +325,7 @@ TEST(av_utils_test, should_name_the_error_and_the_action_in_an_ffmpeg_failure_me
 TEST(video_encoder_test, should_reject_an_output_path_without_a_known_container) {
   const fixtures::temporary_file output(UNKNOWN_EXTENSION);
 
-  const std::string message = fixtures::find_error_message([&output] { video_encoder encoder(output.string()); });
+  const std::string message = fixtures::find_error_message([&output] { const video_encoder encoder(output.string()); });
 
   const bool output_exists = std::filesystem::exists(output.path());
   EXPECT_EQ(message, "Output context could not be created!");
@@ -336,7 +336,7 @@ TEST(video_encoder_test, should_fail_to_open_an_output_file_in_a_missing_directo
   const fixtures::temporary_file missing_directory("");
   const std::filesystem::path output = missing_directory.path() / OUTPUT_NAME;
 
-  const std::string message = fixtures::find_error_message([&output] { video_encoder encoder(output.string()); });
+  const std::string message = fixtures::find_error_message([&output] { const video_encoder encoder(output.string()); });
 
   const bool reports_open_failure = message.ends_with("occurred while trying to open the output file!");
   EXPECT_TRUE(reports_open_failure) << message;
@@ -345,7 +345,7 @@ TEST(video_encoder_test, should_fail_to_open_an_output_file_in_a_missing_directo
 TEST(video_encoder_test, should_fail_to_write_the_header_of_a_container_that_cannot_hold_ffv1) {
   const fixtures::temporary_file output(FLV_EXTENSION);
 
-  const std::string message = fixtures::find_error_message([&output] { video_encoder encoder(output.string()); });
+  const std::string message = fixtures::find_error_message([&output] { const video_encoder encoder(output.string()); });
 
   const bool reports_header_failure = message.ends_with("occurred while trying to write the header!");
   EXPECT_TRUE(reports_header_failure) << message;
@@ -414,7 +414,7 @@ TEST(video_encoder_test, should_not_throw_from_its_destructor_when_finalizing_fa
 TEST(video_decoder_test, should_fail_to_open_a_missing_input) {
   const fixtures::temporary_file input(MATROSKA_EXTENSION);
 
-  const std::string message = fixtures::find_error_message([&input] { video_decoder decoder(input.string()); });
+  const std::string message = fixtures::find_error_message([&input] { const video_decoder decoder(input.string()); });
 
   EXPECT_EQ(message, "Input file could not be opened!");
 }
@@ -423,7 +423,7 @@ TEST(video_decoder_test, should_reject_an_input_without_a_video_stream) {
   const fixtures::temporary_file input(SUBTITLE_EXTENSION);
   std::ofstream(input.path()) << SUBTITLE_CONTENTS;
 
-  const std::string message = fixtures::find_error_message([&input] { video_decoder decoder(input.string()); });
+  const std::string message = fixtures::find_error_message([&input] { const video_decoder decoder(input.string()); });
 
   EXPECT_EQ(message, "Input has no video stream!");
 }
@@ -432,7 +432,7 @@ TEST(video_decoder_test, should_reject_a_video_whose_codec_has_no_decoder) {
   const fixtures::temporary_file input(AVI_EXTENSION);
   write_undecodable_video(input.string());
 
-  const std::string message = fixtures::find_error_message([&input] { video_decoder decoder(input.string()); });
+  const std::string message = fixtures::find_error_message([&input] { const video_decoder decoder(input.string()); });
 
   EXPECT_EQ(message, "Decoder could not be found!");
 }
@@ -541,8 +541,8 @@ TEST(stream_encoder_test, should_report_a_frame_width_that_libx264_cannot_encode
   const fixtures::temporary_file output(FLV_EXTENSION);
 
   const std::string message = fixtures::find_error_message([&output] {
-    stream_encoder encoder(output.string(), STREAM_BITRATE_KILOBITS_PER_SECOND, ODD_FRAME_WIDTH,
-                           ONE_PACKET_FRAME_HEIGHT, FRAMES_PER_SECOND);
+    const stream_encoder encoder(output.string(), STREAM_BITRATE_KILOBITS_PER_SECOND, ODD_FRAME_WIDTH,
+                                 ONE_PACKET_FRAME_HEIGHT, FRAMES_PER_SECOND);
   });
 
   const bool reports_codec_failure = message.ends_with("occurred while trying to open the libx264 codec!");

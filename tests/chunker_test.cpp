@@ -437,5 +437,5 @@ TEST(chunker_test, should_fail_to_read_a_file_without_a_size) {
     GTEST_SKIP() << NO_UNSEEKABLE_FILE_MESSAGE;
   }
 
-  EXPECT_THROW(file_chunk_reader reader(UNSEEKABLE_FILE), std::runtime_error);
+  EXPECT_THROW(const file_chunk_reader reader(UNSEEKABLE_FILE), std::runtime_error);
 }

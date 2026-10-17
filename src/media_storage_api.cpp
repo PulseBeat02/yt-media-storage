@@ -163,7 +163,7 @@ struct encode_job {
         return fail(MS_ERR_ENCODE_FAILED, CANCELLED_MESSAGE);
       }
 
-      batch_results results = pending.get();
+      const batch_results results = pending.get();
 
       if (const std::size_t next_start = batch_start + batch_size; next_start < chunk_count) {
         pending = std::async(std::launch::async, [this, next_start, batch_count_at] {

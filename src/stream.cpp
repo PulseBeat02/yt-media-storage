@@ -157,7 +157,7 @@ void stream_encoder::initialize_stream(const std::string& rtmp_url, const int bi
 }
 
 void stream_encoder::initialize_video_encoder(const int bitrate_kilobits_per_second) {
-  const AVCodec* codec = avcodec_find_encoder_by_name(H264_ENCODER);
+  const AVCodec* const codec = avcodec_find_encoder_by_name(H264_ENCODER);
   if (!codec) {
     const std::string message = "Encoder libx264 could not be found, so FFmpeg may lack x264 support!";
     throw std::runtime_error(message);
@@ -219,7 +219,7 @@ void stream_encoder::initialize_video_encoder(const int bitrate_kilobits_per_sec
 }
 
 void stream_encoder::initialize_audio_encoder() {
-  const AVCodec* codec = avcodec_find_encoder(AV_CODEC_ID_AAC);
+  const AVCodec* const codec = avcodec_find_encoder(AV_CODEC_ID_AAC);
   if (!codec) {
     const std::string message = "AAC encoder could not be found!";
     throw std::runtime_error(message);

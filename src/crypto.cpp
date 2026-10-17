@@ -55,7 +55,7 @@ nonce build_nonce(const std::span<const std::byte, FILE_ID_SIZE> file_id, const 
   return nonce;
 }
 
-void write_plain_size_header(std::span<std::byte> out, const uint32_t plain_size) {
+void write_plain_size_header(const std::span<std::byte> out, const uint32_t plain_size) {
   for (std::size_t i = 0; i < sizeof(plain_size); ++i) {
     out[i] = static_cast<std::byte>(plain_size >> (i * CHAR_BIT));
   }

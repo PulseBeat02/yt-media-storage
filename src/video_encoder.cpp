@@ -63,7 +63,7 @@ void video_encoder::initialize_encoder(const std::string& output_path) {
     throw std::runtime_error(message);
   }
 
-  const AVCodec* codec = avcodec_find_encoder_by_name(VIDEO_CODEC);
+  const AVCodec* const codec = avcodec_find_encoder_by_name(VIDEO_CODEC);
   if (!codec) {
     const std::string message = "Encoder " + std::string(VIDEO_CODEC) + " could not be found!";
     throw std::runtime_error(message);

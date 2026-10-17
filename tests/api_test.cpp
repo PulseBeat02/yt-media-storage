@@ -45,7 +45,7 @@ constexpr int CANCEL_OPERATION = 1;
 }
 
 TEST(api_test, should_report_a_version) {
-  const char* version = ms_version();
+  const char* const version = ms_version();
   ASSERT_NE(version, nullptr);
 
   const std::size_t version_length = std::strlen(version);
