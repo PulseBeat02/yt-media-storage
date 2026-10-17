@@ -23,6 +23,7 @@ extern "C" {
 #include <libavutil/pixfmt.h>
 }
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -68,6 +69,10 @@ constexpr int FRAMES_TO_OVERFLOW_THE_OUTPUT_BUFFER = 30;
 constexpr uint8_t UNKNOWN_VERSION = 0xEE;
 
 constexpr uint32_t UNKNOWN_CODEC_TAG = MKTAG('Z', 'Z', 'Z', 'Z');
+
+constexpr std::size_t SLICE_SIZE_BYTES = 3;
+constexpr std::size_t SLICE_STATUS_AND_CRC_BYTES = 5;
+constexpr std::byte BROKEN_SLICE_SIZE{0xFF};
 
 class owned_frame {
 public:
@@ -138,6 +143,39 @@ void write_undecodable_video(const std::string& path) {
   avformat_free_context(context);
 
   ASSERT_TRUE(written);
+}
+
+std::vector<std::byte> read_last_frame_data(const std::string& path) {
+  std::vector<std::byte> last_frame;
+  AVFormatContext* context = nullptr;
+  if (avformat_open_input(&context, path.c_str(), nullptr, nullptr) < 0) {
+    return last_frame;
+  }
+
+  AVPacket* packet = av_packet_alloc();
+  while (av_read_frame(context, packet) >= 0) {
+    const auto* const data = reinterpret_cast<const std::byte*>(packet->data);
+    last_frame.assign(data, data + packet->size);
+    av_packet_unref(packet);
+  }
+
+  av_packet_free(&packet);
+  avformat_close_input(&context);
+  return last_frame;
+}
+
+void break_the_slice_chain_of_the_last_frame(const std::filesystem::path& path) {
+  const std::vector<std::byte> last_frame = read_last_frame_data(path.string());
+  ASSERT_GT(last_frame.size(), SLICE_SIZE_BYTES + SLICE_STATUS_AND_CRC_BYTES);
+
+  std::vector<std::byte> video = fixtures::read_bytes(path);
+  const auto found = std::search(video.begin(), video.end(), last_frame.begin(), last_frame.end());
+  ASSERT_NE(found, video.end());
+
+  const std::size_t slice_size_offset = last_frame.size() - SLICE_STATUS_AND_CRC_BYTES - SLICE_SIZE_BYTES;
+  const auto slice_size = found + static_cast<std::ptrdiff_t>(slice_size_offset);
+  std::fill_n(slice_size, SLICE_SIZE_BYTES, BROKEN_SLICE_SIZE);
+  fixtures::write_bytes(path, video);
 }
 
 int stream_packets_per_frame() {
@@ -339,6 +377,19 @@ TEST(video_decoder_test, should_size_a_packet_of_an_unknown_version_like_version
   ASSERT_EQ(packets.size(), 1U);
   EXPECT_EQ(packets[0].size(), HEADER_SIZE + SYMBOL_SIZE_BYTES);
   EXPECT_EQ(packets[0][VERSION_OFF], std::byte{UNKNOWN_VERSION});
+}
+
+TEST(video_decoder_test, should_skip_a_frame_whose_slices_cannot_be_found) {
+  const fixtures::temporary_file video(MATROSKA_EXTENSION);
+  write_video(video.string(), FRAMES_TO_WRITE);
+  break_the_slice_chain_of_the_last_frame(video.path());
+  VideoDecoder decoder(video.string());
+
+  const VideoDecoder::PacketList packets = decoder.decode_all_frames();
+
+  EXPECT_EQ(packets.size(), static_cast<std::size_t>(VideoEncoder::packets_per_frame()));
+  EXPECT_EQ(decoder.frames_read(), FRAMES_TO_WRITE - 1);
+  EXPECT_TRUE(decoder.is_eof());
 }
 
 TEST(stream_encoder_test, should_reject_a_packet_after_finalizing) {

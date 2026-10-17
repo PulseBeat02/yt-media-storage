@@ -101,7 +101,7 @@ void VideoDecoder::init_decoder(const std::string &input_path) {
     }
 
     codec_ctx_->thread_count = 0;
-    codec_ctx_->thread_type = FF_THREAD_SLICE;
+    codec_ctx_->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
 
     ret = avcodec_open2(codec_ctx_, codec, nullptr);
     if (ret < 0) {
@@ -307,7 +307,7 @@ VideoDecoder::PacketList VideoDecoder::decode_next_frame() {
             break;
         }
         if (recv_ret != AVERROR(EAGAIN)) {
-            throw std::runtime_error("Error receiving frame");
+            continue; // a damaged frame is skipped; frame threads report it here instead of on send
         }
         if (draining_) {
             eof_ = true;
