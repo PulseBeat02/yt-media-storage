@@ -172,44 +172,65 @@ struct precomputed_blocks {
   uint8_t patterns[PATTERN_COUNT][BLOCK_SIZE][BLOCK_SIZE];
 };
 
-inline precomputed_blocks build_precomputed_blocks() {
-  precomputed_blocks result{};
+struct pattern_components {
+  float dc_image[BLOCK_SIZE][BLOCK_SIZE];
+  float embed_basis[std::size(EMBED_POSITIONS)][BLOCK_SIZE][BLOCK_SIZE];
+};
+
+inline void fill_embed_basis(const int bit_index, float (&basis)[BLOCK_SIZE][BLOCK_SIZE]) {
+  const auto& [data] = get_cosine_table();
+  const auto [u, v] = EMBED_POSITIONS[bit_index];
+  const float scale = DCT_SCALE * alpha(u) * alpha(v) * static_cast<float>(COEFFICIENT_STRENGTH);
+  for (int x = 0; x < BLOCK_SIZE; ++x) {
+    for (int y = 0; y < BLOCK_SIZE; ++y) {
+      basis[x][y] = scale * data[x][u] * data[y][v];
+    }
+  }
+}
+
+inline pattern_components build_pattern_components() {
+  pattern_components components{};
   const auto& [data] = get_cosine_table();
 
   constexpr float dc_value = DCT_SCALE * alpha(0) * alpha(0) * BLOCK_AREA * MIDDLE_GRAY;
 
-  float dc_image[BLOCK_SIZE][BLOCK_SIZE];
   for (int x = 0; x < BLOCK_SIZE; ++x) {
     for (int y = 0; y < BLOCK_SIZE; ++y) {
-      dc_image[x][y] = DCT_SCALE * alpha(0) * alpha(0) * dc_value * data[x][0] * data[y][0];
+      components.dc_image[x][y] = DCT_SCALE * alpha(0) * alpha(0) * dc_value * data[x][0] * data[y][0];
     }
   }
 
-  float embed_basis[std::size(EMBED_POSITIONS)][BLOCK_SIZE][BLOCK_SIZE]{};
   for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
-    const auto [u, v] = EMBED_POSITIONS[bit_index];
-    const float scale = DCT_SCALE * alpha(u) * alpha(v) * static_cast<float>(COEFFICIENT_STRENGTH);
+    fill_embed_basis(bit_index, components.embed_basis[bit_index]);
+  }
+  return components;
+}
+
+inline uint8_t pattern_pixel(const pattern_components& components, const int pattern, const int y, const int x) {
+  float value = components.dc_image[y][x];
+  for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
+    const int bit = (pattern >> (BITS_PER_BLOCK - 1 - bit_index)) & 1;
+    value += (bit ? 1.0f : -1.0f) * components.embed_basis[bit_index][y][x];
+  }
+  value = std::clamp(value, 0.0f, MAXIMUM_GRAY);
+  return static_cast<uint8_t>(value);
+}
+
+inline void fill_pattern(const pattern_components& components, const int pattern,
+                         uint8_t (&block)[BLOCK_SIZE][BLOCK_SIZE]) {
+  for (int y = 0; y < BLOCK_SIZE; ++y) {
     for (int x = 0; x < BLOCK_SIZE; ++x) {
-      for (int y = 0; y < BLOCK_SIZE; ++y) {
-        embed_basis[bit_index][x][y] = scale * data[x][u] * data[y][v];
-      }
+      block[y][x] = pattern_pixel(components, pattern, y, x);
     }
   }
+}
 
+inline precomputed_blocks build_precomputed_blocks() {
+  precomputed_blocks result{};
+  const pattern_components components = build_pattern_components();
   for (int pattern = 0; pattern < precomputed_blocks::PATTERN_COUNT; ++pattern) {
-    for (int y = 0; y < BLOCK_SIZE; ++y) {
-      for (int x = 0; x < BLOCK_SIZE; ++x) {
-        float value = dc_image[y][x];
-        for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
-          const int bit = (pattern >> (BITS_PER_BLOCK - 1 - bit_index)) & 1;
-          value += (bit ? 1.0f : -1.0f) * embed_basis[bit_index][y][x];
-        }
-        value = std::clamp(value, 0.0f, MAXIMUM_GRAY);
-        result.patterns[pattern][y][x] = static_cast<uint8_t>(value);
-      }
-    }
+    fill_pattern(components, pattern, result.patterns[pattern]);
   }
-
   return result;
 }
 
@@ -222,16 +243,20 @@ struct decoder_projections {
   alignas(VECTOR_ALIGNMENT) float vectors[std::size(EMBED_POSITIONS)][BLOCK_AREA];
 };
 
+inline void fill_decoder_projection(const int bit_index, float (&projection)[BLOCK_AREA]) {
+  const auto& [data] = get_cosine_table();
+  const auto [u, v] = EMBED_POSITIONS[bit_index];
+  for (int x = 0; x < BLOCK_SIZE; ++x) {
+    for (int y = 0; y < BLOCK_SIZE; ++y) {
+      projection[x * BLOCK_SIZE + y] = data[x][u] * data[y][v];
+    }
+  }
+}
+
 inline decoder_projections build_decoder_projections() {
   decoder_projections decoder_projections{};
-  const auto& [data] = get_cosine_table();
   for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
-    const auto [u, v] = EMBED_POSITIONS[bit_index];
-    for (int x = 0; x < BLOCK_SIZE; ++x) {
-      for (int y = 0; y < BLOCK_SIZE; ++y) {
-        decoder_projections.vectors[bit_index][x * BLOCK_SIZE + y] = data[x][u] * data[y][v];
-      }
-    }
+    fill_decoder_projection(bit_index, decoder_projections.vectors[bit_index]);
   }
   return decoder_projections;
 }

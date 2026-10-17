@@ -310,10 +310,10 @@ void stream_encoder::write_pending_packets(AVCodecContext* codec_context, const 
     if (status == AVERROR(EAGAIN) || status == AVERROR_EOF) {
       return;
     }
+    if (status < 0 && handling == failure_handling::TOLERATE) {
+      return;
+    }
     if (status < 0) {
-      if (handling == failure_handling::TOLERATE) {
-        return;
-      }
       const std::string message = ffmpeg_failure_message(status, "receive a packet");
       throw std::runtime_error(message);
     }

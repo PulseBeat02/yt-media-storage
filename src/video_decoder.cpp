@@ -38,6 +38,8 @@ constexpr int64_t UNKNOWN_FRAME_COUNT = -1;
 
 constexpr int16_t PROJECTION_WEIGHTS[] = {8035, 6811, 4551, 1598};
 
+constexpr int BLOCKS_PER_BYTE = CHAR_BIT / BITS_PER_BLOCK;
+
 #if defined(DCT_USE_NEON)
 constexpr int SEEDED_ROWS = 2;
 #endif
@@ -91,15 +93,64 @@ int32_t project_block(const uint8_t* block, const int stride, const std::identit
 }
 #endif
 
+struct block_grid {
+  const uint8_t* pixels;
+  int stride;
+  int blocks_per_row;
+};
+
+const uint8_t* block_at(const block_grid grid, const int block_index) {
+  const int block_row = block_index / grid.blocks_per_row;
+  const int block_column = block_index % grid.blocks_per_row;
+  return grid.pixels + block_row * BLOCK_SIZE * grid.stride + block_column * BLOCK_SIZE;
+}
+
+template <typename GrayOf>
+uint8_t read_single_bit_byte(const block_grid grid, const int byte_index, const GrayOf& gray_of) {
+  uint8_t current_byte = 0;
+  for (int block_in_byte = 0; block_in_byte < BLOCKS_PER_BYTE; ++block_in_byte) {
+    const int block_index = byte_index * BLOCKS_PER_BYTE + block_in_byte;
+    const uint8_t* const block = block_at(grid, block_index);
+    const int32_t projection = project_block(block, grid.stride, gray_of);
+    current_byte = static_cast<uint8_t>((current_byte << 1) | (projection > 0 ? 1 : 0));
+  }
+  return current_byte;
+}
+
+template <typename GrayOf>
+void flatten_block(const uint8_t* const block, const int stride, const GrayOf& gray_of,
+                   float (&block_flat)[BLOCK_AREA]) {
+  for (int y = 0; y < BLOCK_SIZE; ++y) {
+    const uint8_t* const row = block + y * stride;
+    for (int x = 0; x < BLOCK_SIZE; ++x) {
+      block_flat[y * BLOCK_SIZE + x] = static_cast<float>(gray_of(row[x]));
+    }
+  }
+}
+
+template <typename GrayOf>
+uint8_t read_multi_bit_byte(const block_grid grid, const int byte_index, const GrayOf& gray_of,
+                            const decoder_projections& projections) {
+  uint8_t current_byte = 0;
+  for (int block_in_byte = 0; block_in_byte < BLOCKS_PER_BYTE; ++block_in_byte) {
+    const int block_index = byte_index * BLOCKS_PER_BYTE + block_in_byte;
+    const uint8_t* const block = block_at(grid, block_index);
+    alignas(VECTOR_ALIGNMENT) float block_flat[BLOCK_AREA];
+    flatten_block(block, grid.stride, gray_of, block_flat);
+
+    for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
+      const float sum = dot_product_64(block_flat, projections.vectors[bit_index]);
+      current_byte = static_cast<uint8_t>((current_byte << 1) | (sum > 0.0f ? 1 : 0));
+    }
+  }
+  return current_byte;
+}
+
 template <typename GrayOf>
 void extract_data_into(std::vector<std::byte>& destination, const AVFrame& source, const frame_layout& layout,
                        const GrayOf& gray_of) {
-  const int blocks_per_row = layout.blocks_per_row;
-  constexpr int blocks_per_byte = CHAR_BIT / BITS_PER_BLOCK;
-  const int total_bytes = layout.total_blocks / blocks_per_byte;
-
-  const uint8_t* const source_base = source.data[0];
-  const int source_stride = source.linesize[0];
+  const int total_bytes = layout.total_blocks / BLOCKS_PER_BYTE;
+  const block_grid grid = {source.data[0], source.linesize[0], layout.blocks_per_row};
 
   const std::size_t base = destination.size();
   destination.resize(base + total_bytes);
@@ -107,42 +158,12 @@ void extract_data_into(std::vector<std::byte>& destination, const AVFrame& sourc
 
   if constexpr (BITS_PER_BLOCK == 1) {
     for (int byte_index = 0; byte_index < total_bytes; ++byte_index) {
-      uint8_t current_byte = 0;
-      for (int block_in_byte = 0; block_in_byte < blocks_per_byte; ++block_in_byte) {
-        const int block_index = byte_index * blocks_per_byte + block_in_byte;
-        const int block_row = block_index / blocks_per_row;
-        const int block_column = block_index % blocks_per_row;
-        const uint8_t* const block = source_base + block_row * BLOCK_SIZE * source_stride + block_column * BLOCK_SIZE;
-        const int32_t projection = project_block(block, source_stride, gray_of);
-        current_byte = static_cast<uint8_t>((current_byte << 1) | (projection > 0 ? 1 : 0));
-      }
-      out[byte_index] = current_byte;
+      out[byte_index] = read_single_bit_byte(grid, byte_index, gray_of);
     }
   } else {
     const decoder_projections& projections = get_decoder_projections();
-    const auto& vectors = projections.vectors;
-
     for (int byte_index = 0; byte_index < total_bytes; ++byte_index) {
-      uint8_t current_byte = 0;
-      for (int block_in_byte = 0; block_in_byte < blocks_per_byte; ++block_in_byte) {
-        const int block_index = byte_index * blocks_per_byte + block_in_byte;
-        const int base_x = (block_index % blocks_per_row) * BLOCK_SIZE;
-        const int base_y = (block_index / blocks_per_row) * BLOCK_SIZE;
-
-        alignas(VECTOR_ALIGNMENT) float block_flat[BLOCK_AREA];
-        for (int y = 0; y < BLOCK_SIZE; ++y) {
-          const uint8_t* const row = source_base + (base_y + y) * source_stride + base_x;
-          for (int x = 0; x < BLOCK_SIZE; ++x) {
-            block_flat[y * BLOCK_SIZE + x] = static_cast<float>(gray_of(row[x]));
-          }
-        }
-
-        for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
-          const float sum = dot_product_64(block_flat, vectors[bit_index]);
-          current_byte = static_cast<uint8_t>((current_byte << 1) | (sum > 0.0f ? 1 : 0));
-        }
-      }
-      out[byte_index] = current_byte;
+      out[byte_index] = read_multi_bit_byte(grid, byte_index, gray_of, projections);
     }
   }
 }
@@ -329,16 +350,10 @@ video_decoder::packet_list video_decoder::consume_decoded_frame() {
 
 bool video_decoder::feed_next_packet() {
   while (true) {
-    if (!pending_packet_) {
-      if (av_read_frame(format_context_, av_packet_) < 0) {
-        avcodec_send_packet(codec_context_, nullptr);
-        draining_ = true;
-        return false;
-      }
-      if (av_packet_->stream_index != video_stream_index_) {
-        av_packet_unref(av_packet_);
-        continue;
-      }
+    if (!pending_packet_ && !read_next_video_packet()) {
+      avcodec_send_packet(codec_context_, nullptr);
+      draining_ = true;
+      return false;
     }
     const int send_status = avcodec_send_packet(codec_context_, av_packet_);
     pending_packet_ = send_status == AVERROR(EAGAIN);
@@ -350,6 +365,16 @@ bool video_decoder::feed_next_packet() {
       return true;
     }
   }
+}
+
+bool video_decoder::read_next_video_packet() {
+  while (av_read_frame(format_context_, av_packet_) >= 0) {
+    if (av_packet_->stream_index == video_stream_index_) {
+      return true;
+    }
+    av_packet_unref(av_packet_);
+  }
+  return false;
 }
 
 video_decoder::packet_list video_decoder::decode_next_frame() {

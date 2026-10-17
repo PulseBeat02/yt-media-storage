@@ -261,46 +261,53 @@ std::optional<int> take_positive_integer(const int argc, char* argv[], int& i, c
   return value;
 }
 
+bool parse_option(const int argc, char* argv[], int& i, cli_options& cli) {
+  const std::string_view argument = argv[i];
+  std::optional<std::string_view> value;
+  std::optional<int> number;
+
+  if ((argument == "--input" || argument == "-i") && (value = take_value(argc, argv, i))) {
+    cli.input_path = *value;
+  } else if ((argument == "--output" || argument == "-o") && (value = take_value(argc, argv, i))) {
+    cli.output_path = *value;
+  } else if ((argument == "--url" || argument == "-u") && (value = take_value(argc, argv, i))) {
+    cli.stream_url = *value;
+  } else if ((argument == "--bitrate" || argument == "-b") &&
+             (number = take_positive_integer(argc, argv, i, argument))) {
+    cli.bitrate_kilobits_per_second = *number;
+  } else if (argument == "--width" && (number = take_positive_integer(argc, argv, i, argument))) {
+    cli.width = *number;
+  } else if (argument == "--height" && (number = take_positive_integer(argc, argv, i, argument))) {
+    cli.height = *number;
+  } else if (argument == "--fps" && (number = take_positive_integer(argc, argv, i, argument))) {
+    cli.frames_per_second = *number;
+  } else if (argument == "--encrypt" || argument == "-e") {
+    cli.encrypt = true;
+  } else if ((argument == "--password" || argument == "-p") && (value = take_value(argc, argv, i))) {
+    cli.password = *value;
+  } else if ((argument == "--hash" || argument == "-H") && (value = take_value(argc, argv, i))) {
+    if (*value == "xxhash") {
+      cli.hash_algorithm = MS_HASH_XXHASH32;
+    } else if (*value == "crc32") {
+      cli.hash_algorithm = MS_HASH_CRC32;
+    } else {
+      std::cerr << ERROR_LABEL << "unknown hash algorithm '" << *value << "' (use crc32 or xxhash)\n";
+      return false;
+    }
+  } else {
+    std::cerr << ERROR_LABEL << "unknown or incomplete argument '" << argument << "'\n";
+    print_usage(argv[0]);
+    return false;
+  }
+  return true;
+}
+
 std::optional<cli_options> parse_arguments(const int argc, char* argv[]) {
   cli_options cli;
   cli.command = argv[COMMAND_INDEX];
 
   for (int i = FIRST_OPTION_INDEX; i < argc; ++i) {
-    const std::string_view argument = argv[i];
-    std::optional<std::string_view> value;
-    std::optional<int> number;
-
-    if ((argument == "--input" || argument == "-i") && (value = take_value(argc, argv, i))) {
-      cli.input_path = *value;
-    } else if ((argument == "--output" || argument == "-o") && (value = take_value(argc, argv, i))) {
-      cli.output_path = *value;
-    } else if ((argument == "--url" || argument == "-u") && (value = take_value(argc, argv, i))) {
-      cli.stream_url = *value;
-    } else if ((argument == "--bitrate" || argument == "-b") &&
-               (number = take_positive_integer(argc, argv, i, argument))) {
-      cli.bitrate_kilobits_per_second = *number;
-    } else if (argument == "--width" && (number = take_positive_integer(argc, argv, i, argument))) {
-      cli.width = *number;
-    } else if (argument == "--height" && (number = take_positive_integer(argc, argv, i, argument))) {
-      cli.height = *number;
-    } else if (argument == "--fps" && (number = take_positive_integer(argc, argv, i, argument))) {
-      cli.frames_per_second = *number;
-    } else if (argument == "--encrypt" || argument == "-e") {
-      cli.encrypt = true;
-    } else if ((argument == "--password" || argument == "-p") && (value = take_value(argc, argv, i))) {
-      cli.password = *value;
-    } else if ((argument == "--hash" || argument == "-H") && (value = take_value(argc, argv, i))) {
-      if (*value == "xxhash") {
-        cli.hash_algorithm = MS_HASH_XXHASH32;
-      } else if (*value == "crc32") {
-        cli.hash_algorithm = MS_HASH_CRC32;
-      } else {
-        std::cerr << ERROR_LABEL << "unknown hash algorithm '" << *value << "' (use crc32 or xxhash)\n";
-        return std::nullopt;
-      }
-    } else {
-      std::cerr << ERROR_LABEL << "unknown or incomplete argument '" << argument << "'\n";
-      print_usage(argv[0]);
+    if (!parse_option(argc, argv, i, cli)) {
       return std::nullopt;
     }
   }

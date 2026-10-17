@@ -248,12 +248,10 @@ std::optional<std::vector<std::byte>> decoder::assemble_file(const uint32_t expe
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < static_cast<int>(expected_chunks); ++i) {
     const std::span<std::byte> out(result.data() + offsets[i], (*sizes)[i]);
-    if (encrypted_) {
-      if (!decrypt_chunk_to(static_cast<uint32_t>(i), out)) {
-        failed = true;
-      }
-    } else {
+    if (!encrypted_) {
       std::memcpy(out.data(), completed_chunks_[i]->data(), out.size());
+    } else if (!decrypt_chunk_to(static_cast<uint32_t>(i), out)) {
+      failed = true;
     }
   }
 
@@ -270,21 +268,8 @@ bool decoder::write_assembled_file(const std::string& output_path, const uint32_
   }
 
   std::vector<std::vector<std::byte>> decrypted;
-  if (encrypted_) {
-    decrypted.resize(expected_chunks);
-    std::atomic<bool> failed{false};
-
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < static_cast<int>(expected_chunks); ++i) {
-      decrypted[i].resize((*sizes)[i]);
-      if (!decrypt_chunk_to(static_cast<uint32_t>(i), decrypted[i])) {
-        failed = true;
-      }
-    }
-
-    if (failed) {
-      return false;
-    }
+  if (encrypted_ && !decrypt_chunks_to(*sizes, decrypted)) {
+    return false;
   }
 
   std::ofstream out(output_path, std::ios::binary);
@@ -300,4 +285,20 @@ bool decoder::write_assembled_file(const std::string& output_path, const uint32_
     }
   }
   return true;
+}
+
+bool decoder::decrypt_chunks_to(const std::vector<std::size_t>& sizes,
+                                std::vector<std::vector<std::byte>>& decrypted) const {
+  decrypted.resize(sizes.size());
+  std::atomic<bool> failed{false};
+
+#pragma omp parallel for schedule(static)
+  for (int i = 0; i < static_cast<int>(sizes.size()); ++i) {
+    decrypted[i].resize(sizes[i]);
+    if (!decrypt_chunk_to(static_cast<uint32_t>(i), decrypted[i])) {
+      failed = true;
+    }
+  }
+
+  return !failed;
 }

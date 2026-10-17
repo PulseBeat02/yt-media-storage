@@ -123,8 +123,6 @@ struct encode_job {
   [[nodiscard]] batch_results encode_batch(const std::size_t batch_start, const int batch_count) const {
     batch_results results(batch_count);
     std::atomic<bool> batch_error{false};
-    const std::size_t chunk_count = reader.chunk_count();
-    const file_id_type& file_id = encoder.file_id();
 
 #pragma omp parallel for schedule(dynamic)
     for (int j = 0; j < batch_count; ++j) {
@@ -132,15 +130,7 @@ struct encode_job {
         continue;
       }
       try {
-        const std::size_t i = batch_start + j;
-        std::span<const std::byte> data = reader.chunk_view(i);
-        std::vector<std::byte> encrypted;
-        if (encryption == payload_encryption::ENCRYPTED) {
-          encrypted = encrypt_chunk(data, key, file_id, static_cast<uint32_t>(i));
-          data = encrypted;
-        }
-        results[j] =
-            encoder.encode_chunk(static_cast<uint32_t>(i), data, position_of_chunk(i, chunk_count), encryption).first;
+        results[j] = encode_chunk_at(batch_start + j);
       } catch (...) {
         batch_error = true;
       }
@@ -151,6 +141,17 @@ struct encode_job {
       throw std::runtime_error(message);
     }
     return results;
+  }
+
+  [[nodiscard]] std::vector<packet> encode_chunk_at(const std::size_t chunk_index) const {
+    std::span<const std::byte> data = reader.chunk_view(chunk_index);
+    std::vector<std::byte> encrypted;
+    if (encryption == payload_encryption::ENCRYPTED) {
+      encrypted = encrypt_chunk(data, key, encoder.file_id(), static_cast<uint32_t>(chunk_index));
+      data = encrypted;
+    }
+    const chunk_position position = position_of_chunk(chunk_index, reader.chunk_count());
+    return encoder.encode_chunk(static_cast<uint32_t>(chunk_index), data, position, encryption).first;
   }
 
   template <typename FrameSink> [[nodiscard]] ms_status_t run(FrameSink& sink, encode_statistics& statistics) const {
@@ -201,6 +202,28 @@ struct decode_statistics {
   int64_t total_frames = 0;
 };
 
+std::unique_ptr<video_decoder> open_stream_with_retries(const std::string& stream_url, const int maximum_attempts) {
+  for (int attempt = 1; attempt < maximum_attempts; ++attempt) {
+    try {
+      return std::make_unique<video_decoder>(stream_url);
+    } catch (...) {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+  }
+  return std::make_unique<video_decoder>(stream_url);
+}
+
+void feed_next_frame(video_decoder& video, decoder& decoder, decode_statistics& statistics) {
+  for (const std::vector<std::byte>& packet_bytes : video.decode_next_frame()) {
+    ++statistics.total_packets;
+    if (const std::optional<chunk_decode_result> chunk_result =
+            decoder.process_packet(packet_bytes, sha256_computation::SKIP);
+        chunk_result && chunk_result->success) {
+      ++statistics.decoded_chunks;
+    }
+  }
+}
+
 ms_status_t consume_video(video_decoder& video, decoder& decoder, const ms_progress_fn progress, void* progress_user,
                           decode_statistics& statistics) {
   const int64_t total = video.total_frames();
@@ -215,14 +238,7 @@ ms_status_t consume_video(video_decoder& video, decoder& decoder, const ms_progr
       return fail(MS_ERR_DECODE_FAILED, CANCELLED_MESSAGE);
     }
 
-    for (const std::vector<std::byte>& packet_bytes : video.decode_next_frame()) {
-      ++statistics.total_packets;
-      if (const std::optional<chunk_decode_result> chunk_result =
-              decoder.process_packet(packet_bytes, sha256_computation::SKIP);
-          chunk_result && chunk_result->success) {
-        ++statistics.decoded_chunks;
-      }
-    }
+    feed_next_frame(video, decoder, statistics);
   }
 
   statistics.total_frames = video.frames_read();
@@ -416,18 +432,7 @@ ms_status_t ms_stream_decode(const ms_stream_decode_options_t* options, ms_resul
   decoder decoder;
   decode_statistics statistics;
   try {
-    std::unique_ptr<video_decoder> video;
-    for (int attempt = 1; !video; ++attempt) {
-      try {
-        video = std::make_unique<video_decoder>(stream_url);
-      } catch (...) {
-        if (attempt >= maximum_attempts) {
-          throw;
-        }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-      }
-    }
-
+    const std::unique_ptr<video_decoder> video = open_stream_with_retries(stream_url, maximum_attempts);
     if (const ms_status_t status =
             consume_video(*video, decoder, options->progress, options->progress_user, statistics);
         status != MS_OK) {

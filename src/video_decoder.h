@@ -93,6 +93,8 @@ private:
   [[nodiscard]] packet_list consume_decoded_frame();
 
   bool feed_next_packet();
+
+  [[nodiscard]] bool read_next_video_packet();
 };
 
 #endif

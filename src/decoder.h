@@ -156,6 +156,9 @@ private:
   [[nodiscard]] std::optional<std::vector<std::size_t>> plain_chunk_sizes(uint32_t expected_chunks) const;
 
   [[nodiscard]] bool decrypt_chunk_to(uint32_t chunk_index, std::span<std::byte> out) const;
+
+  [[nodiscard]] bool decrypt_chunks_to(const std::vector<std::size_t>& sizes,
+                                       std::vector<std::vector<std::byte>>& decrypted) const;
 };
 
 #endif
