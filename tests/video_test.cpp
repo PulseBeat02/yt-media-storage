@@ -408,6 +408,21 @@ TEST(video_encoder_test, should_reject_a_packet_after_finalizing) {
   EXPECT_EQ(frames_written, 0);
 }
 
+TEST(video_encoder_test, should_leave_the_video_as_it_is_when_finalized_again) {
+  const fixtures::temporary_file output(MATROSKA_EXTENSION);
+  video_encoder encoder(output.string());
+  add_framed_packets(encoder, packets_spanning_frames(FRAMES_TO_WRITE));
+  encoder.finalize();
+  const std::vector<std::byte> finalized_video = fixtures::read_bytes(output.path());
+
+  encoder.finalize();
+
+  const std::vector<std::byte> video = fixtures::read_bytes(output.path());
+  const int64_t frames_written = encoder.frames_written();
+  EXPECT_EQ(video, finalized_video);
+  EXPECT_EQ(frames_written, FRAMES_TO_WRITE);
+}
+
 TEST(video_encoder_test, should_report_a_failed_frame_write_when_the_disk_is_full) {
   if (!std::filesystem::exists(fixtures::FULL_DEVICE)) {
     GTEST_SKIP() << fixtures::NO_FULL_DEVICE_MESSAGE;
@@ -602,6 +617,20 @@ TEST(stream_encoder_test, should_reject_a_packet_after_finalizing) {
   const std::string message = fixtures::find_error_message([&encoder] { encoder.add_packet(make_framed_packet(0)); });
 
   EXPECT_EQ(message, "Stream encoder is already finalized!");
+}
+
+TEST(stream_encoder_test, should_leave_the_stream_as_it_is_when_finalized_again) {
+  const fixtures::temporary_file output(FLV_EXTENSION);
+  stream_encoder encoder(output.string(), STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH,
+                         ONE_PACKET_FRAME_HEIGHT, FRAMES_PER_SECOND);
+  add_framed_packets(encoder, FRAMES_TO_WRITE);
+  encoder.finalize();
+  const std::vector<std::byte> finalized_stream = fixtures::read_bytes(output.path());
+
+  encoder.finalize();
+
+  const std::vector<std::byte> stream = fixtures::read_bytes(output.path());
+  EXPECT_EQ(stream, finalized_stream);
 }
 
 TEST(stream_encoder_test, should_report_a_frame_width_that_libx264_cannot_encode) {
