@@ -408,8 +408,14 @@ TEST(stream_test, should_restore_a_file_from_one_frame_per_second) {
 TEST(stream_test, should_reject_invalid_stream_parameters) {
   EXPECT_THROW(stream_encoder(UNUSED_OUTPUT_PATH, BITRATE_KILOBITS_PER_SECOND, WIDTH_720P, HEIGHT_720P, 0),
                std::invalid_argument);
-  EXPECT_THROW(stream_encoder(UNUSED_OUTPUT_PATH, 0, WIDTH_720P, HEIGHT_720P, 30), std::invalid_argument);
-  EXPECT_THROW(stream_encoder(UNUSED_OUTPUT_PATH, BITRATE_KILOBITS_PER_SECOND, 16, 16, 30), std::invalid_argument);
+  EXPECT_THROW(stream_encoder(UNUSED_OUTPUT_PATH, 0, WIDTH_720P, HEIGHT_720P, FRAMES_PER_SECOND),
+               std::invalid_argument);
+  EXPECT_THROW(stream_encoder(UNUSED_OUTPUT_PATH, BITRATE_KILOBITS_PER_SECOND, 16, 16, FRAMES_PER_SECOND),
+               std::invalid_argument);
+  EXPECT_THROW(stream_encoder(UNUSED_OUTPUT_PATH, BITRATE_KILOBITS_PER_SECOND, 0, HEIGHT_720P, FRAMES_PER_SECOND),
+               std::invalid_argument);
+  EXPECT_THROW(stream_encoder(UNUSED_OUTPUT_PATH, BITRATE_KILOBITS_PER_SECOND, WIDTH_720P, 0, FRAMES_PER_SECOND),
+               std::invalid_argument);
 }
 
 TEST(stream_test, should_fit_at_least_one_packet_in_a_frame) {

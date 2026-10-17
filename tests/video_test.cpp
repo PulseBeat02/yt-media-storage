@@ -164,6 +164,12 @@ void write_one_packet_per_frame_stream(const std::string& path, const int frame_
   encoder.finalize();
 }
 
+void write_one_packet_per_frame_stream_without_finalizing(const std::string& path, const int frame_count) {
+  stream_encoder encoder(path, STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH, ONE_PACKET_FRAME_HEIGHT,
+                         FRAMES_PER_SECOND);
+  add_framed_packets(encoder, frame_count);
+}
+
 void write_undecodable_video(const std::string& path) {
   AVFormatContext* context = nullptr;
   const int context_status = avformat_alloc_output_context2(&context, nullptr, nullptr, path.c_str());
@@ -699,6 +705,18 @@ TEST(stream_encoder_test, should_leave_the_stream_as_it_is_when_finalized_again)
 
   const std::vector<std::byte> stream = fixtures::read_bytes(output.path());
   EXPECT_EQ(stream, finalized_stream);
+}
+
+TEST(stream_encoder_test, should_finalize_the_stream_when_destroyed) {
+  const fixtures::temporary_file finalized(FLV_EXTENSION);
+  const fixtures::temporary_file destroyed(FLV_EXTENSION);
+  write_one_packet_per_frame_stream(finalized.string(), FRAMES_TO_WRITE);
+
+  write_one_packet_per_frame_stream_without_finalizing(destroyed.string(), FRAMES_TO_WRITE);
+
+  const std::vector<std::byte> finalized_stream = fixtures::read_bytes(finalized.path());
+  const std::vector<std::byte> destroyed_stream = fixtures::read_bytes(destroyed.path());
+  EXPECT_EQ(destroyed_stream, finalized_stream);
 }
 
 TEST(stream_encoder_test, should_report_a_frame_width_that_libx264_cannot_encode) {
