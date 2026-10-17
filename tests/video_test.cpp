@@ -82,6 +82,8 @@ constexpr std::byte BROKEN_SLICE_SIZE{0xFF};
 constexpr std::size_t NAL_UNIT_SIZE_BYTES = 4;
 constexpr std::byte BROKEN_NAL_UNIT_SIZE{0xFF};
 
+constexpr std::byte INVERTED_BITS{0xFF};
+
 constexpr const char* H264_EXTENSION = ".h264";
 constexpr const char* H264_ENCODER = "libx264";
 
@@ -224,6 +226,35 @@ void break_the_first_nal_unit_size(const std::span<std::byte> frame) {
 
   const std::span<std::byte> nal_unit_size = frame.first(NAL_UNIT_SIZE_BYTES);
   std::ranges::fill(nal_unit_size, BROKEN_NAL_UNIT_SIZE);
+}
+
+std::vector<std::byte> read_codec_header(const std::string& path) {
+  std::vector<std::byte> codec_header;
+  AVFormatContext* context = nullptr;
+  if (avformat_open_input(&context, path.c_str(), nullptr, nullptr) < 0) {
+    return codec_header;
+  }
+
+  const AVCodecParameters* const parameters = context->streams[0]->codecpar;
+  const std::byte* const data = reinterpret_cast<const std::byte*>(parameters->extradata);
+  codec_header.assign(data, data + parameters->extradata_size);
+  avformat_close_input(&context);
+
+  return codec_header;
+}
+
+void damage_the_codec_header_checksum(const std::filesystem::path& path) {
+  const std::vector<std::byte> codec_header = read_codec_header(path.string());
+  ASSERT_FALSE(codec_header.empty());
+
+  std::vector<std::byte> video = fixtures::read_bytes(path);
+  const auto found = std::search(video.begin(), video.end(), codec_header.begin(), codec_header.end());
+  const auto video_end = video.end();
+  ASSERT_NE(found, video_end);
+
+  const std::span<std::byte> stored_header(found, codec_header.size());
+  stored_header.back() ^= INVERTED_BITS;
+  fixtures::write_bytes(path, video);
 }
 
 int stream_packets_per_frame() {
@@ -491,6 +522,16 @@ TEST(video_decoder_test, should_reject_a_video_whose_codec_has_no_decoder) {
   const std::string message = fixtures::find_error_message([&input] { const video_decoder decoder(input.string()); });
 
   EXPECT_EQ(message, "Decoder could not be found!");
+}
+
+TEST(video_decoder_test, should_reject_a_video_whose_codec_header_fails_its_checksum) {
+  const fixtures::temporary_file video(MATROSKA_EXTENSION);
+  write_video(video.string(), FRAMES_TO_WRITE);
+  damage_the_codec_header_checksum(video.path());
+
+  const std::string message = fixtures::find_error_message([&video] { const video_decoder decoder(video.string()); });
+
+  EXPECT_EQ(message, "Codec could not be opened!");
 }
 
 TEST(video_decoder_test, should_count_frames_from_the_frame_count_of_the_container) {
