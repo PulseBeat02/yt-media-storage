@@ -33,6 +33,11 @@ namespace {
 
 constexpr std::size_t PLAINTEXT_SIZE = 64;
 
+constexpr std::byte FILLED_BYTE{0xFF};
+
+constexpr const char* DECRYPTION_FAILURE_MESSAGE =
+    "Chunk could not be decrypted, because the password is wrong or the data is corrupted!";
+
 file_id_type make_salt(const uint8_t base) {
   file_id_type salt{};
   for (std::size_t i = 0; i < salt.size(); ++i) {
@@ -194,7 +199,7 @@ TEST(crypto_test, should_read_the_plain_size_from_the_header) {
 TEST(crypto_test, should_zero_the_whole_buffer) {
   std::vector<std::byte> buffer(64);
   for (std::byte& byte_value : buffer) {
-    byte_value = std::byte{0xFF};
+    byte_value = FILLED_BYTE;
   }
 
   secure_zero(buffer);
@@ -202,6 +207,15 @@ TEST(crypto_test, should_zero_the_whole_buffer) {
   for (const std::byte byte_value : buffer) {
     EXPECT_EQ(byte_value, std::byte{0});
   }
+}
+
+TEST(crypto_test, should_zero_nothing_for_an_empty_span) {
+  std::vector<std::byte> buffer(PLAINTEXT_SIZE, FILLED_BYTE);
+  const std::vector<std::byte> original = buffer;
+
+  secure_zero(std::span(buffer).first(0));
+
+  EXPECT_EQ(buffer, original);
 }
 
 TEST(crypto_test, should_decrypt_an_empty_plaintext) {
@@ -281,5 +295,31 @@ TEST(crypto_test, should_reject_a_size_header_larger_than_a_chunk) {
   const std::string message = fixtures::find_error_message<std::runtime_error>(
       [&] { static_cast<void>(decrypt_chunk(ciphertext, key, file_id, 0u)); });
 
-  EXPECT_EQ(message, "Chunk could not be decrypted, because the password is wrong or the data is corrupted!");
+  EXPECT_EQ(message, DECRYPTION_FAILURE_MESSAGE);
+}
+
+TEST(crypto_test, should_reject_a_size_header_larger_than_a_chunk_when_decrypting_in_place) {
+  const crypto_key key = make_test_key();
+  const file_id_type file_id = fixtures::make_test_file_id();
+  std::vector<std::byte> ciphertext = encrypt_chunk(fixtures::make_stepped_data(PLAINTEXT_SIZE), key, file_id, 0u);
+  const uint32_t oversized = static_cast<uint32_t>(CHUNK_SIZE_BYTES + 1);
+  std::memcpy(ciphertext.data(), &oversized, sizeof(oversized));
+  std::vector<std::byte> out(CHUNK_SIZE_BYTES + 1);
+
+  const std::string message =
+      fixtures::find_error_message<std::runtime_error>([&] { decrypt_chunk_into(out, ciphertext, key, file_id, 0u); });
+
+  EXPECT_EQ(message, DECRYPTION_FAILURE_MESSAGE);
+}
+
+TEST(crypto_test, should_reject_a_truncated_ciphertext) {
+  const crypto_key key = make_test_key();
+  const file_id_type file_id = fixtures::make_test_file_id();
+  std::vector<std::byte> ciphertext = encrypt_chunk(fixtures::make_stepped_data(PLAINTEXT_SIZE), key, file_id, 0u);
+  ciphertext.pop_back();
+
+  const std::string message = fixtures::find_error_message<std::runtime_error>(
+      [&] { static_cast<void>(decrypt_chunk(ciphertext, key, file_id, 0u)); });
+
+  EXPECT_EQ(message, DECRYPTION_FAILURE_MESSAGE);
 }
