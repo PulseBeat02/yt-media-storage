@@ -180,6 +180,42 @@ TEST_F(cli_test, should_reject_a_flag_without_a_value) {
   EXPECT_TRUE(mentions_unknown_or_incomplete_argument) << result.output;
 }
 
+TEST_F(cli_test, should_reject_an_output_flag_without_a_value) {
+  const cli_result result = run_cli({ENCODE_COMMAND, OUTPUT_FLAG});
+
+  const bool mentions_unknown_or_incomplete_argument =
+      result.output.contains("Error: unknown or incomplete argument '--output'");
+  EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
+  EXPECT_TRUE(mentions_unknown_or_incomplete_argument) << result.output;
+}
+
+TEST_F(cli_test, should_reject_a_url_flag_without_a_value) {
+  const cli_result result = run_cli({STREAM_ENCODE_COMMAND, URL_FLAG});
+
+  const bool mentions_unknown_or_incomplete_argument =
+      result.output.contains("Error: unknown or incomplete argument '--url'");
+  EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
+  EXPECT_TRUE(mentions_unknown_or_incomplete_argument) << result.output;
+}
+
+TEST_F(cli_test, should_reject_a_password_flag_without_a_value) {
+  const cli_result result = run_cli({DECODE_COMMAND, PASSWORD_FLAG});
+
+  const bool mentions_unknown_or_incomplete_argument =
+      result.output.contains("Error: unknown or incomplete argument '--password'");
+  EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
+  EXPECT_TRUE(mentions_unknown_or_incomplete_argument) << result.output;
+}
+
+TEST_F(cli_test, should_reject_a_hash_flag_without_a_value) {
+  const cli_result result = run_cli({ENCODE_COMMAND, HASH_FLAG});
+
+  const bool mentions_unknown_or_incomplete_argument =
+      result.output.contains("Error: unknown or incomplete argument '--hash'");
+  EXPECT_EQ(result.exit_code, FAILURE_EXIT_CODE);
+  EXPECT_TRUE(mentions_unknown_or_incomplete_argument) << result.output;
+}
+
 TEST_F(cli_test, should_reject_a_number_flag_without_a_value) {
   const cli_result result = run_cli({STREAM_ENCODE_COMMAND, FRAMES_PER_SECOND_FLAG});
 
