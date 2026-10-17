@@ -18,9 +18,12 @@
 
 #include "configuration.h"
 #include "dct_common.h"
+#include "frame_layout.h"
 #include "video_encoder.h"
 
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 
 TEST(DCT, PrecomputedBlocks_PatternCountMatchesBitsPerBlock) {
     constexpr int expected_patterns = 1 << BITS_PER_BLOCK;
@@ -137,4 +140,25 @@ TEST(DCT, DifferentPatternsProduceDifferentBlocks) {
         }
     }
     EXPECT_TRUE(any_differ);
+}
+
+TEST(DCT, should_fill_the_margins_a_frame_width_leaves_beside_whole_blocks) {
+    constexpr int frame_width = 20;
+    constexpr int frame_height = 40;
+    constexpr int block_width = 16;
+    constexpr int data_rows = 32;
+    constexpr uint8_t untouched = 0xFF;
+    constexpr uint8_t neutral = 128;
+    const FrameLayout layout = compute_frame_layout(frame_width, frame_height);
+    std::vector<uint8_t> plane(static_cast<std::size_t>(frame_width) * frame_height, untouched);
+    const std::vector<std::byte> data = {std::byte{0xA5}};
+
+    embed_data_into_plane(plane.data(), frame_width, layout, data);
+
+    for (int y = 0; y < frame_height; ++y) {
+        const int first_neutral = y < data_rows ? block_width : 0;
+        for (int x = first_neutral; x < frame_width; ++x) {
+            EXPECT_EQ(plane[static_cast<std::size_t>(y) * frame_width + x], neutral);
+        }
+    }
 }
