@@ -35,7 +35,7 @@ enum class HashAlgorithm {
 struct Sha256Digest {
   std::array<std::byte, SHA256_HASH_SIZE> bytes{};
 
-  [[nodiscard]] std::string hex_value() const;
+  [[nodiscard]] std::string hexadecimal_value() const;
 
   bool operator==(const Sha256Digest& other) const = default;
 };
@@ -53,7 +53,7 @@ struct Sha256Digest {
                                        std::size_t crc_offset, std::size_t crc_size = 4);
 
 [[nodiscard]] uint32_t packet_checksum(std::span<const std::byte> header, std::span<const std::byte> payload,
-                                       std::size_t crc_offset, HashAlgorithm algo, std::size_t crc_size = 4);
+                                       std::size_t crc_offset, HashAlgorithm algorithm, std::size_t crc_size = 4);
 
 [[nodiscard]] bool verify_packet_crc32(std::span<const std::byte> header, std::span<const std::byte> payload,
                                        std::size_t crc_offset, std::size_t crc_size = 4);

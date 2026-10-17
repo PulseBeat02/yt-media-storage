@@ -40,7 +40,7 @@ extern "C" {
 
 namespace {
 
-constexpr const char* GOLDEN_DIRECTORY = MEDIA_STORAGE_GOLDEN_DIR;
+constexpr const char* GOLDEN_DIRECTORY = MEDIA_STORAGE_GOLDEN_DIRECTORY;
 constexpr const char* GOLDEN_INPUT = "input.bin";
 constexpr std::string_view GOLDEN_PASSWORD = "golden-password";
 constexpr std::string_view NO_PASSWORD;

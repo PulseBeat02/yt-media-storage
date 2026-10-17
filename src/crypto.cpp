@@ -35,8 +35,8 @@ constexpr const char* DECRYPTION_FAILURE_MESSAGE =
 using Nonce = std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_NPUBBYTES>;
 
 void ensure_sodium_initialized() {
-  static std::once_flag init_flag;
-  std::call_once(init_flag, [] {
+  static std::once_flag initialization_flag;
+  std::call_once(initialization_flag, [] {
     if (sodium_init() < 0) {
       const std::string message = "Libsodium could not be initialized!";
       throw std::runtime_error(message);
@@ -99,8 +99,8 @@ std::vector<std::byte> encrypt_chunk(const std::span<const std::byte> plain,
   ensure_sodium_initialized();
 
   const Nonce nonce = build_nonce(file_id, chunk_index);
-  const std::size_t cipher_len = plain.size() + crypto_aead_xchacha20poly1305_ietf_ABYTES;
-  std::vector<std::byte> result(CRYPTO_PLAIN_SIZE_HEADER + cipher_len);
+  const std::size_t cipher_length = plain.size() + crypto_aead_xchacha20poly1305_ietf_ABYTES;
+  std::vector<std::byte> result(CRYPTO_PLAIN_SIZE_HEADER + cipher_length);
   write_plain_size_header(result, static_cast<uint32_t>(plain.size()));
 
   unsigned long long written = 0;
@@ -126,14 +126,14 @@ void decrypt_chunk_into(const std::span<std::byte> out, const std::span<const st
   }
 
   const uint32_t plain_size = read_plain_size_from_header(chunk_from_decoder);
-  const std::size_t cipher_len = plain_size + crypto_aead_xchacha20poly1305_ietf_ABYTES;
-  if (plain_size > CHUNK_SIZE_BYTES || chunk_from_decoder.size() < CRYPTO_PLAIN_SIZE_HEADER + cipher_len ||
+  const std::size_t cipher_length = plain_size + crypto_aead_xchacha20poly1305_ietf_ABYTES;
+  if (plain_size > CHUNK_SIZE_BYTES || chunk_from_decoder.size() < CRYPTO_PLAIN_SIZE_HEADER + cipher_length ||
       out.size() < plain_size) {
     throw std::runtime_error(DECRYPTION_FAILURE_MESSAGE);
   }
 
   const Nonce nonce = build_nonce(file_id, chunk_index);
-  const auto cipher = chunk_from_decoder.subspan(CRYPTO_PLAIN_SIZE_HEADER, cipher_len);
+  const auto cipher = chunk_from_decoder.subspan(CRYPTO_PLAIN_SIZE_HEADER, cipher_length);
 
   unsigned long long written = 0;
   if (crypto_aead_xchacha20poly1305_ietf_decrypt(reinterpret_cast<unsigned char*>(out.data()), &written, nullptr,

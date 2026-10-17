@@ -31,8 +31,8 @@ FrameLayout compute_frame_layout(const int width, const int height) {
   layout.frame_width = width;
   layout.frame_height = height;
   layout.blocks_per_row = width / 8;
-  layout.blocks_per_col = height / 8;
-  layout.total_blocks = layout.blocks_per_row * layout.blocks_per_col;
+  layout.blocks_per_column = height / 8;
+  layout.total_blocks = layout.blocks_per_row * layout.blocks_per_column;
   layout.bits_per_frame = layout.total_blocks * BITS_PER_BLOCK;
   layout.bytes_per_frame = layout.bits_per_frame / 8;
   return layout;
@@ -42,7 +42,7 @@ int packets_per_frame(const FrameLayout& layout) {
   return static_cast<int>(static_cast<std::size_t>(layout.bytes_per_frame) / PACKET_SIZE);
 }
 
-std::size_t max_packet_bytes_per_frame() {
+std::size_t maximum_packet_bytes_per_frame() {
   return static_cast<std::size_t>(compute_frame_layout().bytes_per_frame);
 }
 
@@ -54,7 +54,7 @@ void embed_data_into_plane(uint8_t* plane, const int stride, const FrameLayout& 
   const std::size_t total_bits = data.size() * 8;
   const int active_blocks = static_cast<int>(
       std::min(static_cast<std::size_t>(layout.total_blocks), (total_bits + BITS_PER_BLOCK - 1) / BITS_PER_BLOCK));
-  const auto* src = reinterpret_cast<const uint8_t*>(data.data());
+  const auto* source = reinterpret_cast<const uint8_t*>(data.data());
   const int blocks_per_row = layout.blocks_per_row;
 
   const int covered_rows = blocks_per_row > 0 ? (active_blocks / blocks_per_row) * 8 : 0;
@@ -68,17 +68,17 @@ void embed_data_into_plane(uint8_t* plane, const int stride, const FrameLayout& 
     std::memset(plane + y * stride, 128, layout.frame_width);
   }
 
-  for (int block_idx = 0; block_idx < active_blocks; ++block_idx) {
-    const int base_x = (block_idx % blocks_per_row) * 8;
-    const int base_y = (block_idx / blocks_per_row) * 8;
+  for (int block_index = 0; block_index < active_blocks; ++block_index) {
+    const int base_x = (block_index % blocks_per_row) * 8;
+    const int base_y = (block_index / blocks_per_row) * 8;
 
-    const std::size_t bit_start = static_cast<std::size_t>(block_idx) * BITS_PER_BLOCK;
+    const std::size_t bit_start = static_cast<std::size_t>(block_index) * BITS_PER_BLOCK;
     const std::size_t bit_end = std::min(bit_start + BITS_PER_BLOCK, total_bits);
 
     int pattern = 0;
     for (std::size_t bit_index = bit_start; bit_index < bit_end; ++bit_index) {
-      const int bit_pos = 7 - static_cast<int>(bit_index % 8);
-      pattern = (pattern << 1) | ((src[bit_index / 8] >> bit_pos) & 1);
+      const int bit_position = 7 - static_cast<int>(bit_index % 8);
+      pattern = (pattern << 1) | ((source[bit_index / 8] >> bit_position) & 1);
     }
     pattern <<= BITS_PER_BLOCK - static_cast<int>(bit_end - bit_start);
 

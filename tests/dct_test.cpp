@@ -27,15 +27,15 @@
 
 TEST(dct_test, should_precompute_one_block_per_bit_pattern) {
   constexpr int expected_patterns = 1 << BITS_PER_BLOCK;
-  EXPECT_EQ(PrecomputedBlocks::NUM_PATTERNS, expected_patterns);
+  EXPECT_EQ(PrecomputedBlocks::PATTERN_COUNT, expected_patterns);
 }
 
 TEST(dct_test, should_keep_precomputed_blocks_in_the_pixel_range) {
   const auto& [patterns] = get_precomputed_blocks();
-  for (int p = 0; p < PrecomputedBlocks::NUM_PATTERNS; ++p) {
+  for (int pattern = 0; pattern < PrecomputedBlocks::PATTERN_COUNT; ++pattern) {
     for (int y = 0; y < 8; ++y) {
       for (int x = 0; x < 8; ++x) {
-        EXPECT_LE(patterns[p][y][x], 255u);
+        EXPECT_LE(patterns[pattern][y][x], 255u);
       }
     }
   }
@@ -43,12 +43,12 @@ TEST(dct_test, should_keep_precomputed_blocks_in_the_pixel_range) {
 
 TEST(dct_test, should_give_every_decoder_projection_energy) {
   const auto& [vectors] = get_decoder_projections();
-  for (int b = 0; b < BITS_PER_BLOCK; ++b) {
-    float sum_sq = 0.0f;
+  for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
+    float sum_of_squares = 0.0f;
     for (int i = 0; i < 64; ++i) {
-      sum_sq += vectors[b][i] * vectors[b][i];
+      sum_of_squares += vectors[bit_index][i] * vectors[bit_index][i];
     }
-    EXPECT_GT(sum_sq, 0.0f);
+    EXPECT_GT(sum_of_squares, 0.0f);
   }
 }
 
@@ -56,7 +56,7 @@ TEST(dct_test, should_extract_every_embedded_bit_pattern) {
   const auto& [patterns] = get_precomputed_blocks();
   const auto& [vectors] = get_decoder_projections();
 
-  for (int pattern = 0; pattern < PrecomputedBlocks::NUM_PATTERNS; ++pattern) {
+  for (int pattern = 0; pattern < PrecomputedBlocks::PATTERN_COUNT; ++pattern) {
     alignas(32) float block_flat[64];
     for (int y = 0; y < 8; ++y) {
       for (int x = 0; x < 8; ++x) {
@@ -65,8 +65,8 @@ TEST(dct_test, should_extract_every_embedded_bit_pattern) {
     }
 
     int recovered = 0;
-    for (int b = 0; b < BITS_PER_BLOCK; ++b) {
-      const float sum = dot_product_64(block_flat, vectors[b]);
+    for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
+      const float sum = dot_product_64(block_flat, vectors[bit_index]);
       recovered = (recovered << 1) | (sum > 0.0f ? 1 : 0);
     }
 
@@ -75,41 +75,41 @@ TEST(dct_test, should_extract_every_embedded_bit_pattern) {
 }
 
 TEST(dct_test, should_sum_a_dot_product_of_ones) {
-  alignas(32) float a[64];
-  alignas(32) float b[64];
+  alignas(32) float left[64];
+  alignas(32) float right[64];
 
   for (int i = 0; i < 64; ++i) {
-    a[i] = 1.0f;
-    b[i] = 1.0f;
+    left[i] = 1.0f;
+    right[i] = 1.0f;
   }
 
-  const float product = dot_product_64(a, b);
+  const float product = dot_product_64(left, right);
   EXPECT_FLOAT_EQ(product, 64.0f);
 }
 
 TEST(dct_test, should_compute_the_dot_product_of_a_linear_sequence) {
-  alignas(32) float a[64];
-  alignas(32) float b[64];
+  alignas(32) float left[64];
+  alignas(32) float right[64];
 
   for (int i = 0; i < 64; ++i) {
-    a[i] = static_cast<float>(i);
-    b[i] = 1.0f;
+    left[i] = static_cast<float>(i);
+    right[i] = 1.0f;
   }
 
-  const float product = dot_product_64(a, b);
+  const float product = dot_product_64(left, right);
   EXPECT_FLOAT_EQ(product, 2016.0f);
 }
 
 TEST(dct_test, should_compute_a_zero_dot_product_for_orthogonal_vectors) {
-  alignas(32) float a[64] = {};
-  alignas(32) float b[64] = {};
+  alignas(32) float left[64] = {};
+  alignas(32) float right[64] = {};
 
   for (int i = 0; i < 32; ++i)
-    a[i] = 1.0f;
+    left[i] = 1.0f;
   for (int i = 32; i < 64; ++i)
-    b[i] = 1.0f;
+    right[i] = 1.0f;
 
-  const float product = dot_product_64(a, b);
+  const float product = dot_product_64(left, right);
   EXPECT_FLOAT_EQ(product, 0.0f);
 }
 
@@ -133,7 +133,7 @@ TEST(dct_test, should_store_one_bit_per_block_in_the_frame_layout) {
 }
 
 TEST(dct_test, should_produce_a_different_block_for_each_pattern) {
-  if constexpr (PrecomputedBlocks::NUM_PATTERNS < 2) {
+  if constexpr (PrecomputedBlocks::PATTERN_COUNT < 2) {
     GTEST_SKIP() << "At least 2 patterns are needed!";
   }
 

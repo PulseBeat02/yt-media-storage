@@ -65,12 +65,12 @@ public:
   }
 
 private:
-  AVFormatContext* format_ctx_ = nullptr;
-  AVCodecContext* codec_ctx_ = nullptr;
+  AVFormatContext* format_context_ = nullptr;
+  AVCodecContext* codec_context_ = nullptr;
   AVFrame* frame_ = nullptr;
   AVFrame* gray_frame_ = nullptr;
   AVPacket* av_packet_ = nullptr;
-  SwsContext* sws_ctx_ = nullptr;
+  SwsContext* sws_context_ = nullptr;
 
   int video_stream_index_ = -1;
   int64_t frame_index_ = 0;
@@ -82,7 +82,7 @@ private:
   std::optional<gray_lookup_table> gray_lookup_;
   std::vector<std::byte> extract_buffer_;
 
-  void init_decoder(const std::string& input_path);
+  void initialize_decoder(const std::string& input_path);
 
   void release();
 

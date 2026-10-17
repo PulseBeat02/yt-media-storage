@@ -86,18 +86,18 @@ TEST(roundtrip_test, should_restore_several_chunks) {
   Decoder decoder;
 
   const ChunkedStorageData chunked = chunk_byte_data(original_data);
-  const auto num_chunks = static_cast<uint32_t>(chunked.chunks.size());
+  const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
 
-  for (uint32_t chunk_index = 0; chunk_index < num_chunks; ++chunk_index) {
+  for (uint32_t chunk_index = 0; chunk_index < chunk_count; ++chunk_index) {
     const std::span<const std::byte> chunk = chunk_span(chunked, chunk_index);
-    const bool is_last = (chunk_index == num_chunks - 1);
+    const bool is_last = (chunk_index == chunk_count - 1);
     encode_and_feed(encoder, decoder, chunk, chunk_index, is_last);
   }
 
   const std::size_t chunks_completed = decoder.chunks_completed();
-  EXPECT_EQ(chunks_completed, num_chunks);
+  EXPECT_EQ(chunks_completed, chunk_count);
 
-  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(num_chunks);
+  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(chunk_count);
   const bool assembled_present = assembled.has_value();
   ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
@@ -177,11 +177,11 @@ TEST(roundtrip_test, should_restore_data_matching_the_sha256_of_its_manifest) {
   Decoder decoder;
 
   const ChunkedStorageData chunked = chunk_byte_data(original_data);
-  const auto num_chunks = static_cast<uint32_t>(chunked.chunks.size());
+  const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
 
-  for (uint32_t chunk_index = 0; chunk_index < num_chunks; ++chunk_index) {
+  for (uint32_t chunk_index = 0; chunk_index < chunk_count; ++chunk_index) {
     const std::span<const std::byte> chunk = chunk_span(chunked, chunk_index);
-    const bool is_last = (chunk_index == num_chunks - 1);
+    const bool is_last = (chunk_index == chunk_count - 1);
 
     auto [packets, manifest] = encoder.encode_chunk(chunk_index, chunk, is_last);
 
@@ -193,7 +193,7 @@ TEST(roundtrip_test, should_restore_data_matching_the_sha256_of_its_manifest) {
     }
   }
 
-  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(num_chunks);
+  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(chunk_count);
   const bool assembled_present = assembled.has_value();
   ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
@@ -261,14 +261,14 @@ TEST(roundtrip_test, should_restore_data_of_two_chunk_sizes) {
   Decoder decoder;
 
   const ChunkedStorageData chunked = chunk_byte_data(original_data);
-  const auto num_chunks = static_cast<uint32_t>(chunked.chunks.size());
-  ASSERT_EQ(num_chunks, 2u);
+  const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
+  ASSERT_EQ(chunk_count, 2u);
 
-  for (uint32_t i = 0; i < num_chunks; ++i) {
-    encode_and_feed(encoder, decoder, chunk_span(chunked, i), i, i == num_chunks - 1);
+  for (uint32_t i = 0; i < chunk_count; ++i) {
+    encode_and_feed(encoder, decoder, chunk_span(chunked, i), i, i == chunk_count - 1);
   }
 
-  const auto assembled = decoder.assemble_file(num_chunks);
+  const auto assembled = decoder.assemble_file(chunk_count);
   const bool assembled_present = assembled.has_value();
   ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
@@ -281,14 +281,14 @@ TEST(roundtrip_test, should_restore_many_chunks) {
   Decoder decoder;
 
   const ChunkedStorageData chunked = chunk_byte_data(original_data);
-  const auto num_chunks = static_cast<uint32_t>(chunked.chunks.size());
-  EXPECT_EQ(num_chunks, 6u);
+  const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
+  EXPECT_EQ(chunk_count, 6u);
 
-  for (uint32_t i = 0; i < num_chunks; ++i) {
-    encode_and_feed(encoder, decoder, chunk_span(chunked, i), i, i == num_chunks - 1);
+  for (uint32_t i = 0; i < chunk_count; ++i) {
+    encode_and_feed(encoder, decoder, chunk_span(chunked, i), i, i == chunk_count - 1);
   }
 
-  const auto assembled = decoder.assemble_file(num_chunks);
+  const auto assembled = decoder.assemble_file(chunk_count);
   const bool assembled_present = assembled.has_value();
   ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
@@ -317,7 +317,7 @@ TEST(roundtrip_test, should_restore_data_despite_lost_packets) {
   const Encoder encoder(make_test_file_id());
   auto [packets, manifest] = encoder.encode_chunk(0, original_data, true);
 
-  const std::size_t repair = packets.size() - manifest.num_source_symbols;
+  const std::size_t repair = packets.size() - manifest.source_symbol_count;
   const std::size_t drop_every = packets.size() / (repair / 2);
 
   Decoder decoder;
@@ -347,17 +347,17 @@ TEST(roundtrip_test, should_write_the_assembled_file) {
   const bool success = decoder.write_assembled_file(output_path.string(), 1);
   EXPECT_TRUE(success);
 
-  std::ifstream ifs(output_path, std::ios::binary | std::ios::ate);
-  const bool file_open = ifs.is_open();
+  std::ifstream input(output_path, std::ios::binary | std::ios::ate);
+  const bool file_open = input.is_open();
   ASSERT_TRUE(file_open);
 
-  const auto file_size = ifs.tellg();
-  ifs.seekg(0);
+  const auto file_size = input.tellg();
+  input.seekg(0);
   std::vector<std::byte> file_data(file_size);
-  ifs.read(reinterpret_cast<char*>(file_data.data()), file_size);
+  input.read(reinterpret_cast<char*>(file_data.data()), file_size);
 
   EXPECT_EQ(file_data, original_data);
 
-  ifs.close();
+  input.close();
   std::filesystem::remove(output_path);
 }

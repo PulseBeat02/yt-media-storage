@@ -35,8 +35,9 @@ extern "C" {
 
 class StreamEncoder {
 public:
-  explicit StreamEncoder(const std::string& rtmp_url, int bitrate_kbps = FRAME_BITRATE, int width = FRAME_WIDTH_STREAM,
-                         int height = FRAME_HEIGHT_STREAM, int fps = FRAME_FPS);
+  explicit StreamEncoder(const std::string& rtmp_url, int bitrate_kilobits_per_second = FRAME_BITRATE,
+                         int width = FRAME_WIDTH_STREAM, int height = FRAME_HEIGHT_STREAM,
+                         int frames_per_second = FRAMES_PER_SECOND);
 
   ~StreamEncoder();
 
@@ -67,13 +68,13 @@ public:
   }
 
 private:
-  AVFormatContext* format_ctx_ = nullptr;
+  AVFormatContext* format_context_ = nullptr;
 
-  AVCodecContext* video_codec_ctx_ = nullptr;
+  AVCodecContext* video_codec_context_ = nullptr;
   AVStream* video_stream_ = nullptr;
   AVFrame* frame_ = nullptr;
 
-  AVCodecContext* audio_codec_ctx_ = nullptr;
+  AVCodecContext* audio_codec_context_ = nullptr;
   AVStream* audio_stream_ = nullptr;
   AVFrame* audio_frame_ = nullptr;
   int64_t audio_pts_ = 0;
@@ -82,22 +83,22 @@ private:
 
   int width_;
   int height_;
-  int fps_;
+  int frames_per_second_;
 
   std::vector<std::byte> frame_data_buffer_;
   FrameLayout layout_{};
   int64_t frame_index_ = 0;
   bool finalized_ = false;
 
-  void init_stream(const std::string& rtmp_url, int bitrate_kbps);
+  void initialize_stream(const std::string& rtmp_url, int bitrate_kilobits_per_second);
 
-  void init_video_encoder(int bitrate_kbps);
+  void initialize_video_encoder(int bitrate_kilobits_per_second);
 
-  void init_audio_encoder();
+  void initialize_audio_encoder();
 
   void release();
 
-  void write_pending_packets(AVCodecContext* codec_ctx, const AVStream* stream, bool ignore_errors);
+  void write_pending_packets(AVCodecContext* codec_context, const AVStream* stream, bool ignore_errors);
 
   void write_audio_up_to(int64_t video_pts);
 

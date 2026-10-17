@@ -40,7 +40,7 @@ target_link_libraries(media_storage_tests PRIVATE
 
 target_compile_definitions(media_storage_tests PRIVATE
         MEDIA_STORAGE_CLI_PATH="$<TARGET_FILE:media_storage>"
-        MEDIA_STORAGE_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden"
+        MEDIA_STORAGE_GOLDEN_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/golden"
 )
 add_dependencies(media_storage_tests media_storage)
 

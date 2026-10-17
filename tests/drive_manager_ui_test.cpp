@@ -78,7 +78,7 @@ constexpr int BITRATE_4K = 35000;
 
 constexpr int STREAM_WIDTH = 1280;
 constexpr int STREAM_HEIGHT = 720;
-constexpr int STREAM_FPS = 30;
+constexpr int STREAM_FRAMES_PER_SECOND = 30;
 constexpr int STREAM_BITRATE = 8000;
 
 constexpr const char* PASSWORD = "gui-password";
@@ -268,11 +268,11 @@ protected:
     return line_edit("Batch Operations", 0);
   }
 
-  QComboBox* platform_combo() const {
+  QComboBox* platform_combo_box() const {
     return group("Streaming (Twitch / YouTube)")->findChildren<QComboBox*>().at(0);
   }
 
-  QComboBox* resolution_combo() const {
+  QComboBox* resolution_combo_box() const {
     return group("Streaming (Twitch / YouTube)")->findChildren<QComboBox*>().at(1);
   }
 
@@ -288,7 +288,7 @@ protected:
     return group("Streaming (Twitch / YouTube)")->findChildren<QSpinBox*>().at(0);
   }
 
-  QSpinBox* fps_box() const {
+  QSpinBox* frames_per_second_box() const {
     return group("Streaming (Twitch / YouTube)")->findChildren<QSpinBox*>().at(1);
   }
 
@@ -326,7 +326,7 @@ protected:
   }
 
   void stream_input_to(const fixtures::temporary_file& stream) {
-    platform_combo()->setCurrentIndex(CUSTOM_INDEX);
+    platform_combo_box()->setCurrentIndex(CUSTOM_INDEX);
     const QString path = to_qstring(stream);
     const qsizetype split = path.size() - 1;
     stream_url_edit()->setText(path.left(split));
@@ -357,13 +357,13 @@ TEST_F(drive_manager_ui_test, should_start_idle) {
   const QString idle_status = permanent_status();
   const bool mentions_drive_manager_initialized = log_text().contains("Drive Manager initialized");
   const QString stream_url = stream_url_edit()->text();
-  const int frames_per_second = fps_box()->value();
+  const int frames_per_second = frames_per_second_box()->value();
   EXPECT_EQ(title, "YouTube Media Storage - Drive Manager");
   EXPECT_EQ(status, "Status: Idle");
   EXPECT_EQ(idle_status, "Ready");
   EXPECT_TRUE(mentions_drive_manager_initialized);
   EXPECT_EQ(stream_url, "rtmp://live.twitch.tv/app/");
-  EXPECT_EQ(frames_per_second, FRAME_FPS);
+  EXPECT_EQ(frames_per_second, FRAMES_PER_SECOND);
 }
 
 TEST_F(drive_manager_ui_test, should_toggle_password_visibility) {
@@ -472,21 +472,21 @@ TEST_F(drive_manager_ui_test, should_select_a_batch_output_directory) {
 }
 
 TEST_F(drive_manager_ui_test, should_switch_stream_platforms) {
-  platform_combo()->setCurrentIndex(YOUTUBE_INDEX);
+  platform_combo_box()->setCurrentIndex(YOUTUBE_INDEX);
 
   const QString youtube_url = stream_url_edit()->text();
   const bool youtube_read_only = stream_url_edit()->isReadOnly();
   EXPECT_EQ(youtube_url, "rtmp://a.rtmp.youtube.com/live2/");
   EXPECT_TRUE(youtube_read_only);
 
-  platform_combo()->setCurrentIndex(CUSTOM_INDEX);
+  platform_combo_box()->setCurrentIndex(CUSTOM_INDEX);
 
   const bool custom_url_empty = stream_url_edit()->text().isEmpty();
   const bool custom_read_only = stream_url_edit()->isReadOnly();
   EXPECT_TRUE(custom_url_empty);
   EXPECT_FALSE(custom_read_only);
 
-  platform_combo()->setCurrentIndex(TWITCH_INDEX);
+  platform_combo_box()->setCurrentIndex(TWITCH_INDEX);
 
   const QString twitch_url = stream_url_edit()->text();
   const bool twitch_read_only = stream_url_edit()->isReadOnly();
@@ -495,17 +495,17 @@ TEST_F(drive_manager_ui_test, should_switch_stream_platforms) {
 }
 
 TEST_F(drive_manager_ui_test, should_pick_a_bitrate_for_each_resolution) {
-  resolution_combo()->setCurrentIndex(RESOLUTION_4K_INDEX);
+  resolution_combo_box()->setCurrentIndex(RESOLUTION_4K_INDEX);
 
   const int bitrate_4k = bitrate_box()->value();
   EXPECT_EQ(bitrate_4k, BITRATE_4K);
 
-  resolution_combo()->setCurrentIndex(RESOLUTION_1440P_INDEX);
+  resolution_combo_box()->setCurrentIndex(RESOLUTION_1440P_INDEX);
 
   const int bitrate_1440p = bitrate_box()->value();
   EXPECT_EQ(bitrate_1440p, BITRATE_1440P);
 
-  resolution_combo()->setCurrentIndex(RESOLUTION_1080P_INDEX);
+  resolution_combo_box()->setCurrentIndex(RESOLUTION_1080P_INDEX);
 
   const int bitrate_1080p = bitrate_box()->value();
   EXPECT_EQ(bitrate_1080p, BITRATE_1080P);
@@ -780,7 +780,7 @@ TEST_F(drive_manager_ui_test, should_validate_a_stream_decode) {
   EXPECT_TRUE(output_warning_shown);
 
   output_edit()->setText(to_qstring(output_));
-  platform_combo()->setCurrentIndex(CUSTOM_INDEX);
+  platform_combo_box()->setCurrentIndex(CUSTOM_INDEX);
   stream->click();
 
   const bool url_warning_shown = driver_.has_message("Warning", "Please enter a stream URL to decode from");
@@ -789,7 +789,7 @@ TEST_F(drive_manager_ui_test, should_validate_a_stream_decode) {
 
 TEST_F(drive_manager_ui_test, should_stream_encode_and_decode_a_file) {
   const fixtures::temporary_file stream(".flv");
-  resolution_combo()->setCurrentIndex(RESOLUTION_1080P_INDEX);
+  resolution_combo_box()->setCurrentIndex(RESOLUTION_1080P_INDEX);
   encrypt_box()->setChecked(true);
   password_edit()->setText(PASSWORD);
 
@@ -820,7 +820,7 @@ TEST_F(drive_manager_ui_test, should_stream_encode_and_decode_a_file) {
 TEST_F(drive_manager_ui_test, should_report_a_failed_stream_encode_and_decode) {
   const fixtures::temporary_file stream(".flv");
   input_edit()->setText(to_qstring(input_));
-  platform_combo()->setCurrentIndex(CUSTOM_INDEX);
+  platform_combo_box()->setCurrentIndex(CUSTOM_INDEX);
   stream_url_edit()->setText(to_qstring(stream) + ".missing-directory/");
   stream_key_edit()->setText("stream.flv");
 
@@ -888,8 +888,8 @@ TEST(worker_thread_test, should_stream_with_the_requested_settings) {
   request.streamUrl = to_qstring(stream);
   request.width = STREAM_WIDTH;
   request.height = STREAM_HEIGHT;
-  request.fps = STREAM_FPS;
-  request.bitrateKbps = STREAM_BITRATE;
+  request.framesPerSecond = STREAM_FRAMES_PER_SECOND;
+  request.bitrateKilobitsPerSecond = STREAM_BITRATE;
   WorkerThread worker(request);
   worker_recorder recorder(worker);
 

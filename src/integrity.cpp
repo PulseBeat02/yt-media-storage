@@ -31,17 +31,17 @@
 #include <cstring>
 
 namespace {
-constexpr char HEX_DIGITS[] = "0123456789ABCDEF";
+constexpr char HEXADECIMAL_DIGITS[] = "0123456789ABCDEF";
 
-std::string bytes_to_hex(const std::span<const std::byte> input) {
-  std::string hex(input.size() * 2, '\0');
-  char* out = hex.data();
-  for (const std::byte b : input) {
-    const auto value = std::to_integer<unsigned char>(b);
-    *out++ = HEX_DIGITS[value >> 4];
-    *out++ = HEX_DIGITS[value & 0x0F];
+std::string bytes_to_hexadecimal(const std::span<const std::byte> input) {
+  std::string hexadecimal(input.size() * 2, '\0');
+  char* out = hexadecimal.data();
+  for (const std::byte input_byte : input) {
+    const auto value = std::to_integer<unsigned char>(input_byte);
+    *out++ = HEXADECIMAL_DIGITS[value >> 4];
+    *out++ = HEXADECIMAL_DIGITS[value & 0x0F];
   }
-  return hex;
+  return hexadecimal;
 }
 
 const CRC::Table<uint32_t, 32>& crc_table() {
@@ -49,7 +49,7 @@ const CRC::Table<uint32_t, 32>& crc_table() {
   return table;
 }
 
-uint32_t read_u32_le(const std::span<const std::byte> buffer, const std::size_t offset) {
+uint32_t read_uint32_little_endian(const std::span<const std::byte> buffer, const std::size_t offset) {
   uint32_t value = 0;
   if (offset + sizeof(value) <= buffer.size()) {
     std::memcpy(&value, buffer.data() + offset, sizeof(value));
@@ -58,8 +58,8 @@ uint32_t read_u32_le(const std::span<const std::byte> buffer, const std::size_t 
 }
 }
 
-std::string Sha256Digest::hex_value() const {
-  return bytes_to_hex(bytes);
+std::string Sha256Digest::hexadecimal_value() const {
+  return bytes_to_hexadecimal(bytes);
 }
 
 Sha256Digest sha256(const std::span<const std::byte> data) {
@@ -67,14 +67,14 @@ Sha256Digest sha256(const std::span<const std::byte> data) {
   const auto* begin = reinterpret_cast<const uint8_t*>(data.data());
   std::array<unsigned char, SHA256_HASH_SIZE> hash{};
 #if defined(__APPLE__)
-  CC_SHA256_CTX ctx;
-  CC_SHA256_Init(&ctx);
+  CC_SHA256_CTX context;
+  CC_SHA256_Init(&context);
   for (std::size_t offset = 0; offset < data.size();) {
     const auto step = static_cast<CC_LONG>(std::min<std::size_t>(data.size() - offset, 1u << 30));
-    CC_SHA256_Update(&ctx, begin + offset, step);
+    CC_SHA256_Update(&context, begin + offset, step);
     offset += step;
   }
-  CC_SHA256_Final(hash.data(), &ctx);
+  CC_SHA256_Final(hash.data(), &context);
 #else
   picosha2::hash256(begin, begin + data.size(), hash.begin(), hash.end());
 #endif
@@ -131,8 +131,8 @@ uint32_t packet_xxhash32(const std::span<const std::byte> header, const std::spa
 }
 
 uint32_t packet_checksum(const std::span<const std::byte> header, const std::span<const std::byte> payload,
-                         const std::size_t crc_offset, const HashAlgorithm algo, const std::size_t crc_size) {
-  if (algo == HashAlgorithm::XXHash32) {
+                         const std::size_t crc_offset, const HashAlgorithm algorithm, const std::size_t crc_size) {
+  if (algorithm == HashAlgorithm::XXHash32) {
     return packet_xxhash32(header, payload, crc_offset, crc_size);
   }
   return packet_crc32(header, payload, crc_offset, crc_size);
@@ -143,6 +143,6 @@ bool verify_packet_crc32(const std::span<const std::byte> header, const std::spa
   if (crc_size != 4 || crc_offset + 4 > header.size()) {
     return false;
   }
-  const uint32_t stored = read_u32_le(header, crc_offset);
+  const uint32_t stored = read_uint32_little_endian(header, crc_offset);
   return stored == packet_crc32(header, payload, crc_offset, crc_size);
 }

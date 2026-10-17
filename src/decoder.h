@@ -41,7 +41,7 @@ struct ChunkDecodeResult {
 
 class ChunkDecoder {
 public:
-  explicit ChunkDecoder(uint32_t chunk_index, uint32_t chunk_size, uint32_t k, uint16_t symbol_size);
+  explicit ChunkDecoder(uint32_t chunk_index, uint32_t chunk_size, uint32_t source_symbol_count, uint16_t symbol_size);
 
   ChunkDecoder(ChunkDecoder&&) noexcept = default;
 
@@ -61,8 +61,8 @@ public:
     return chunk_index_;
   }
 
-  [[nodiscard]] uint32_t num_source_symbols() const {
-    return k_;
+  [[nodiscard]] uint32_t source_symbol_count() const {
+    return source_symbol_count_;
   }
 
   [[nodiscard]] uint32_t packets_received() const {
@@ -76,7 +76,7 @@ private:
 
   uint32_t chunk_index_;
   uint32_t chunk_size_;
-  uint32_t k_;
+  uint32_t source_symbol_count_;
   uint16_t symbol_size_;
   std::unique_ptr<void, CodecDeleter> codec_;
   bool decoded_ = false;
@@ -112,8 +112,8 @@ public:
     return completed_count_;
   }
 
-  [[nodiscard]] uint32_t max_chunk_index() const {
-    return max_chunk_index_;
+  [[nodiscard]] uint32_t maximum_chunk_index() const {
+    return maximum_chunk_index_;
   }
 
   [[nodiscard]] std::optional<uint32_t> last_chunk_index() const {
@@ -143,7 +143,7 @@ private:
   std::vector<std::optional<std::vector<std::byte>>> completed_chunks_;
   std::size_t completed_count_ = 0;
   std::size_t total_packets_ = 0;
-  uint32_t max_chunk_index_ = 0;
+  uint32_t maximum_chunk_index_ = 0;
   std::optional<uint32_t> last_chunk_index_;
 
   [[nodiscard]] bool ready_to_assemble(uint32_t expected_chunks) const;

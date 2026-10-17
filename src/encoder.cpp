@@ -17,7 +17,7 @@
 #include "encoder.h"
 
 #include "libs/wirehair/wirehair.h"
-#include "wirehair_init.h"
+#include "wirehair_initialization.h"
 
 #include <cmath>
 #include <format>
@@ -33,20 +33,20 @@ struct WirehairCodecDeleter {
   }
 };
 
-using WirehairCodecPtr = std::unique_ptr<std::remove_pointer_t<WirehairCodec>, WirehairCodecDeleter>;
+using WirehairCodecPointer = std::unique_ptr<std::remove_pointer_t<WirehairCodec>, WirehairCodecDeleter>;
 
-uint32_t compute_num_source_symbols(const std::size_t data_size, const std::size_t symbol_size) {
+uint32_t compute_source_symbol_count(const std::size_t data_size, const std::size_t symbol_size) {
   return static_cast<uint32_t>((data_size + symbol_size - 1) / symbol_size);
 }
 
-uint32_t compute_repair_count(const uint32_t num_source, const double overhead) {
-  return static_cast<uint32_t>(std::ceil(static_cast<double>(num_source) * overhead));
+uint32_t compute_repair_count(const uint32_t source_symbol_count, const double overhead) {
+  return static_cast<uint32_t>(std::ceil(static_cast<double>(source_symbol_count) * overhead));
 }
 
-uint8_t build_flags(const uint32_t block_id, const uint32_t num_source, const bool is_last_chunk, const bool encrypted,
-                    const HashAlgorithm algo) {
+uint8_t build_flags(const uint32_t block_id, const uint32_t source_symbol_count, const bool is_last_chunk,
+                    const bool encrypted, const HashAlgorithm algorithm) {
   uint8_t flags = 0;
-  if (block_id > num_source) {
+  if (block_id > source_symbol_count) {
     flags |= FLAG_REPAIR_SYMBOL;
   }
   if (is_last_chunk) {
@@ -55,14 +55,15 @@ uint8_t build_flags(const uint32_t block_id, const uint32_t num_source, const bo
   if (encrypted) {
     flags |= FLAG_ENCRYPTED;
   }
-  if (algo == HashAlgorithm::XXHash32) {
+  if (algorithm == HashAlgorithm::XXHash32) {
     flags |= FLAG_USE_XXHASH;
   }
   return flags;
 }
 }
 
-Encoder::Encoder(const FileId file_id, const HashAlgorithm hash_algo) : file_id_(file_id), hash_algo_(hash_algo) {
+Encoder::Encoder(const FileId file_id, const HashAlgorithm hash_algorithm)
+    : file_id_(file_id), hash_algorithm_(hash_algorithm) {
 }
 
 std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const uint32_t chunk_index,
@@ -77,28 +78,28 @@ std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const u
     throw std::runtime_error(message);
   }
 
-  constexpr std::size_t min_size = SYMBOL_SIZE_BYTES * 2;
+  constexpr std::size_t minimum_size = SYMBOL_SIZE_BYTES * 2;
   std::vector<std::byte> padded_data;
   std::span<const std::byte> data_to_encode = chunk_data;
-  if (chunk_data.size() < min_size) {
+  if (chunk_data.size() < minimum_size) {
     padded_data.assign(chunk_data.begin(), chunk_data.end());
-    padded_data.resize(min_size, std::byte{0});
+    padded_data.resize(minimum_size, std::byte{0});
     data_to_encode = padded_data;
   }
 
   const auto chunk_size = static_cast<uint32_t>(data_to_encode.size());
   constexpr auto symbol_size = static_cast<uint16_t>(SYMBOL_SIZE_BYTES);
-  const uint32_t num_source = compute_num_source_symbols(data_to_encode.size(), SYMBOL_SIZE_BYTES);
+  const uint32_t source_symbol_count = compute_source_symbol_count(data_to_encode.size(), SYMBOL_SIZE_BYTES);
 
   ChunkManifestEntry manifest;
   manifest.chunk_index = chunk_index;
   manifest.chunk_size = chunk_size;
   manifest.original_size = static_cast<uint32_t>(chunk_data.size());
   manifest.symbol_size = symbol_size;
-  manifest.num_source_symbols = num_source;
+  manifest.source_symbol_count = source_symbol_count;
   manifest.sha256 = sha256(chunk_data);
 
-  static thread_local WirehairCodecPtr reusable_codec;
+  static thread_local WirehairCodecPointer reusable_codec;
   const WirehairCodec codec = wirehair_encoder_create(
       reusable_codec.release(), reinterpret_cast<const uint8_t*>(data_to_encode.data()), chunk_size, symbol_size);
   if (!codec) {
@@ -107,9 +108,9 @@ std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const u
   }
   reusable_codec.reset(codec);
 
-  const uint32_t repair_count = compute_repair_count(num_source, REPAIR_OVERHEAD);
-  const uint32_t first_block_id = INCLUDE_SOURCE ? 1u : num_source + 1u;
-  const uint32_t last_block_id = num_source + repair_count;
+  const uint32_t repair_count = compute_repair_count(source_symbol_count, REPAIR_OVERHEAD);
+  const uint32_t first_block_id = INCLUDE_SOURCE ? 1u : source_symbol_count + 1u;
+  const uint32_t last_block_id = source_symbol_count + repair_count;
 
   std::vector<Packet> packets;
   packets.reserve(last_block_id - first_block_id + 1);
@@ -120,23 +121,23 @@ std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const u
   header.chunk_size = chunk_size;
   header.original_size = manifest.original_size;
   header.symbol_size = symbol_size;
-  header.k = num_source;
+  header.source_symbol_count = source_symbol_count;
 
   for (uint32_t block_id = first_block_id; block_id <= last_block_id; ++block_id) {
     Packet& packet = packets.emplace_back();
-    auto* payload_dest = reinterpret_cast<uint8_t*>(packet.bytes.data() + HEADER_SIZE_V2);
-    uint32_t write_len = 0;
-    if (wirehair_encode(codec, block_id, payload_dest, SYMBOL_SIZE_BYTES, &write_len) != Wirehair_Success) {
+    auto* payload_destination = reinterpret_cast<uint8_t*>(packet.bytes.data() + HEADER_SIZE_V2);
+    uint32_t write_length = 0;
+    if (wirehair_encode(codec, block_id, payload_destination, SYMBOL_SIZE_BYTES, &write_length) != Wirehair_Success) {
       const std::string message = std::format("Wirehair could not encode block {}!", block_id);
       throw std::runtime_error(message);
     }
 
-    header.flags = build_flags(block_id, num_source, is_last_chunk, encrypted, hash_algo_);
+    header.flags = build_flags(block_id, source_symbol_count, is_last_chunk, encrypted, hash_algorithm_);
     header.esi = block_id;
-    header.payload_len = static_cast<uint16_t>(write_len);
+    header.payload_length = static_cast<uint16_t>(write_length);
 
     const std::span<const std::byte> payload(packet.bytes.data() + HEADER_SIZE_V2, SYMBOL_SIZE_BYTES);
-    write_packet_header(std::span(packet.bytes.data(), HEADER_SIZE_V2), header, payload, hash_algo_);
+    write_packet_header(std::span(packet.bytes.data(), HEADER_SIZE_V2), header, payload, hash_algorithm_);
   }
 
   return {std::move(packets), manifest};

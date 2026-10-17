@@ -29,18 +29,18 @@ namespace {
 std::vector<std::byte> bytes_from_string(const std::string& text) {
   std::vector<std::byte> result;
   result.reserve(text.size());
-  for (const unsigned char ch : text) {
-    result.push_back(std::byte{ch});
+  for (const unsigned char character : text) {
+    result.push_back(std::byte{character});
   }
   return result;
 }
 
-void write_u32_le(std::vector<std::byte>& buffer, const std::size_t offset, const uint32_t value) {
+void write_uint32_little_endian(std::vector<std::byte>& buffer, const std::size_t offset, const uint32_t value) {
   std::memcpy(buffer.data() + offset, &value, sizeof(value));
 }
 
-bool is_hex_char(const char ch) {
-  return (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F');
+bool is_hexadecimal_character(const char character) {
+  return (character >= '0' && character <= '9') || (character >= 'A' && character <= 'F');
 }
 
 } // namespace
@@ -48,23 +48,23 @@ bool is_hex_char(const char ch) {
 TEST(integrity_test, should_hash_empty_input_to_the_known_sha256_digest) {
   const std::vector<std::byte> empty_input;
   const Sha256Digest digest = sha256(empty_input);
-  const std::string hex_output = digest.hex_value();
-  EXPECT_EQ(hex_output, "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855");
+  const std::string hexadecimal_output = digest.hexadecimal_value();
+  EXPECT_EQ(hexadecimal_output, "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855");
 }
 
 TEST(integrity_test, should_hash_known_input_to_its_sha256_digest) {
   const std::vector<std::byte> hello_bytes = bytes_from_string("hello");
   const Sha256Digest digest = sha256(hello_bytes);
-  const std::string hex_output = digest.hex_value();
-  EXPECT_EQ(hex_output, "2CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824");
+  const std::string hexadecimal_output = digest.hexadecimal_value();
+  EXPECT_EQ(hexadecimal_output, "2CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824");
 }
 
 TEST(integrity_test, should_write_the_sha256_digest_in_hex) {
   const std::vector<std::byte> abc_bytes = bytes_from_string("abc");
   const Sha256Digest digest = sha256(abc_bytes);
-  for (const std::string hex_output = digest.hex_value(); const char ch : hex_output) {
-    const bool hex_digit = is_hex_char(ch);
-    EXPECT_TRUE(hex_digit);
+  for (const std::string hexadecimal_output = digest.hexadecimal_value(); const char character : hexadecimal_output) {
+    const bool hexadecimal_digit = is_hexadecimal_character(character);
+    EXPECT_TRUE(hexadecimal_digit);
   }
 }
 
@@ -131,7 +131,7 @@ TEST(integrity_test, should_accept_a_packet_with_a_valid_checksum) {
   constexpr std::size_t crc_offset = 2;
 
   const uint32_t computed_crc = packet_crc32(header, payload, crc_offset);
-  write_u32_le(header, crc_offset, computed_crc);
+  write_uint32_little_endian(header, crc_offset, computed_crc);
 
   const bool checksum_valid = verify_packet_crc32(header, payload, crc_offset);
   EXPECT_TRUE(checksum_valid);
@@ -143,7 +143,7 @@ TEST(integrity_test, should_reject_a_packet_with_a_corrupted_payload) {
   constexpr std::size_t crc_offset = 2;
 
   const uint32_t computed_crc = packet_crc32(header, payload, crc_offset);
-  write_u32_le(header, crc_offset, computed_crc);
+  write_uint32_little_endian(header, crc_offset, computed_crc);
 
   const auto original_byte = static_cast<unsigned char>(payload[0]);
   payload[0] = static_cast<std::byte>(original_byte ^ 0xFFu);
@@ -173,9 +173,9 @@ TEST(integrity_test, should_hash_large_input) {
   }
   const Sha256Digest digest = sha256(large_data);
   const Sha256Digest digest_again = sha256(large_data);
-  const std::size_t hex_length = digest.hex_value().size();
+  const std::size_t hexadecimal_length = digest.hexadecimal_value().size();
   EXPECT_EQ(digest, digest_again);
-  EXPECT_EQ(hex_length, 64u);
+  EXPECT_EQ(hexadecimal_length, 64u);
 }
 
 TEST(integrity_test, should_hash_an_empty_payload_with_xxhash) {
@@ -221,7 +221,7 @@ TEST(integrity_test, should_reject_a_crc_field_that_is_not_four_bytes) {
   const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
   constexpr std::size_t crc_offset = 2;
   constexpr std::size_t short_crc_size = 2;
-  write_u32_le(header, crc_offset, packet_crc32(header, payload, crc_offset));
+  write_uint32_little_endian(header, crc_offset, packet_crc32(header, payload, crc_offset));
 
   const bool verified = verify_packet_crc32(header, payload, crc_offset, short_crc_size);
 

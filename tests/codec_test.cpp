@@ -52,7 +52,7 @@ std::vector<std::byte> make_test_data(const std::size_t byte_count) {
   return data;
 }
 
-uint32_t read_u32_le(const std::byte* source) {
+uint32_t read_uint32_little_endian(const std::byte* source) {
   uint32_t value = 0;
   std::memcpy(&value, source, sizeof(value));
   return value;
@@ -90,10 +90,10 @@ TEST(codec_test, should_encode_a_chunk_into_its_packet_count) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
-  const std::size_t num_source = (input_data.size() + SYMBOL_SIZE_BYTES - 1) / SYMBOL_SIZE_BYTES;
-  const auto repair = static_cast<std::size_t>(std::ceil(static_cast<double>(num_source) * REPAIR_OVERHEAD));
+  const std::size_t source_symbol_count = (input_data.size() + SYMBOL_SIZE_BYTES - 1) / SYMBOL_SIZE_BYTES;
+  const auto repair = static_cast<std::size_t>(std::ceil(static_cast<double>(source_symbol_count) * REPAIR_OVERHEAD));
   const std::size_t packet_count = packets.size();
-  EXPECT_EQ(packet_count, num_source + repair);
+  EXPECT_EQ(packet_count, source_symbol_count + repair);
 }
 
 TEST(codec_test, should_start_every_packet_with_the_magic) {
@@ -101,7 +101,7 @@ TEST(codec_test, should_start_every_packet_with_the_magic) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
   for (const auto& [bytes] : packets) {
-    const uint32_t magic = read_u32_le(bytes.data());
+    const uint32_t magic = read_uint32_little_endian(bytes.data());
     EXPECT_EQ(magic, MAGIC_ID);
   }
 }
@@ -111,7 +111,7 @@ TEST(codec_test, should_write_version_two_packets) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
   for (const auto& [bytes] : packets) {
-    const auto version = static_cast<uint8_t>(bytes[VERSION_OFF]);
+    const auto version = static_cast<uint8_t>(bytes[VERSION_OFFSET]);
     EXPECT_EQ(version, VERSION_ID_V2);
   }
 }
@@ -131,7 +131,7 @@ TEST(codec_test, should_flag_the_last_chunk) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data, 0, true);
   for (const auto& [bytes] : packets) {
-    const auto flags = static_cast<uint8_t>(bytes[FLAGS_OFF]);
+    const auto flags = static_cast<uint8_t>(bytes[FLAGS_OFFSET]);
     EXPECT_NE(flags & FLAG_LAST_CHUNK, 0);
   }
 }
@@ -141,7 +141,7 @@ TEST(codec_test, should_not_flag_a_middle_chunk_as_the_last) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data, 0, false);
   for (const auto& [bytes] : packets) {
-    const auto flags = static_cast<uint8_t>(bytes[FLAGS_OFF]);
+    const auto flags = static_cast<uint8_t>(bytes[FLAGS_OFFSET]);
     EXPECT_EQ(flags & FLAG_LAST_CHUNK, 0);
   }
 }
@@ -151,8 +151,8 @@ TEST(codec_test, should_pad_small_data_to_a_whole_symbol) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, small_data);
 
-  constexpr auto min_padded_size = static_cast<uint32_t>(SYMBOL_SIZE_BYTES * 2);
-  EXPECT_GE(manifest.chunk_size, min_padded_size);
+  constexpr auto minimum_padded_size = static_cast<uint32_t>(SYMBOL_SIZE_BYTES * 2);
+  EXPECT_GE(manifest.chunk_size, minimum_padded_size);
 }
 
 TEST(codec_test, should_parse_a_valid_packet) {
@@ -291,7 +291,7 @@ TEST(codec_test, should_flag_encrypted_packets) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data, 0, false, true);
   for (const auto& [bytes] : packets) {
-    const auto flags = static_cast<uint8_t>(bytes[FLAGS_OFF]);
+    const auto flags = static_cast<uint8_t>(bytes[FLAGS_OFFSET]);
     EXPECT_NE(flags & FLAG_ENCRYPTED, 0);
   }
 }
@@ -319,8 +319,8 @@ TEST(codec_test, should_decode_several_chunks) {
   const auto chunk1_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
 
-  auto [packets0, m0] = encoder.encode_chunk(0, chunk0_data, false);
-  auto [packets1, m1] = encoder.encode_chunk(1, chunk1_data, true);
+  auto [packets0, manifest0] = encoder.encode_chunk(0, chunk0_data, false);
+  auto [packets1, manifest1] = encoder.encode_chunk(1, chunk1_data, true);
 
   Decoder decoder;
   feed_all_packets_to_decoder(decoder, packets0);
@@ -391,7 +391,7 @@ TEST(codec_test, should_decode_a_chunk_despite_lost_packets) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, original_data);
 
-  const std::size_t repair = packets.size() - manifest.num_source_symbols;
+  const std::size_t repair = packets.size() - manifest.source_symbol_count;
   const std::size_t kept = packets.size() - repair / 2;
 
   Decoder decoder;
@@ -452,7 +452,7 @@ TEST(codec_test, should_checksum_every_packet_of_an_unaligned_chunk) {
     const auto parsed = parse_and_verify_packet(packet_span(packet));
     const bool parsed_present = parsed.has_value();
     ASSERT_TRUE(parsed_present);
-    saw_partial_symbol |= parsed->header.payload_len < parsed->header.symbol_size;
+    saw_partial_symbol |= parsed->header.payload_length < parsed->header.symbol_size;
   }
 
   EXPECT_TRUE(saw_partial_symbol);
@@ -465,14 +465,14 @@ TEST(codec_test, should_accept_the_legacy_checksum_of_a_partial_symbol) {
 
   const auto partial = std::ranges::find_if(packets, [](const Packet& packet) {
     const auto parsed = parse_packet(packet_span(packet));
-    return parsed && parsed->header.payload_len < parsed->header.symbol_size;
+    return parsed && parsed->header.payload_length < parsed->header.symbol_size;
   });
   const auto packets_end = packets.end();
   ASSERT_NE(partial, packets_end);
 
   const PacketHeader header = parse_packet(packet_span(*partial))->header;
   const std::span<std::byte> bytes(partial->bytes);
-  write_packet_header(bytes.first(HEADER_SIZE_V2), header, bytes.subspan(HEADER_SIZE_V2, header.payload_len),
+  write_packet_header(bytes.first(HEADER_SIZE_V2), header, bytes.subspan(HEADER_SIZE_V2, header.payload_length),
                       header.hash_algorithm());
 
   const bool partial_packet_verified = parse_and_verify_packet(packet_span(*partial)).has_value();
@@ -492,9 +492,9 @@ namespace {
 std::vector<std::byte> to_version_one(const Packet& packet) {
   const ParsedPacket parsed = *parse_packet(packet_span(packet));
   std::vector<std::byte> converted(packet.bytes.begin(), packet.bytes.begin() + HEADER_SIZE);
-  converted[VERSION_OFF] = std::byte{VERSION_ID};
-  const uint32_t checksum = packet_checksum(converted, parsed.payload, CRC_OFF, parsed.header.hash_algorithm());
-  std::memcpy(converted.data() + CRC_OFF, &checksum, sizeof(checksum));
+  converted[VERSION_OFFSET] = std::byte{VERSION_ID};
+  const uint32_t checksum = packet_checksum(converted, parsed.payload, CRC_OFFSET, parsed.header.hash_algorithm());
+  std::memcpy(converted.data() + CRC_OFFSET, &checksum, sizeof(checksum));
   converted.insert(converted.end(), parsed.payload.begin(), parsed.payload.end());
   return converted;
 }
@@ -525,7 +525,7 @@ TEST(codec_test, should_parse_a_version_one_packet_with_the_chunk_size_as_origin
   const std::size_t raw_header_size = parsed->raw_header.size();
   const std::byte* const payload_start = parsed->payload.data();
   const std::byte* const expected_payload_start = converted.data() + HEADER_SIZE;
-  const uint32_t expected_crc = read_u32_le(converted.data() + CRC_OFF);
+  const uint32_t expected_crc = read_uint32_little_endian(converted.data() + CRC_OFFSET);
   EXPECT_EQ(header_size, HEADER_SIZE);
   EXPECT_EQ(parsed->header.version, VERSION_ID);
   EXPECT_EQ(parsed->header.original_size, parsed->header.chunk_size);
@@ -580,7 +580,7 @@ CryptoKey make_key(const std::byte fill) {
 
 ChunkDecoder make_chunk_decoder(const ParsedPacket& packet) {
   const PacketHeader& header = packet.header;
-  return ChunkDecoder(header.chunk_index, header.chunk_size, header.k, header.symbol_size);
+  return ChunkDecoder(header.chunk_index, header.chunk_size, header.source_symbol_count, header.symbol_size);
 }
 
 std::vector<ParsedPacket> parse_all(const std::vector<Packet>& packets) {
@@ -661,9 +661,9 @@ TEST(codec_test, should_reject_packets_on_a_moved_from_chunk_decoder) {
   const std::string message = find_runtime_error_message(
       [&] { static_cast<void>(original.add_packet(parsed[0].header.esi, parsed[0].payload)); });
 
-  const uint32_t source_symbol_count = moved.num_source_symbols();
+  const uint32_t source_symbol_count = moved.source_symbol_count();
   EXPECT_EQ(message, "Codec must not be null!");
-  EXPECT_EQ(source_symbol_count, parsed[0].header.k);
+  EXPECT_EQ(source_symbol_count, parsed[0].header.source_symbol_count);
 }
 
 TEST(codec_test, should_reject_a_payload_of_the_wrong_size) {

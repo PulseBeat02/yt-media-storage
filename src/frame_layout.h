@@ -27,7 +27,7 @@ struct FrameLayout {
   int frame_width;
   int frame_height;
   int blocks_per_row;
-  int blocks_per_col;
+  int blocks_per_column;
   int total_blocks;
   int bits_per_frame;
   int bytes_per_frame;
@@ -39,7 +39,7 @@ struct FrameLayout {
 
 [[nodiscard]] int packets_per_frame(const FrameLayout& layout);
 
-[[nodiscard]] std::size_t max_packet_bytes_per_frame();
+[[nodiscard]] std::size_t maximum_packet_bytes_per_frame();
 
 void embed_data_into_plane(uint8_t* plane, int stride, const FrameLayout& layout, std::span<const std::byte> data);
 

@@ -205,14 +205,14 @@ TEST(crypto_test, should_read_the_plain_size_from_the_header) {
 
 TEST(crypto_test, should_zero_the_whole_buffer) {
   std::vector<std::byte> buffer(64);
-  for (auto& byte_val : buffer) {
-    byte_val = std::byte{0xFF};
+  for (auto& byte_value : buffer) {
+    byte_value = std::byte{0xFF};
   }
 
   secure_zero(buffer);
 
-  for (const auto byte_val : buffer) {
-    EXPECT_EQ(byte_val, std::byte{0});
+  for (const auto byte_value : buffer) {
+    EXPECT_EQ(byte_value, std::byte{0});
   }
 }
 
@@ -265,10 +265,10 @@ TEST(crypto_test, should_encrypt_each_chunk_index_differently) {
   const auto file_id = make_test_file_id();
   const std::vector<std::byte> plaintext = make_patterned_data(64);
 
-  const std::vector<std::byte> ct0 = encrypt_chunk(plaintext, key, file_id, 0u);
-  const std::vector<std::byte> ct1 = encrypt_chunk(plaintext, key, file_id, 1u);
+  const std::vector<std::byte> ciphertext0 = encrypt_chunk(plaintext, key, file_id, 0u);
+  const std::vector<std::byte> ciphertext1 = encrypt_chunk(plaintext, key, file_id, 1u);
 
-  EXPECT_NE(ct0, ct1);
+  EXPECT_NE(ciphertext0, ciphertext1);
 }
 
 namespace {

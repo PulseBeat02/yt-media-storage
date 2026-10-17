@@ -59,8 +59,8 @@ public:
   [[nodiscard]] static int packets_per_frame();
 
 private:
-  AVFormatContext* format_ctx_ = nullptr;
-  AVCodecContext* codec_ctx_ = nullptr;
+  AVFormatContext* format_context_ = nullptr;
+  AVCodecContext* codec_context_ = nullptr;
   AVStream* stream_ = nullptr;
   AVFrame* frame_ = nullptr;
   AVPacket* av_packet_ = nullptr;
@@ -70,7 +70,7 @@ private:
   int64_t frame_index_ = 0;
   bool finalized_ = false;
 
-  void init_encoder(const std::string& output_path);
+  void initialize_encoder(const std::string& output_path);
 
   void release();
 

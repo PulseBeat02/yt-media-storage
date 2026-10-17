@@ -40,9 +40,10 @@ struct ChunkedStorageData {
 
 [[nodiscard]] ChunkedStorageData chunk_file(const char* path, std::size_t chunk_size = 0);
 
-[[nodiscard]] inline std::span<const std::byte> chunk_span(const ChunkedStorageData& cs, const std::size_t i) {
-  const auto& [offset, length] = cs.chunks[i];
-  return {cs.storage.data() + offset, length};
+[[nodiscard]] inline std::span<const std::byte> chunk_span(const ChunkedStorageData& chunked_data,
+                                                           const std::size_t index) {
+  const auto& [offset, length] = chunked_data.chunks[index];
+  return {chunked_data.storage.data() + offset, length};
 }
 
 class FileChunkReader {
@@ -59,8 +60,8 @@ public:
 
   FileChunkReader& operator=(FileChunkReader&&) = delete;
 
-  [[nodiscard]] std::size_t num_chunks() const {
-    return num_chunks_;
+  [[nodiscard]] std::size_t chunk_count() const {
+    return chunk_count_;
   }
 
   [[nodiscard]] std::size_t file_size() const {
@@ -82,16 +83,16 @@ public:
 private:
   std::size_t file_size_ = 0;
   std::size_t chunk_size_;
-  std::size_t num_chunks_ = 0;
+  std::size_t chunk_count_ = 0;
   const std::byte* mapped_ = nullptr;
 #if defined(_WIN32)
   void* file_handle_ = nullptr;
   void* mapping_handle_ = nullptr;
 #else
-  int fd_ = -1;
+  int file_descriptor_ = -1;
 #endif
   mutable std::ifstream file_;
-  mutable std::size_t file_pos_ = 0;
+  mutable std::size_t file_position_ = 0;
 
   void map_file(const char* path);
 

@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef MEDIA_STORAGE_WIREHAIR_INIT_H
-#define MEDIA_STORAGE_WIREHAIR_INIT_H
+#ifndef MEDIA_STORAGE_WIREHAIR_INITIALIZATION_H
+#define MEDIA_STORAGE_WIREHAIR_INITIALIZATION_H
 
 void ensure_wirehair_initialized();
 

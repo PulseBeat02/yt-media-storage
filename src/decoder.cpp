@@ -17,7 +17,7 @@
 #include "decoder.h"
 
 #include "libs/wirehair/wirehair.h"
-#include "wirehair_init.h"
+#include "wirehair_initialization.h"
 
 #include <algorithm>
 #include <atomic>
@@ -34,9 +34,10 @@ void ChunkDecoder::CodecDeleter::operator()(void* codec) const {
   wirehair_free(static_cast<WirehairCodec>(codec));
 }
 
-ChunkDecoder::ChunkDecoder(const uint32_t chunk_index, const uint32_t chunk_size, const uint32_t k,
+ChunkDecoder::ChunkDecoder(const uint32_t chunk_index, const uint32_t chunk_size, const uint32_t source_symbol_count,
                            const uint16_t symbol_size)
-    : chunk_index_(chunk_index), chunk_size_(chunk_size), k_(k), symbol_size_(symbol_size) {
+    : chunk_index_(chunk_index), chunk_size_(chunk_size), source_symbol_count_(source_symbol_count),
+      symbol_size_(symbol_size) {
   ensure_wirehair_initialized();
   codec_.reset(wirehair_decoder_create(nullptr, chunk_size_, symbol_size_));
   if (!codec_) {
@@ -103,46 +104,46 @@ std::optional<ChunkDecodeResult> Decoder::process_verified_packet(const ParsedPa
                                                                   const bool compute_sha256) {
   ++total_packets_;
 
-  const PacketHeader& hdr = packet.header;
+  const PacketHeader& header = packet.header;
   if (!file_id_) {
-    file_id_ = hdr.file_id;
-    encrypted_ = (hdr.flags & FLAG_ENCRYPTED) != 0;
+    file_id_ = header.file_id;
+    encrypted_ = (header.flags & FLAG_ENCRYPTED) != 0;
   }
 
-  max_chunk_index_ = std::max(max_chunk_index_, hdr.chunk_index);
-  if (hdr.flags & FLAG_LAST_CHUNK) {
-    last_chunk_index_ = hdr.chunk_index;
+  maximum_chunk_index_ = std::max(maximum_chunk_index_, header.chunk_index);
+  if (header.flags & FLAG_LAST_CHUNK) {
+    last_chunk_index_ = header.chunk_index;
   }
 
-  if (is_chunk_complete(hdr.chunk_index)) {
+  if (is_chunk_complete(header.chunk_index)) {
     return std::nullopt;
   }
 
-  if (hdr.chunk_index >= active_decoders_.size()) {
-    active_decoders_.resize(hdr.chunk_index + 1);
+  if (header.chunk_index >= active_decoders_.size()) {
+    active_decoders_.resize(header.chunk_index + 1);
   }
-  std::optional<ChunkDecoder>& slot = active_decoders_[hdr.chunk_index];
+  std::optional<ChunkDecoder>& slot = active_decoders_[header.chunk_index];
   if (!slot) {
-    slot.emplace(hdr.chunk_index, hdr.chunk_size, hdr.k, hdr.symbol_size);
+    slot.emplace(header.chunk_index, header.chunk_size, header.source_symbol_count, header.symbol_size);
   }
 
-  if (!slot->add_packet(hdr.esi, packet.payload)) {
+  if (!slot->add_packet(header.esi, packet.payload)) {
     return std::nullopt;
   }
 
   ChunkDecodeResult result;
-  result.chunk_index = hdr.chunk_index;
+  result.chunk_index = header.chunk_index;
   result.data = slot->consume_decoded_data();
-  result.data.resize(std::min(static_cast<uint32_t>(result.data.size()), hdr.original_size));
+  result.data.resize(std::min(static_cast<uint32_t>(result.data.size()), header.original_size));
   if (compute_sha256) {
     result.sha256 = sha256(result.data);
   }
   result.success = true;
 
-  if (hdr.chunk_index >= completed_chunks_.size()) {
-    completed_chunks_.resize(hdr.chunk_index + 1);
+  if (header.chunk_index >= completed_chunks_.size()) {
+    completed_chunks_.resize(header.chunk_index + 1);
   }
-  completed_chunks_[hdr.chunk_index] = result.data;
+  completed_chunks_[header.chunk_index] = result.data;
   ++completed_count_;
   slot.reset();
 

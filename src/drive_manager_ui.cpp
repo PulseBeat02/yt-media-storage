@@ -34,7 +34,7 @@
 #include <string>
 
 namespace {
-constexpr int STREAM_DECODE_TIMEOUT_SEC = 30;
+constexpr int STREAM_DECODE_TIMEOUT_SECONDS = 30;
 constexpr int CUSTOM_PLATFORM_INDEX = 2;
 
 QString documentsLocation() {
@@ -109,18 +109,18 @@ void WorkerThread::runEncode(const std::string& input, const std::string& output
   progressRange = {5, 90};
   emit progressUpdated(progressRange.start);
 
-  ms_encode_options_t opts{};
-  opts.input_path = input.c_str();
-  opts.output_path = output.c_str();
-  opts.encrypt = request.encrypt ? 1 : 0;
-  opts.password = password.c_str();
-  opts.password_len = password.size();
-  opts.hash_algorithm = MS_HASH_CRC32;
-  opts.progress = progressCallback;
-  opts.progress_user = this;
+  ms_encode_options_t options{};
+  options.input_path = input.c_str();
+  options.output_path = output.c_str();
+  options.encrypt = request.encrypt ? 1 : 0;
+  options.password = password.c_str();
+  options.password_len = password.size();
+  options.hash_algorithm = MS_HASH_CRC32;
+  options.progress = progressCallback;
+  options.progress_user = this;
 
   ms_result_t result{};
-  const ms_status_t status = ms_encode(&opts, &result);
+  const ms_status_t status = ms_encode(&options, &result);
   if (status == MS_OK) {
     emit logMessage(QString("Input size: %1 bytes").arg(result.input_size));
     emit logMessage(QString("Chunks: %1").arg(result.total_chunks));
@@ -135,16 +135,16 @@ void WorkerThread::runDecode(const std::string& input, const std::string& output
   progressRange = {10, 70};
   emit progressUpdated(progressRange.start);
 
-  ms_decode_options_t opts{};
-  opts.input_path = input.c_str();
-  opts.output_path = output.c_str();
-  opts.password = password.c_str();
-  opts.password_len = password.size();
-  opts.progress = progressCallback;
-  opts.progress_user = this;
+  ms_decode_options_t options{};
+  options.input_path = input.c_str();
+  options.output_path = output.c_str();
+  options.password = password.c_str();
+  options.password_len = password.size();
+  options.progress = progressCallback;
+  options.progress_user = this;
 
   ms_result_t result{};
-  const ms_status_t status = ms_decode(&opts, &result);
+  const ms_status_t status = ms_decode(&options, &result);
   if (status == MS_OK) {
     emit logMessage(QString("Video size: %1 bytes").arg(result.input_size));
     emit logMessage(QString("Packets extracted: %1").arg(result.total_packets));
@@ -157,30 +157,31 @@ void WorkerThread::runDecode(const std::string& input, const std::string& output
 void WorkerThread::runStreamEncode(const std::string& input, const std::string& url, const std::string& password) {
   emit statusUpdated("Starting stream encode...");
   emit logMessage("Stream encode: " + request.inputPath + " -> " + request.streamUrl);
-  emit logMessage(QString("Resolution: %1x%2 (%3 fps)").arg(request.width).arg(request.height).arg(request.fps));
-  emit logMessage(QString("Bitrate: %1 kbps").arg(request.bitrateKbps));
+  emit logMessage(
+      QString("Resolution: %1x%2 (%3 fps)").arg(request.width).arg(request.height).arg(request.framesPerSecond));
+  emit logMessage(QString("Bitrate: %1 kbps").arg(request.bitrateKilobitsPerSecond));
   if (request.encrypt) {
     emit logMessage("Encrypting chunks with password");
   }
   progressRange = {5, 90};
   emit progressUpdated(progressRange.start);
 
-  ms_stream_encode_options_t opts{};
-  opts.input_path = input.c_str();
-  opts.stream_url = url.c_str();
-  opts.encrypt = request.encrypt ? 1 : 0;
-  opts.password = password.c_str();
-  opts.password_len = password.size();
-  opts.hash_algorithm = MS_HASH_CRC32;
-  opts.bitrate_kbps = request.bitrateKbps;
-  opts.width = request.width;
-  opts.height = request.height;
-  opts.fps = request.fps;
-  opts.progress = progressCallback;
-  opts.progress_user = this;
+  ms_stream_encode_options_t options{};
+  options.input_path = input.c_str();
+  options.stream_url = url.c_str();
+  options.encrypt = request.encrypt ? 1 : 0;
+  options.password = password.c_str();
+  options.password_len = password.size();
+  options.hash_algorithm = MS_HASH_CRC32;
+  options.bitrate_kbps = request.bitrateKilobitsPerSecond;
+  options.width = request.width;
+  options.height = request.height;
+  options.fps = request.framesPerSecond;
+  options.progress = progressCallback;
+  options.progress_user = this;
 
   ms_result_t result{};
-  const ms_status_t status = ms_stream_encode(&opts, &result);
+  const ms_status_t status = ms_stream_encode(&options, &result);
   if (status == MS_OK) {
     emit logMessage(QString("Input size: %1 bytes").arg(result.input_size));
     emit logMessage(QString("Chunks: %1").arg(result.total_chunks));
@@ -195,17 +196,17 @@ void WorkerThread::runStreamDecode(const std::string& url, const std::string& ou
   progressRange = {10, 85};
   emit progressUpdated(5);
 
-  ms_stream_decode_options_t opts{};
-  opts.stream_url = url.c_str();
-  opts.output_path = output.c_str();
-  opts.password = password.c_str();
-  opts.password_len = password.size();
-  opts.timeout_sec = STREAM_DECODE_TIMEOUT_SEC;
-  opts.progress = progressCallback;
-  opts.progress_user = this;
+  ms_stream_decode_options_t options{};
+  options.stream_url = url.c_str();
+  options.output_path = output.c_str();
+  options.password = password.c_str();
+  options.password_len = password.size();
+  options.timeout_sec = STREAM_DECODE_TIMEOUT_SECONDS;
+  options.progress = progressCallback;
+  options.progress_user = this;
 
   ms_result_t result{};
-  const ms_status_t status = ms_stream_decode(&opts, &result);
+  const ms_status_t status = ms_stream_decode(&options, &result);
   if (status == MS_OK) {
     emit logMessage(QString("Packets extracted: %1").arg(result.total_packets));
     emit logMessage(QString("Chunks decoded: %1").arg(result.total_chunks));
@@ -247,43 +248,43 @@ void DriveManagerUI::setupUI() {
   auto* leftLayout = new QVBoxLayout(leftPanel);
 
   fileOperationsGroup = new QGroupBox("File Operations");
-  auto* fileOpsLayout = new QGridLayout(fileOperationsGroup);
+  auto* fileOperationsLayout = new QGridLayout(fileOperationsGroup);
 
-  fileOpsLayout->addWidget(new QLabel("Input File:"), 0, 0);
+  fileOperationsLayout->addWidget(new QLabel("Input File:"), 0, 0);
   inputFileEdit = new QLineEdit();
   inputFileEdit->setReadOnly(true);
-  fileOpsLayout->addWidget(inputFileEdit, 0, 1);
+  fileOperationsLayout->addWidget(inputFileEdit, 0, 1);
 
   selectInputButton = new QPushButton("Browse...");
-  fileOpsLayout->addWidget(selectInputButton, 0, 2);
+  fileOperationsLayout->addWidget(selectInputButton, 0, 2);
 
-  fileOpsLayout->addWidget(new QLabel("Output File:"), 1, 0);
+  fileOperationsLayout->addWidget(new QLabel("Output File:"), 1, 0);
   outputFileEdit = new QLineEdit();
   outputFileEdit->setReadOnly(true);
-  fileOpsLayout->addWidget(outputFileEdit, 1, 1);
+  fileOperationsLayout->addWidget(outputFileEdit, 1, 1);
 
   selectOutputButton = new QPushButton("Browse...");
-  fileOpsLayout->addWidget(selectOutputButton, 1, 2);
+  fileOperationsLayout->addWidget(selectOutputButton, 1, 2);
 
   encryptCheckBox = new QCheckBox("Encrypt with password");
-  fileOpsLayout->addWidget(encryptCheckBox, 2, 0, 1, 3);
+  fileOperationsLayout->addWidget(encryptCheckBox, 2, 0, 1, 3);
 
-  fileOpsLayout->addWidget(new QLabel("Password:"), 3, 0);
+  fileOperationsLayout->addWidget(new QLabel("Password:"), 3, 0);
   passwordEdit = new QLineEdit();
   passwordEdit->setPlaceholderText("For encrypt or decrypt");
   passwordEdit->setEchoMode(QLineEdit::Password);
-  fileOpsLayout->addWidget(passwordEdit, 3, 1);
+  fileOperationsLayout->addWidget(passwordEdit, 3, 1);
   passwordVisibilityButton = new QPushButton("Show");
   passwordVisibilityButton->setFixedWidth(selectInputButton->sizeHint().width());
-  fileOpsLayout->addWidget(passwordVisibilityButton, 3, 2);
+  fileOperationsLayout->addWidget(passwordVisibilityButton, 3, 2);
 
   encodeButton = new QPushButton("Encode to Video");
   encodeButton->setIcon(QIcon::fromTheme("media-record"));
-  fileOpsLayout->addWidget(encodeButton, 4, 0, 1, 3);
+  fileOperationsLayout->addWidget(encodeButton, 4, 0, 1, 3);
 
   decodeButton = new QPushButton("Decode from Video");
   decodeButton->setIcon(QIcon::fromTheme("media-playback-start"));
-  fileOpsLayout->addWidget(decodeButton, 5, 0, 1, 3);
+  fileOperationsLayout->addWidget(decodeButton, 5, 0, 1, 3);
 
   leftLayout->addWidget(fileOperationsGroup);
 
@@ -305,10 +306,10 @@ void DriveManagerUI::setupUI() {
 
   auto* batchOutputLayout = new QHBoxLayout();
   batchOutputLayout->addWidget(new QLabel("Output Directory:"));
-  batchOutputDirEdit = new QLineEdit();
-  batchOutputDirEdit->setReadOnly(true);
+  batchOutputDirectoryEdit = new QLineEdit();
+  batchOutputDirectoryEdit->setReadOnly(true);
   batchOutputButton = new QPushButton("Browse...");
-  batchOutputLayout->addWidget(batchOutputDirEdit);
+  batchOutputLayout->addWidget(batchOutputDirectoryEdit);
   batchOutputLayout->addWidget(batchOutputButton);
   batchLayout->addLayout(batchOutputLayout);
 
@@ -322,16 +323,16 @@ void DriveManagerUI::setupUI() {
   auto* streamLayout = new QGridLayout(streamGroup);
 
   streamLayout->addWidget(new QLabel("Platform:"), 0, 0);
-  platformCombo = new QComboBox();
-  platformCombo->addItem("Twitch", "rtmp://live.twitch.tv/app/");
-  platformCombo->addItem("YouTube", "rtmp://a.rtmp.youtube.com/live2/");
-  platformCombo->addItem("Custom", "");
-  streamLayout->addWidget(platformCombo, 0, 1, 1, 2);
+  platformComboBox = new QComboBox();
+  platformComboBox->addItem("Twitch", "rtmp://live.twitch.tv/app/");
+  platformComboBox->addItem("YouTube", "rtmp://a.rtmp.youtube.com/live2/");
+  platformComboBox->addItem("Custom", "");
+  streamLayout->addWidget(platformComboBox, 0, 1, 1, 2);
 
   streamLayout->addWidget(new QLabel("RTMP URL:"), 1, 0);
   streamUrlEdit = new QLineEdit();
   streamUrlEdit->setPlaceholderText("rtmp://live.twitch.tv/app/");
-  streamUrlEdit->setText(platformCombo->currentData().toString());
+  streamUrlEdit->setText(platformComboBox->currentData().toString());
   streamUrlEdit->setReadOnly(true);
   streamLayout->addWidget(streamUrlEdit, 1, 1, 1, 2);
 
@@ -342,12 +343,12 @@ void DriveManagerUI::setupUI() {
   streamLayout->addWidget(streamKeyEdit, 2, 1, 1, 2);
 
   streamLayout->addWidget(new QLabel("Resolution:"), 3, 0);
-  resolutionCombo = new QComboBox();
-  resolutionCombo->addItem("1080p (1920x1080)", QSize(1920, 1080));
-  resolutionCombo->addItem("1440p (2560x1440)", QSize(2560, 1440));
-  resolutionCombo->addItem("4K (3840x2160)", QSize(3840, 2160));
-  resolutionCombo->setCurrentIndex(0);
-  streamLayout->addWidget(resolutionCombo, 3, 1, 1, 2);
+  resolutionComboBox = new QComboBox();
+  resolutionComboBox->addItem("1080p (1920x1080)", QSize(1920, 1080));
+  resolutionComboBox->addItem("1440p (2560x1440)", QSize(2560, 1440));
+  resolutionComboBox->addItem("4K (3840x2160)", QSize(3840, 2160));
+  resolutionComboBox->setCurrentIndex(0);
+  streamLayout->addWidget(resolutionComboBox, 3, 1, 1, 2);
 
   streamLayout->addWidget(new QLabel("Bitrate (kbps):"), 4, 0);
   bitrateSpinBox = new QSpinBox();
@@ -358,12 +359,12 @@ void DriveManagerUI::setupUI() {
   streamLayout->addWidget(bitrateSpinBox, 4, 1, 1, 2);
 
   streamLayout->addWidget(new QLabel("FPS:"), 5, 0);
-  fpsSpinBox = new QSpinBox();
-  fpsSpinBox->setRange(1, 240);
-  fpsSpinBox->setValue(FRAME_FPS);
-  fpsSpinBox->setSingleStep(1);
-  fpsSpinBox->setSuffix(" fps");
-  streamLayout->addWidget(fpsSpinBox, 5, 1, 1, 2);
+  framesPerSecondSpinBox = new QSpinBox();
+  framesPerSecondSpinBox->setRange(1, 240);
+  framesPerSecondSpinBox->setValue(FRAMES_PER_SECOND);
+  framesPerSecondSpinBox->setSingleStep(1);
+  framesPerSecondSpinBox->setSuffix(" fps");
+  streamLayout->addWidget(framesPerSecondSpinBox, 5, 1, 1, 2);
 
   streamEncodeButton = new QPushButton("Stream Encode");
   streamEncodeButton->setIcon(QIcon::fromTheme("network-transmit"));
@@ -452,8 +453,8 @@ void DriveManagerUI::connectSignals() {
 
   connect(streamEncodeButton, &QPushButton::clicked, this, &DriveManagerUI::startStreamEncode);
   connect(streamDecodeButton, &QPushButton::clicked, this, &DriveManagerUI::startStreamDecode);
-  connect(platformCombo, &QComboBox::currentIndexChanged, this, &DriveManagerUI::onPlatformChanged);
-  connect(resolutionCombo, &QComboBox::currentIndexChanged, this, &DriveManagerUI::onResolutionChanged);
+  connect(platformComboBox, &QComboBox::currentIndexChanged, this, &DriveManagerUI::onPlatformChanged);
+  connect(resolutionComboBox, &QComboBox::currentIndexChanged, this, &DriveManagerUI::onResolutionChanged);
 }
 
 void DriveManagerUI::togglePasswordVisibility() const {
@@ -495,10 +496,10 @@ void DriveManagerUI::addBatchFiles() {
 }
 
 void DriveManagerUI::selectBatchOutputDirectory() {
-  const QString dirName = QFileDialog::getExistingDirectory(this, "Select Output Directory", documentsLocation());
-  if (!dirName.isEmpty()) {
-    batchOutputDirEdit->setText(dirName);
-    logMessage("Selected output directory: " + dirName);
+  const QString directoryName = QFileDialog::getExistingDirectory(this, "Select Output Directory", documentsLocation());
+  if (!directoryName.isEmpty()) {
+    batchOutputDirectoryEdit->setText(directoryName);
+    logMessage("Selected output directory: " + directoryName);
   }
 }
 
@@ -593,7 +594,7 @@ void DriveManagerUI::startBatchEncode() {
     QMessageBox::warning(this, "Warning", "No files in batch list");
     return;
   }
-  if (batchOutputDirEdit->text().isEmpty()) {
+  if (batchOutputDirectoryEdit->text().isEmpty()) {
     QMessageBox::warning(this, "Warning", "Please select an output directory");
     return;
   }
@@ -614,12 +615,12 @@ void DriveManagerUI::startBatchEncode() {
 
 void DriveManagerUI::startNextBatchItem() {
   const QString inputPath = batchQueue.takeFirst();
-  const QDir outputDir(batchOutputDirEdit->text());
+  const QDir outputDirectory(batchOutputDirectoryEdit->text());
 
   WorkerRequest request;
   request.operation = WorkerRequest::Operation::Encode;
   request.inputPath = inputPath;
-  request.outputPath = outputDir.filePath(QFileInfo(inputPath).fileName() + ".mkv");
+  request.outputPath = outputDirectory.filePath(QFileInfo(inputPath).fileName() + ".mkv");
   request.encrypt = encryptCheckBox->isChecked();
   request.password = passwordEdit->text();
   startWorker(request, QString("Batch Encoding (%1 remaining)").arg(batchQueue.size()));
@@ -642,12 +643,12 @@ void DriveManagerUI::finishBatch() {
 }
 
 void DriveManagerUI::onPlatformChanged(const int index) const {
-  streamUrlEdit->setText(platformCombo->itemData(index).toString());
+  streamUrlEdit->setText(platformComboBox->itemData(index).toString());
   streamUrlEdit->setReadOnly(index != CUSTOM_PLATFORM_INDEX);
 }
 
 void DriveManagerUI::onResolutionChanged(const int index) const {
-  const QSize resolution = resolutionCombo->itemData(index).toSize();
+  const QSize resolution = resolutionComboBox->itemData(index).toSize();
   if (resolution.height() <= 1080) {
     bitrateSpinBox->setValue(8000);
   } else if (resolution.height() <= 1440) {
@@ -669,17 +670,17 @@ void DriveManagerUI::startStreamEncode() {
     return;
   }
 
-  const QSize resolution = resolutionCombo->currentData().toSize();
+  const QSize resolution = resolutionComboBox->currentData().toSize();
   WorkerRequest request;
   request.operation = WorkerRequest::Operation::StreamEncode;
   request.inputPath = inputFileEdit->text();
   request.streamUrl = streamUrlEdit->text() + streamKeyEdit->text();
   request.encrypt = encryptCheckBox->isChecked();
   request.password = passwordEdit->text();
-  request.bitrateKbps = bitrateSpinBox->value();
+  request.bitrateKilobitsPerSecond = bitrateSpinBox->value();
   request.width = resolution.width();
   request.height = resolution.height();
-  request.fps = fpsSpinBox->value();
+  request.framesPerSecond = framesPerSecondSpinBox->value();
   startWorker(request, "Stream Encoding");
 }
 

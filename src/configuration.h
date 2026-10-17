@@ -28,7 +28,7 @@
 // =============================================================================
 constexpr int FRAME_WIDTH = 3840;
 constexpr int FRAME_HEIGHT = 2160;
-constexpr int FRAME_FPS = 30;
+constexpr int FRAMES_PER_SECOND = 30;
 constexpr int FRAME_BITRATE = 35000;
 constexpr int FRAME_WIDTH_STREAM = FRAME_WIDTH / 2;
 constexpr int FRAME_HEIGHT_STREAM = FRAME_HEIGHT / 2;
@@ -48,7 +48,7 @@ inline constexpr const char* VIDEO_CODEC = "ffv1";
 
 constexpr std::size_t CRYPTO_PLAIN_SIZE_HEADER = 4;
 constexpr std::size_t CRYPTO_AEAD_TAG_BYTES = 16;
-constexpr std::size_t CHUNK_SIZE_PLAIN_MAX_ENCRYPTED =
+constexpr std::size_t CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED =
     CHUNK_SIZE_BYTES - CRYPTO_PLAIN_SIZE_HEADER - CRYPTO_AEAD_TAG_BYTES;
 
 enum PacketFlag : uint8_t {
@@ -69,29 +69,29 @@ constexpr std::size_t FILE_ID_SIZE = 16;
 constexpr std::size_t CHUNK_INDEX_SIZE = 4;
 constexpr std::size_t CHUNK_SIZE_SIZE = 4;
 constexpr std::size_t SYMBOL_SIZE_SIZE = 2;
-constexpr std::size_t K_SIZE = 4;
+constexpr std::size_t SOURCE_SYMBOL_COUNT_SIZE = 4;
 constexpr std::size_t ESI_SIZE = 4;
-constexpr std::size_t PAYLOAD_LEN_SIZE = 2;
+constexpr std::size_t PAYLOAD_LENGTH_SIZE = 2;
 constexpr std::size_t ORIGINAL_SIZE_SIZE = 4;
 constexpr std::size_t CRC_SIZE = 4;
 
-constexpr std::size_t MAGIC_OFF = 0;
-constexpr std::size_t VERSION_OFF = MAGIC_OFF + MAGIC_SIZE;
-constexpr std::size_t FLAGS_OFF = VERSION_OFF + VERSION_SIZE;
-constexpr std::size_t FILE_ID_OFF = FLAGS_OFF + FLAGS_SIZE;
-constexpr std::size_t CHUNK_INDEX_OFF = FILE_ID_OFF + FILE_ID_SIZE;
-constexpr std::size_t CHUNK_SIZE_OFF = CHUNK_INDEX_OFF + CHUNK_INDEX_SIZE;
-constexpr std::size_t SYMBOL_SIZE_OFF = CHUNK_SIZE_OFF + CHUNK_SIZE_SIZE;
-constexpr std::size_t K_OFF = SYMBOL_SIZE_OFF + SYMBOL_SIZE_SIZE;
-constexpr std::size_t ESI_OFF = K_OFF + K_SIZE;
-constexpr std::size_t PAYLOAD_LEN_OFF = ESI_OFF + ESI_SIZE;
-constexpr std::size_t CRC_OFF = PAYLOAD_LEN_OFF + PAYLOAD_LEN_SIZE;
-constexpr std::size_t HEADER_SIZE = CRC_OFF + CRC_SIZE;
+constexpr std::size_t MAGIC_OFFSET = 0;
+constexpr std::size_t VERSION_OFFSET = MAGIC_OFFSET + MAGIC_SIZE;
+constexpr std::size_t FLAGS_OFFSET = VERSION_OFFSET + VERSION_SIZE;
+constexpr std::size_t FILE_ID_OFFSET = FLAGS_OFFSET + FLAGS_SIZE;
+constexpr std::size_t CHUNK_INDEX_OFFSET = FILE_ID_OFFSET + FILE_ID_SIZE;
+constexpr std::size_t CHUNK_SIZE_OFFSET = CHUNK_INDEX_OFFSET + CHUNK_INDEX_SIZE;
+constexpr std::size_t SYMBOL_SIZE_OFFSET = CHUNK_SIZE_OFFSET + CHUNK_SIZE_SIZE;
+constexpr std::size_t SOURCE_SYMBOL_COUNT_OFFSET = SYMBOL_SIZE_OFFSET + SYMBOL_SIZE_SIZE;
+constexpr std::size_t ESI_OFFSET = SOURCE_SYMBOL_COUNT_OFFSET + SOURCE_SYMBOL_COUNT_SIZE;
+constexpr std::size_t PAYLOAD_LENGTH_OFFSET = ESI_OFFSET + ESI_SIZE;
+constexpr std::size_t CRC_OFFSET = PAYLOAD_LENGTH_OFFSET + PAYLOAD_LENGTH_SIZE;
+constexpr std::size_t HEADER_SIZE = CRC_OFFSET + CRC_SIZE;
 
 // V2 header: original_size inserted between PAYLOAD_LEN and CRC (fixes small-file padding)
-constexpr std::size_t ORIGINAL_SIZE_OFF = PAYLOAD_LEN_OFF + PAYLOAD_LEN_SIZE;
-constexpr std::size_t CRC_OFF_V2 = ORIGINAL_SIZE_OFF + ORIGINAL_SIZE_SIZE;
-constexpr std::size_t HEADER_SIZE_V2 = CRC_OFF_V2 + CRC_SIZE;
+constexpr std::size_t ORIGINAL_SIZE_OFFSET = PAYLOAD_LENGTH_OFFSET + PAYLOAD_LENGTH_SIZE;
+constexpr std::size_t CRC_OFFSET_V2 = ORIGINAL_SIZE_OFFSET + ORIGINAL_SIZE_SIZE;
+constexpr std::size_t HEADER_SIZE_V2 = CRC_OFFSET_V2 + CRC_SIZE;
 constexpr std::size_t PACKET_SIZE = HEADER_SIZE_V2 + SYMBOL_SIZE_BYTES;
 
 using FileId = std::array<std::byte, FILE_ID_SIZE>;

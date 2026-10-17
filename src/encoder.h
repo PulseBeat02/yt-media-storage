@@ -34,7 +34,7 @@ struct ChunkManifestEntry {
   uint32_t chunk_size = 0;
   uint32_t original_size = 0;
   Sha256Digest sha256{};
-  uint32_t num_source_symbols = 0;
+  uint32_t source_symbol_count = 0;
   uint16_t symbol_size = 0;
 };
 
@@ -42,7 +42,7 @@ class Encoder {
 public:
   using FileId = ::FileId;
 
-  explicit Encoder(FileId file_id, HashAlgorithm hash_algo = HashAlgorithm::CRC32);
+  explicit Encoder(FileId file_id, HashAlgorithm hash_algorithm = HashAlgorithm::CRC32);
 
   [[nodiscard]] std::pair<std::vector<Packet>, ChunkManifestEntry> encode_chunk(uint32_t chunk_index,
                                                                                 std::span<const std::byte> chunk_data,
@@ -54,12 +54,12 @@ public:
   }
 
   [[nodiscard]] HashAlgorithm hash_algorithm() const {
-    return hash_algo_;
+    return hash_algorithm_;
   }
 
 private:
   FileId file_id_;
-  HashAlgorithm hash_algo_;
+  HashAlgorithm hash_algorithm_;
 };
 
 #endif

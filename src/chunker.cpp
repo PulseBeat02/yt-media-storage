@@ -94,7 +94,7 @@ FileChunkReader::FileChunkReader(const char* path, const std::size_t chunk_size)
   }
   file_size_ = static_cast<std::size_t>(end);
   file_.seekg(0);
-  num_chunks_ = file_size_ == 0 ? 1 : (file_size_ + chunk_size_ - 1) / chunk_size_;
+  chunk_count_ = file_size_ == 0 ? 1 : (file_size_ + chunk_size_ - 1) / chunk_size_;
 
   if (file_size_ > 0) {
     map_file(path);
@@ -122,15 +122,15 @@ void FileChunkReader::map_file(const char* path) {
   mapping_handle_ = mapping;
   mapped_ = static_cast<const std::byte*>(view);
 #else
-  const int fd = ::open(path, O_RDONLY);
-  if (fd < 0)
+  const int file_descriptor = ::open(path, O_RDONLY);
+  if (file_descriptor < 0)
     return;
-  const void* view = ::mmap(nullptr, file_size_, PROT_READ, MAP_SHARED, fd, 0);
+  const void* view = ::mmap(nullptr, file_size_, PROT_READ, MAP_SHARED, file_descriptor, 0);
   if (view == MAP_FAILED) {
-    ::close(fd);
+    ::close(file_descriptor);
     return;
   }
-  fd_ = fd;
+  file_descriptor_ = file_descriptor;
   mapped_ = static_cast<const std::byte*>(view);
 #endif
 }
@@ -146,14 +146,14 @@ FileChunkReader::~FileChunkReader() {
 #else
   if (mapped_)
     ::munmap(const_cast<std::byte*>(mapped_), file_size_);
-  if (fd_ >= 0)
-    ::close(fd_);
+  if (file_descriptor_ >= 0)
+    ::close(file_descriptor_);
 #endif
 }
 
 ChunkSlice FileChunkReader::chunk_slice(const std::size_t index) const {
-  if (index >= num_chunks_) {
-    const std::string message = std::format("Chunk index {} must be below the chunk count {}!", index, num_chunks_);
+  if (index >= chunk_count_) {
+    const std::string message = std::format("Chunk index {} must be below the chunk count {}!", index, chunk_count_);
     throw std::runtime_error(message);
   }
   const std::size_t offset = index * chunk_size_;
@@ -184,13 +184,13 @@ std::vector<std::byte> FileChunkReader::read_chunk(const std::size_t index) cons
     return {mapped_ + offset, mapped_ + offset + length};
   }
 
-  if (offset != file_pos_) {
+  if (offset != file_position_) {
     file_.seekg(static_cast<std::streamoff>(offset));
   }
   std::vector<std::byte> data(length);
   if (!file_.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(length))) {
     throw std::runtime_error(FILE_READ_FAILURE_MESSAGE);
   }
-  file_pos_ = offset + length;
+  file_position_ = offset + length;
   return data;
 }

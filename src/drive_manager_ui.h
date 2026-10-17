@@ -49,10 +49,10 @@ struct WorkerRequest {
   QString streamUrl;
   bool encrypt = false;
   QString password;
-  int bitrateKbps = FRAME_BITRATE;
+  int bitrateKilobitsPerSecond = FRAME_BITRATE;
   int width = FRAME_WIDTH_STREAM;
   int height = FRAME_HEIGHT_STREAM;
-  int fps = FRAME_FPS;
+  int framesPerSecond = FRAMES_PER_SECOND;
 };
 
 class WorkerThread : public QThread {
@@ -200,16 +200,16 @@ private:
   QPushButton* removeFilesButton = nullptr;
   QPushButton* clearFilesButton = nullptr;
   QPushButton* batchEncodeButton = nullptr;
-  QLineEdit* batchOutputDirEdit = nullptr;
+  QLineEdit* batchOutputDirectoryEdit = nullptr;
   QPushButton* batchOutputButton = nullptr;
 
   QGroupBox* streamGroup = nullptr;
-  QComboBox* platformCombo = nullptr;
+  QComboBox* platformComboBox = nullptr;
   QLineEdit* streamUrlEdit = nullptr;
   QLineEdit* streamKeyEdit = nullptr;
   QSpinBox* bitrateSpinBox = nullptr;
-  QSpinBox* fpsSpinBox = nullptr;
-  QComboBox* resolutionCombo = nullptr;
+  QSpinBox* framesPerSecondSpinBox = nullptr;
+  QComboBox* resolutionComboBox = nullptr;
   QPushButton* streamEncodeButton = nullptr;
   QPushButton* streamDecodeButton = nullptr;
 

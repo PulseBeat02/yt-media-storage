@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "wirehair_init.h"
+#include "wirehair_initialization.h"
 
 #include "libs/wirehair/wirehair.h"
 
@@ -23,8 +23,8 @@
 #include <string>
 
 void ensure_wirehair_initialized() {
-  static std::once_flag init_flag;
-  std::call_once(init_flag, [] {
+  static std::once_flag initialization_flag;
+  std::call_once(initialization_flag, [] {
     if (wirehair_init() != Wirehair_Success) {
       const std::string message = "Wirehair could not be initialized!";
       throw std::runtime_error(message);
