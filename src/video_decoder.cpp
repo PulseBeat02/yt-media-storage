@@ -21,6 +21,7 @@
 #include "packet_format.h"
 
 #include <cstring>
+#include <functional>
 #include <span>
 #include <stdexcept>
 
@@ -40,6 +41,96 @@ namespace {
         uint32_t magic = 0;
         std::memcpy(&magic, data.data(), sizeof(magic));
         return magic == MAGIC_ID;
+    }
+
+    constexpr int16_t PROJ[4] = {8035, 6811, 4551, 1598};
+
+    int32_t project_columns(const int (&col)[8]) {
+        return PROJ[0] * (col[0] - col[7]) +
+               PROJ[1] * (col[1] - col[6]) +
+               PROJ[2] * (col[2] - col[5]) +
+               PROJ[3] * (col[3] - col[4]);
+    }
+
+    template<typename GrayOf>
+    int32_t project_block(const uint8_t *block, const int stride, const GrayOf &gray_of) {
+        int col[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+        for (int y = 0; y < 8; ++y) {
+            const uint8_t *row = block + y * stride;
+            for (int x = 0; x < 8; ++x) {
+                col[x] += gray_of(row[x]);
+            }
+        }
+        return project_columns(col);
+    }
+
+#if defined(DCT_USE_NEON)
+    int32_t project_block(const uint8_t *block, const int stride, const std::identity &) {
+        uint16x8_t acc = vaddl_u8(vld1_u8(block), vld1_u8(block + stride));
+        for (int y = 2; y < 8; ++y) {
+            acc = vaddw_u8(acc, vld1_u8(block + y * stride));
+        }
+        const int16x4_t lo = vreinterpret_s16_u16(vget_low_u16(acc));
+        const int16x4_t hi = vrev64_s16(vreinterpret_s16_u16(vget_high_u16(acc)));
+        const int32x4_t prod = vmull_s16(vsub_s16(lo, hi), vld1_s16(PROJ));
+        return vaddvq_s32(prod);
+    }
+#endif
+
+    template<typename GrayOf>
+    void extract_data_into(std::vector<std::byte> &dest, const AVFrame &source, const FrameLayout &layout,
+                           const GrayOf &gray_of) {
+        const int blocks_per_row = layout.blocks_per_row;
+        constexpr int blocks_per_byte = 8 / BITS_PER_BLOCK;
+        const int total_bytes = layout.total_blocks / blocks_per_byte;
+
+        const uint8_t *src_base = source.data[0];
+        const int src_stride = source.linesize[0];
+
+        const std::size_t base = dest.size();
+        dest.resize(base + total_bytes);
+        auto *out = reinterpret_cast<uint8_t *>(dest.data() + base);
+
+        if constexpr (BITS_PER_BLOCK == 1) {
+            for (int byte_idx = 0; byte_idx < total_bytes; ++byte_idx) {
+                uint8_t current_byte = 0;
+                for (int sub = 0; sub < 8; ++sub) {
+                    const int block_idx = byte_idx * 8 + sub;
+                    const int block_row = block_idx / blocks_per_row;
+                    const int block_col = block_idx % blocks_per_row;
+                    const uint8_t *block = src_base + block_row * 8 * src_stride + block_col * 8;
+                    const int32_t s = project_block(block, src_stride, gray_of);
+                    current_byte = static_cast<uint8_t>((current_byte << 1) | (s > 0 ? 1 : 0));
+                }
+                out[byte_idx] = current_byte;
+            }
+        } else {
+            const auto &projections = get_decoder_projections();
+            const auto &vectors = projections.vectors;
+
+            for (int byte_idx = 0; byte_idx < total_bytes; ++byte_idx) {
+                uint8_t current_byte = 0;
+                for (int sub = 0; sub < blocks_per_byte; ++sub) {
+                    const int block_idx = byte_idx * blocks_per_byte + sub;
+                    const int base_x = (block_idx % blocks_per_row) * 8;
+                    const int base_y = (block_idx / blocks_per_row) * 8;
+
+                    alignas(32) float block_flat[64];
+                    for (int y = 0; y < 8; ++y) {
+                        const uint8_t *row = src_base + (base_y + y) * src_stride + base_x;
+                        for (int x = 0; x < 8; ++x) {
+                            block_flat[y * 8 + x] = static_cast<float>(gray_of(row[x]));
+                        }
+                    }
+
+                    for (int b = 0; b < BITS_PER_BLOCK; ++b) {
+                        const float sum = dot_product_64(block_flat, vectors[b]);
+                        current_byte = static_cast<uint8_t>((current_byte << 1) | (sum > 0.0f ? 1 : 0));
+                    }
+                }
+                out[byte_idx] = current_byte;
+            }
+        }
     }
 }
 
@@ -134,6 +225,11 @@ void VideoDecoder::init_decoder(const std::string &input_path) {
         if (!sws_ctx_) {
             throw std::runtime_error("Failed to create swscale context");
         }
+#if !defined(DCT_USE_NEON)
+        // arm keeps sws_scale and the neon projection: the lookup is only measured on x86
+        gray_lookup_ = calibrate_gray_lookup_table(sws_ctx_, codec_ctx_->pix_fmt, codec_ctx_->width,
+                                                   codec_ctx_->height);
+#endif
     }
 
     layout_ = compute_frame_layout(codec_ctx_->width, codec_ctx_->height);
@@ -159,86 +255,6 @@ const AVFrame *VideoDecoder::gray_plane_frame() const {
     return is_gray8_ ? frame_ : gray_frame_;
 }
 
-void VideoDecoder::extract_data_into(std::vector<std::byte> &dest) const {
-    const int blocks_per_row = layout_.blocks_per_row;
-    constexpr int blocks_per_byte = 8 / BITS_PER_BLOCK;
-    const int total_bytes = layout_.total_blocks / blocks_per_byte;
-
-    const AVFrame *source = gray_plane_frame();
-    const uint8_t *src_base = source->data[0];
-    const int src_stride = source->linesize[0];
-
-    const std::size_t base = dest.size();
-    dest.resize(base + total_bytes);
-    auto *out = reinterpret_cast<uint8_t *>(dest.data() + base);
-
-    if constexpr (BITS_PER_BLOCK == 1) {
-        static constexpr int16_t PROJ[4] = {8035, 6811, 4551, 1598};
-
-        for (int byte_idx = 0; byte_idx < total_bytes; ++byte_idx) {
-            uint8_t current_byte = 0;
-            for (int sub = 0; sub < 8; ++sub) {
-                const int block_idx = byte_idx * 8 + sub;
-                const int block_row = block_idx / blocks_per_row;
-                const int block_col = block_idx % blocks_per_row;
-                const uint8_t *block = src_base + block_row * 8 * src_stride + block_col * 8;
-
-#if defined(DCT_USE_NEON)
-                uint16x8_t acc = vaddl_u8(vld1_u8(block), vld1_u8(block + src_stride));
-                for (int y = 2; y < 8; ++y) {
-                    acc = vaddw_u8(acc, vld1_u8(block + y * src_stride));
-                }
-                const int16x4_t lo = vreinterpret_s16_u16(vget_low_u16(acc));
-                const int16x4_t hi = vrev64_s16(vreinterpret_s16_u16(vget_high_u16(acc)));
-                const int32x4_t prod = vmull_s16(vsub_s16(lo, hi), vld1_s16(PROJ));
-                const int32_t s = vaddvq_s32(prod);
-#else
-                int col[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-                for (int y = 0; y < 8; ++y) {
-                    const uint8_t *row = block + y * src_stride;
-                    for (int x = 0; x < 8; ++x) {
-                        col[x] += row[x];
-                    }
-                }
-                const int32_t s =
-                        PROJ[0] * (col[0] - col[7]) +
-                        PROJ[1] * (col[1] - col[6]) +
-                        PROJ[2] * (col[2] - col[5]) +
-                        PROJ[3] * (col[3] - col[4]);
-#endif
-                current_byte = static_cast<uint8_t>((current_byte << 1) | (s > 0 ? 1 : 0));
-            }
-            out[byte_idx] = current_byte;
-        }
-    } else {
-        const auto &projections = get_decoder_projections();
-        const auto &vectors = projections.vectors;
-
-        for (int byte_idx = 0; byte_idx < total_bytes; ++byte_idx) {
-            uint8_t current_byte = 0;
-            for (int sub = 0; sub < blocks_per_byte; ++sub) {
-                const int block_idx = byte_idx * blocks_per_byte + sub;
-                const int base_x = (block_idx % blocks_per_row) * 8;
-                const int base_y = (block_idx / blocks_per_row) * 8;
-
-                alignas(32) float block_flat[64];
-                for (int y = 0; y < 8; ++y) {
-                    const uint8_t *row = src_base + (base_y + y) * src_stride + base_x;
-                    for (int x = 0; x < 8; ++x) {
-                        block_flat[y * 8 + x] = static_cast<float>(row[x]);
-                    }
-                }
-
-                for (int b = 0; b < BITS_PER_BLOCK; ++b) {
-                    const float sum = dot_product_64(block_flat, vectors[b]);
-                    current_byte = static_cast<uint8_t>((current_byte << 1) | (sum > 0.0f ? 1 : 0));
-                }
-            }
-            out[byte_idx] = current_byte;
-        }
-    }
-}
-
 void VideoDecoder::extract_packets_from_buffer(std::vector<std::byte> &accumulated, PacketList &out_packets) {
     std::size_t offset = 0;
     while (offset + MAGIC_SIZE <= accumulated.size()) {
@@ -258,13 +274,20 @@ void VideoDecoder::extract_packets_from_buffer(std::vector<std::byte> &accumulat
 }
 
 VideoDecoder::PacketList VideoDecoder::consume_decoded_frame() {
-    if (!is_gray8_) {
-        sws_scale(sws_ctx_, frame_->data, frame_->linesize, 0, frame_->height,
-                  gray_frame_->data, gray_frame_->linesize);
+    const bool fits_gray_lookup = gray_lookup_ && frame_->width == layout_.frame_width &&
+                                  frame_->height == layout_.frame_height;
+    if (fits_gray_lookup) {
+        const gray_lookup_table &table = *gray_lookup_;
+        extract_data_into(extract_buffer_, *frame_, layout_, [&table](const uint8_t value) { return table[value]; });
+    } else {
+        if (!is_gray8_) {
+            sws_scale(sws_ctx_, frame_->data, frame_->linesize, 0, frame_->height,
+                      gray_frame_->data, gray_frame_->linesize);
+        }
+        extract_data_into(extract_buffer_, *gray_plane_frame(), layout_, std::identity{});
     }
     ++frame_index_;
 
-    extract_data_into(extract_buffer_);
     PacketList packets;
     packets.reserve(extract_buffer_.size() / PACKET_SIZE);
     extract_packets_from_buffer(extract_buffer_, packets);

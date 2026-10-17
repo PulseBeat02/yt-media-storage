@@ -20,6 +20,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,7 @@ extern "C" {
 }
 
 #include "frame_layout.h"
+#include "gray_lookup.h"
 
 class VideoDecoder {
 public:
@@ -72,6 +74,7 @@ private:
     bool pending_packet_ = false;
     bool is_gray8_ = false;
     FrameLayout layout_{};
+    std::optional<gray_lookup_table> gray_lookup_;
     std::vector<std::byte> extract_buffer_;
 
     void init_decoder(const std::string &input_path);
@@ -79,8 +82,6 @@ private:
     void release();
 
     [[nodiscard]] const AVFrame *gray_plane_frame() const;
-
-    void extract_data_into(std::vector<std::byte> &dest) const;
 
     static void extract_packets_from_buffer(std::vector<std::byte> &accumulated, PacketList &out_packets);
 

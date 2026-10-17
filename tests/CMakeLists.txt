@@ -28,6 +28,7 @@ add_executable(media_storage_tests
         api_decode_test.cpp
         api_encode_test.cpp
         golden_test.cpp
+        gray_lookup_test.cpp
 )
 
 target_link_libraries(media_storage_tests PRIVATE

@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 extern "C" {
+#include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/frame.h>
 #include <libavutil/macros.h>
@@ -29,6 +30,7 @@ extern "C" {
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -73,6 +75,19 @@ constexpr uint32_t UNKNOWN_CODEC_TAG = MKTAG('Z', 'Z', 'Z', 'Z');
 constexpr std::size_t SLICE_SIZE_BYTES = 3;
 constexpr std::size_t SLICE_STATUS_AND_CRC_BYTES = 5;
 constexpr std::byte BROKEN_SLICE_SIZE{0xFF};
+
+constexpr const char* H264_EXTENSION = ".h264";
+constexpr const char* H264_ENCODER = "libx264";
+
+constexpr int CALIBRATED_FRAME_SIZE = 128;
+constexpr int RESIZED_FRAME_SIZE = 192;
+constexpr int FRAMES_PER_SIZE = 3;
+constexpr int FRAME_SIZES = 3;
+constexpr int MID_GRAY = 128;
+
+using codec_pointer =
+    std::unique_ptr<AVCodecContext, decltype([](AVCodecContext* context) { avcodec_free_context(&context); })>;
+using packet_pointer = std::unique_ptr<AVPacket, decltype([](AVPacket* packet) { av_packet_free(&packet); })>;
 
 class owned_frame {
 public:
@@ -181,6 +196,60 @@ void break_the_slice_chain_of_the_last_frame(const std::filesystem::path& path) 
 int stream_packets_per_frame() {
   const FrameLayout layout = compute_frame_layout(FRAME_WIDTH_STREAM, FRAME_HEIGHT_STREAM);
   return packets_per_frame(layout);
+}
+
+codec_pointer open_h264_encoder(const int width, const int height) {
+  const AVCodec* const codec = avcodec_find_encoder_by_name(H264_ENCODER);
+  codec_pointer encoder(avcodec_alloc_context3(codec));
+  encoder->width = width;
+  encoder->height = height;
+  encoder->pix_fmt = AV_PIX_FMT_YUV420P;
+  encoder->time_base = AVRational{1, FRAME_FPS};
+  encoder->max_b_frames = 0;
+  EXPECT_EQ(avcodec_open2(encoder.get(), codec, nullptr), 0);
+  return encoder;
+}
+
+void fill_with_mid_gray(AVFrame& frame) {
+  for (const AVBufferRef* const buffer : frame.buf) {
+    if (buffer != nullptr) {
+      std::fill_n(buffer->data, buffer->size, MID_GRAY);
+    }
+  }
+}
+
+void write_encoded_packets(AVCodecContext* encoder, AVPacket* packet, std::ofstream& output) {
+  while (avcodec_receive_packet(encoder, packet) == 0) {
+    output.write(reinterpret_cast<const char*>(packet->data), packet->size);
+    av_packet_unref(packet);
+  }
+}
+
+void write_frames_of_size(std::ofstream& output, const int width, const int height) {
+  const codec_pointer encoder = open_h264_encoder(width, height);
+  const packet_pointer packet(av_packet_alloc());
+  const owned_frame frame;
+  frame.get()->format = AV_PIX_FMT_YUV420P;
+  frame.get()->width = width;
+  frame.get()->height = height;
+  ASSERT_EQ(av_frame_get_buffer(frame.get(), 0), 0);
+  fill_with_mid_gray(*frame.get());
+
+  for (int i = 0; i < FRAMES_PER_SIZE; ++i) {
+    frame.get()->pts = i;
+    ASSERT_EQ(avcodec_send_frame(encoder.get(), frame.get()), 0);
+    write_encoded_packets(encoder.get(), packet.get(), output);
+  }
+
+  ASSERT_EQ(avcodec_send_frame(encoder.get(), nullptr), 0);
+  write_encoded_packets(encoder.get(), packet.get(), output);
+}
+
+void write_resizing_stream(const std::string& path) {
+  std::ofstream output(path, std::ios::binary);
+  write_frames_of_size(output, CALIBRATED_FRAME_SIZE, CALIBRATED_FRAME_SIZE);
+  write_frames_of_size(output, RESIZED_FRAME_SIZE, CALIBRATED_FRAME_SIZE);
+  write_frames_of_size(output, CALIBRATED_FRAME_SIZE, RESIZED_FRAME_SIZE);
 }
 
 }
@@ -390,6 +459,17 @@ TEST(video_decoder_test, should_skip_a_frame_whose_slices_cannot_be_found) {
   EXPECT_EQ(packets.size(), static_cast<std::size_t>(VideoEncoder::packets_per_frame()));
   EXPECT_EQ(decoder.frames_read(), FRAMES_TO_WRITE - 1);
   EXPECT_TRUE(decoder.is_eof());
+}
+
+TEST(video_decoder_test, should_read_every_frame_of_a_stream_whose_resolution_changes) {
+  const fixtures::temporary_file stream(H264_EXTENSION);
+  ASSERT_NO_FATAL_FAILURE(write_resizing_stream(stream.string()));
+  VideoDecoder decoder(stream.string());
+
+  const VideoDecoder::PacketList packets = decoder.decode_all_frames();
+
+  EXPECT_TRUE(packets.empty());
+  EXPECT_EQ(decoder.frames_read(), FRAME_SIZES * FRAMES_PER_SIZE);
 }
 
 TEST(stream_encoder_test, should_reject_a_packet_after_finalizing) {
