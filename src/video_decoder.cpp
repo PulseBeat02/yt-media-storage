@@ -173,6 +173,14 @@ void extract_data_into(std::vector<std::byte>& destination, const AVFrame& sourc
     }
   }
 }
+
+int thread_type_for_codec(const AVCodecID codec_id) {
+  if (codec_id == AV_CODEC_ID_FFV1) {
+    return FF_THREAD_SLICE; // ffv1 slices wait for the same slice of the previous frame: frame threads only copy
+  }
+
+  return FF_THREAD_FRAME | FF_THREAD_SLICE;
+}
 }
 
 video_decoder::video_decoder(const std::string& input_path) {
@@ -257,7 +265,7 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
   }
 
   codec_context_->thread_count = AUTOMATIC_THREAD_COUNT;
-  codec_context_->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
+  codec_context_->thread_type = thread_type_for_codec(codec->id);
 
   status = avcodec_open2(codec_context_, codec, nullptr);
 
