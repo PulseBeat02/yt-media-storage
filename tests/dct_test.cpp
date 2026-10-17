@@ -106,10 +106,12 @@ TEST(dct_test, should_compute_a_zero_dot_product_for_orthogonal_vectors) {
   alignas(VECTOR_ALIGNMENT) float right[BLOCK_AREA] = {};
 
   constexpr int half_area = BLOCK_AREA / 2;
-  for (int i = 0; i < half_area; ++i)
+  for (int i = 0; i < half_area; ++i) {
     left[i] = 1.0f;
-  for (int i = half_area; i < BLOCK_AREA; ++i)
+  }
+  for (int i = half_area; i < BLOCK_AREA; ++i) {
     right[i] = 1.0f;
+  }
 
   const float product = dot_product_64(left, right);
   EXPECT_FLOAT_EQ(product, 0.0f);

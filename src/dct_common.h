@@ -118,8 +118,9 @@ inline float dot_product_64(const float* left, const float* right) {
 
 #else
   float sum = 0.0f;
-  for (int i = 0; i < BLOCK_AREA; ++i)
+  for (int i = 0; i < BLOCK_AREA; ++i) {
     sum += left[i] * right[i];
+  }
   return sum;
 #endif
 }

@@ -42,15 +42,19 @@ video_encoder::~video_encoder() {
 }
 
 void video_encoder::release() {
-  if (av_packet_)
+  if (av_packet_) {
     av_packet_free(&av_packet_);
-  if (frame_)
+  }
+  if (frame_) {
     av_frame_free(&frame_);
-  if (codec_context_)
+  }
+  if (codec_context_) {
     avcodec_free_context(&codec_context_);
+  }
   if (format_context_) {
-    if (format_context_->pb)
+    if (format_context_->pb) {
       avio_closep(&format_context_->pb);
+    }
     avformat_free_context(format_context_);
     format_context_ = nullptr;
   }
@@ -196,8 +200,9 @@ void video_encoder::encode_packets(const std::vector<packet>& packets) {
 }
 
 void video_encoder::flush_frame_buffer() {
-  if (frame_data_buffer_.empty())
+  if (frame_data_buffer_.empty()) {
     return;
+  }
   encode_frame();
   frame_data_buffer_.clear();
 }
@@ -210,8 +215,9 @@ void video_encoder::flush_encoder() {
 }
 
 void video_encoder::finalize() {
-  if (finalized_)
+  if (finalized_) {
     return;
+  }
   finalized_ = true;
   flush_frame_buffer();
   flush_encoder();

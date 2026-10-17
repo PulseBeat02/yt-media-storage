@@ -112,8 +112,9 @@ void file_chunk_reader::map_file(const char* path) {
 #if defined(_WIN32)
   HANDLE file =
       CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (file == INVALID_HANDLE_VALUE)
+  if (file == INVALID_HANDLE_VALUE) {
     return;
+  }
   HANDLE mapping =
       CreateFileMappingA(file, nullptr, PAGE_READONLY, MAPPING_SIZE_OF_FILE, MAPPING_SIZE_OF_FILE, nullptr);
   if (!mapping) {
@@ -131,8 +132,9 @@ void file_chunk_reader::map_file(const char* path) {
   mapped_ = static_cast<const std::byte*>(view);
 #else
   const int file_descriptor = ::open(path, O_RDONLY);
-  if (file_descriptor < 0)
+  if (file_descriptor < 0) {
     return;
+  }
   const void* const view = ::mmap(nullptr, file_size_, PROT_READ, MAP_SHARED, file_descriptor, FILE_START_OFFSET);
   if (view == MAP_FAILED) {
     ::close(file_descriptor);
@@ -145,17 +147,22 @@ void file_chunk_reader::map_file(const char* path) {
 
 file_chunk_reader::~file_chunk_reader() {
 #if defined(_WIN32)
-  if (mapped_)
+  if (mapped_) {
     UnmapViewOfFile(mapped_);
-  if (mapping_handle_)
+  }
+  if (mapping_handle_) {
     CloseHandle(mapping_handle_);
-  if (file_handle_)
+  }
+  if (file_handle_) {
     CloseHandle(file_handle_);
+  }
 #else
-  if (mapped_)
+  if (mapped_) {
     ::munmap(const_cast<std::byte*>(mapped_), file_size_);
-  if (file_descriptor_ >= 0)
+  }
+  if (file_descriptor_ >= 0) {
     ::close(file_descriptor_);
+  }
 #endif
 }
 

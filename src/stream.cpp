@@ -108,19 +108,25 @@ stream_encoder::~stream_encoder() {
 }
 
 void stream_encoder::release() {
-  if (av_packet_)
+  if (av_packet_) {
     av_packet_free(&av_packet_);
-  if (frame_)
+  }
+  if (frame_) {
     av_frame_free(&frame_);
-  if (audio_frame_)
+  }
+  if (audio_frame_) {
     av_frame_free(&audio_frame_);
-  if (video_codec_context_)
+  }
+  if (video_codec_context_) {
     avcodec_free_context(&video_codec_context_);
-  if (audio_codec_context_)
+  }
+  if (audio_codec_context_) {
     avcodec_free_context(&audio_codec_context_);
+  }
   if (format_context_) {
-    if (format_context_->pb)
+    if (format_context_->pb) {
       avio_closep(&format_context_->pb);
+    }
     avformat_free_context(format_context_);
     format_context_ = nullptr;
   }
@@ -305,8 +311,9 @@ void stream_encoder::write_pending_packets(AVCodecContext* codec_context, const 
       return;
     }
     if (status < 0) {
-      if (ignore_errors)
+      if (ignore_errors) {
         return;
+      }
       const std::string message = ffmpeg_failure_message(status, "receive a packet");
       throw std::runtime_error(message);
     }
@@ -385,8 +392,9 @@ void stream_encoder::encode_packets(const std::vector<packet>& packets) {
 }
 
 void stream_encoder::flush_frame_buffer() {
-  if (frame_data_buffer_.empty())
+  if (frame_data_buffer_.empty()) {
     return;
+  }
   encode_frame();
   frame_data_buffer_.clear();
 }
@@ -400,8 +408,9 @@ void stream_encoder::flush_encoders() {
 }
 
 void stream_encoder::finalize() {
-  if (finalized_)
+  if (finalized_) {
     return;
+  }
   finalized_ = true;
   flush_frame_buffer();
   flush_encoders();

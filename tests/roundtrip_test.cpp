@@ -329,8 +329,9 @@ TEST(roundtrip_test, should_restore_data_despite_lost_packets) {
 
   decoder decoder;
   for (std::size_t i = 0; i < packets.size(); ++i) {
-    if (i % drop_every == 0)
+    if (i % drop_every == 0) {
       continue;
+    }
     (void)decoder.process_packet(packet_span(packets[i]), false);
   }
 

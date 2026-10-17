@@ -124,8 +124,9 @@ struct encode_job {
 
 #pragma omp parallel for schedule(dynamic)
     for (int j = 0; j < batch_count; ++j) {
-      if (batch_error)
+      if (batch_error) {
         continue;
+      }
       try {
         const std::size_t i = batch_start + j;
         std::span<const std::byte> data = reader.chunk_view(i);
@@ -250,8 +251,9 @@ ms_status_t write_decoded_file(decoder& decoder, const std::string& output_path,
 
 void fill_result(ms_result_t* result, const uint64_t input_size, const uint64_t output_size,
                  const uint64_t total_chunks, const uint64_t total_packets, const uint64_t total_frames) {
-  if (!result)
+  if (!result) {
     return;
+  }
   result->input_size = input_size;
   result->output_size = output_size;
   result->total_chunks = total_chunks;
@@ -408,8 +410,9 @@ ms_status_t ms_stream_decode(const ms_stream_decode_options_t* options, ms_resul
       try {
         video = std::make_unique<video_decoder>(stream_url);
       } catch (...) {
-        if (attempt >= maximum_attempts)
+        if (attempt >= maximum_attempts) {
           throw;
+        }
         std::this_thread::sleep_for(std::chrono::seconds(1));
       }
     }

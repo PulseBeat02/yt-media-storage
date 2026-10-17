@@ -247,15 +247,17 @@ std::optional<cli_options> parse_arguments(const int argc, char* argv[]) {
   cli.command = argv[COMMAND_INDEX];
 
   const auto take_value = [&](int& i) -> std::optional<std::string_view> {
-    if (i + 1 >= argc)
+    if (i + 1 >= argc) {
       return std::nullopt;
+    }
     return std::string_view(argv[++i]);
   };
 
   const auto take_positive_integer = [&](int& i, const std::string_view flag) -> std::optional<int> {
     const std::optional<std::string_view> text = take_value(i);
-    if (!text)
+    if (!text) {
       return std::nullopt;
+    }
     const std::optional<int> value = parse_positive_integer(*text);
     if (!value) {
       std::cerr << ERROR_LABEL << flag << " expects a positive integer, got '" << *text << "'\n";

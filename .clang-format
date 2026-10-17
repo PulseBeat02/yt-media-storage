@@ -3,3 +3,4 @@ ColumnLimit: 120
 FixNamespaceComments: false
 PointerAlignment: Left
 AllowShortFunctionsOnASingleLine: None
+InsertBraces: true

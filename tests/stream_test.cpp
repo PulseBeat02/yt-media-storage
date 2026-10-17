@@ -98,8 +98,9 @@ void stream_encode_file(const std::string& input_path, const std::string& output
   }
 
   stream_encoder.finalize();
-  if (encrypt)
+  if (encrypt) {
     secure_zero(std::span<std::byte>(key));
+  }
 }
 
 std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std::string& password = {}) {
@@ -119,8 +120,9 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
         const uint8_t flags = static_cast<uint8_t>(packet_data[FLAGS_OFFSET]);
         uint32_t chunk_index = 0;
         std::memcpy(&chunk_index, packet_data.data() + CHUNK_INDEX_OFFSET, sizeof(chunk_index));
-        if (chunk_index > maximum_chunk_index)
+        if (chunk_index > maximum_chunk_index) {
           maximum_chunk_index = chunk_index;
+        }
         if (flags & FLAG_LAST_CHUNK) {
           found_last_chunk = true;
           last_chunk_index = chunk_index;
@@ -134,17 +136,20 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
     }
   }
 
-  if (total_extracted == 0)
+  if (total_extracted == 0) {
     return {};
+  }
 
   const uint32_t expected_chunks = found_last_chunk ? last_chunk_index + 1 : maximum_chunk_index + 1;
 
-  if (decoded_chunks < expected_chunks)
+  if (decoded_chunks < expected_chunks) {
     return {};
+  }
 
   if (decoder.is_encrypted()) {
-    if (password.empty())
+    if (password.empty()) {
       return {};
+    }
     const std::span<const std::byte> password_bytes(reinterpret_cast<const std::byte*>(password.data()),
                                                     password.size());
     crypto_key key = derive_key(password_bytes, *decoder.file_id());
@@ -153,8 +158,9 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
   }
 
   std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(expected_chunks);
-  if (decoder.is_encrypted())
+  if (decoder.is_encrypted()) {
     decoder.clear_decrypt_key();
+  }
   return assembled.value_or(std::vector<std::byte>{});
 }
 }

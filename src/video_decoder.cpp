@@ -166,16 +166,21 @@ void video_decoder::release() {
     sws_freeContext(sws_context_);
     sws_context_ = nullptr;
   }
-  if (av_packet_)
+  if (av_packet_) {
     av_packet_free(&av_packet_);
-  if (gray_frame_)
+  }
+  if (gray_frame_) {
     av_frame_free(&gray_frame_);
-  if (frame_)
+  }
+  if (frame_) {
     av_frame_free(&frame_);
-  if (codec_context_)
+  }
+  if (codec_context_) {
     avcodec_free_context(&codec_context_);
-  if (format_context_)
+  }
+  if (format_context_) {
     avformat_close_input(&format_context_);
+  }
 }
 
 void video_decoder::initialize_decoder(const std::string& input_path) {
