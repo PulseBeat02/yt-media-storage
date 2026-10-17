@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef MEDIA_STORAGE_DRIVE_MANAGER_UI_H
+#define MEDIA_STORAGE_DRIVE_MANAGER_UI_H
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -233,3 +234,5 @@ private:
   int batchSucceeded = 0;
   int batchFailed = 0;
 };
+
+#endif

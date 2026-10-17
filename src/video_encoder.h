@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef MEDIA_STORAGE_VIDEO_ENCODER_H
+#define MEDIA_STORAGE_VIDEO_ENCODER_H
 
 #include <cstddef>
 #include <cstdint>
@@ -81,3 +82,5 @@ private:
 
   void flush_encoder();
 };
+
+#endif

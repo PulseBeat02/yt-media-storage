@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef MEDIA_STORAGE_AV_UTILS_H
+#define MEDIA_STORAGE_AV_UTILS_H
 
 #include <stdexcept>
 #include <string>
@@ -47,3 +48,5 @@ inline void ensure_fresh_writable_frame(AVFrame* frame) {
     throw std::runtime_error("Failed to allocate frame buffer");
   }
 }
+
+#endif

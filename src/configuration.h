@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef MEDIA_STORAGE_CONFIGURATION_H
+#define MEDIA_STORAGE_CONFIGURATION_H
 
 #include <array>
 #include <cstddef>
@@ -94,3 +95,5 @@ constexpr std::size_t HEADER_SIZE_V2 = CRC_OFF_V2 + CRC_SIZE;
 constexpr std::size_t PACKET_SIZE = HEADER_SIZE_V2 + SYMBOL_SIZE_BYTES;
 
 using FileId = std::array<std::byte, FILE_ID_SIZE>;
+
+#endif

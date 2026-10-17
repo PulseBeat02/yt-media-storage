@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef MEDIA_STORAGE_FRAME_LAYOUT_H
+#define MEDIA_STORAGE_FRAME_LAYOUT_H
 
 #include <cstddef>
 #include <cstdint>
@@ -41,3 +42,5 @@ struct FrameLayout {
 [[nodiscard]] std::size_t max_packet_bytes_per_frame();
 
 void embed_data_into_plane(uint8_t* plane, int stride, const FrameLayout& layout, std::span<const std::byte> data);
+
+#endif

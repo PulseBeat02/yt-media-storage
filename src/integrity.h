@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef MEDIA_STORAGE_INTEGRITY_H
+#define MEDIA_STORAGE_INTEGRITY_H
 
 #include <array>
 #include <cstddef>
@@ -56,3 +57,5 @@ struct Sha256Digest {
 
 [[nodiscard]] bool verify_packet_crc32(std::span<const std::byte> header, std::span<const std::byte> payload,
                                        std::size_t crc_offset, std::size_t crc_size = 4);
+
+#endif

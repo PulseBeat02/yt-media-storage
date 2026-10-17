@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef MEDIA_STORAGE_DCT_COMMON_H
+#define MEDIA_STORAGE_DCT_COMMON_H
 
 #include "configuration.h"
 
@@ -199,3 +200,5 @@ inline const DecoderProjections& get_decoder_projections() {
   }();
   return proj;
 }
+
+#endif

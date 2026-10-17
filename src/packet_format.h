@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef MEDIA_STORAGE_PACKET_FORMAT_H
+#define MEDIA_STORAGE_PACKET_FORMAT_H
 
 #include <array>
 #include <cstddef>
@@ -66,3 +67,5 @@ void write_packet_header(std::span<std::byte> dest, const PacketHeader& header, 
 [[nodiscard]] bool verify_packet_checksum(const ParsedPacket& packet);
 
 [[nodiscard]] std::optional<ParsedPacket> parse_and_verify_packet(std::span<const std::byte> packet);
+
+#endif

@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef MEDIA_STORAGE_CHUNKER_H
+#define MEDIA_STORAGE_CHUNKER_H
 
 #include <cstddef>
 #include <cstdint>
@@ -96,3 +97,5 @@ private:
 
   [[nodiscard]] ChunkSlice chunk_slice(std::size_t index) const;
 };
+
+#endif

@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef MEDIA_STORAGE_CRYPTO_H
+#define MEDIA_STORAGE_CRYPTO_H
 
 #include <array>
 #include <cstddef>
@@ -51,3 +52,5 @@ void decrypt_chunk_into(std::span<std::byte> out, std::span<const std::byte> chu
                         std::span<const std::byte, FILE_ID_SIZE> file_id, uint32_t chunk_index);
 
 void secure_zero(std::span<std::byte> data);
+
+#endif
