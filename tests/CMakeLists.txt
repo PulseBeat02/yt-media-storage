@@ -47,3 +47,34 @@ endif ()
 
 include(GoogleTest)
 gtest_discover_tests(media_storage_tests DISCOVERY_TIMEOUT 60)
+
+if (BUILD_GUI)
+    add_executable(media_storage_gui_tests
+            drive_manager_ui_test.cpp
+            ${PROJECT_SOURCE_DIR}/src/drive_manager_ui.cpp
+            ${PROJECT_SOURCE_DIR}/src/drive_manager_ui.h
+    )
+
+    target_include_directories(media_storage_gui_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+
+    target_link_libraries(media_storage_gui_tests PRIVATE
+            media_storage_core
+            media_storage_lib
+            Qt6::Core
+            Qt6::Widgets
+            GTest::gtest
+    )
+
+    set_target_properties(media_storage_gui_tests PROPERTIES AUTOMOC ON)
+
+    if (WIN32)
+        add_custom_command(TARGET media_storage_gui_tests POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:media_storage_gui_tests>
+                $<TARGET_FILE_DIR:media_storage_gui_tests>
+                COMMAND_EXPAND_LISTS
+        )
+    endif ()
+
+    gtest_discover_tests(media_storage_gui_tests DISCOVERY_TIMEOUT 60)
+endif ()
