@@ -71,6 +71,7 @@ Testing/
 
 # Test files and generated media
 *.mkv
+!tests/golden/*.mkv
 *.mp4
 *.avi
 *.mov
