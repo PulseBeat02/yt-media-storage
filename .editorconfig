@@ -9,7 +9,11 @@ trim_trailing_whitespace = true
 
 [*.{c,cc,cpp,h,hpp}]
 indent_style = space
-indent_size = 4
+indent_size = 2
+
+[*.sh]
+indent_style = space
+indent_size = 2
 
 [{CMakeLists.txt,*.cmake}]
 indent_style = space
