@@ -32,20 +32,20 @@
 #include "integrity.h"
 #include "packet_format.h"
 
-struct ChunkDecodeResult {
+struct chunk_decode_result {
   uint32_t chunk_index = 0;
   std::vector<std::byte> data;
-  Sha256Digest sha256{};
+  sha256_digest sha256{};
   bool success = false;
 };
 
-class ChunkDecoder {
+class chunk_decoder {
 public:
-  explicit ChunkDecoder(uint32_t chunk_index, uint32_t chunk_size, uint32_t source_symbol_count, uint16_t symbol_size);
+  explicit chunk_decoder(uint32_t chunk_index, uint32_t chunk_size, uint32_t source_symbol_count, uint16_t symbol_size);
 
-  ChunkDecoder(ChunkDecoder&&) noexcept = default;
+  chunk_decoder(chunk_decoder&&) noexcept = default;
 
-  ChunkDecoder& operator=(ChunkDecoder&&) noexcept = default;
+  chunk_decoder& operator=(chunk_decoder&&) noexcept = default;
 
   [[nodiscard]] bool add_packet(uint32_t esi, std::span<const std::byte> payload);
 
@@ -70,7 +70,7 @@ public:
   }
 
 private:
-  struct CodecDeleter {
+  struct codec_deleter {
     void operator()(void* codec) const;
   };
 
@@ -78,29 +78,29 @@ private:
   uint32_t chunk_size_;
   uint32_t source_symbol_count_;
   uint16_t symbol_size_;
-  std::unique_ptr<void, CodecDeleter> codec_;
+  std::unique_ptr<void, codec_deleter> codec_;
   bool decoded_ = false;
   uint32_t packets_received_ = 0;
   std::vector<std::byte> decoded_data_;
 };
 
-class Decoder {
+class decoder {
 public:
-  using FileId = ::FileId;
+  using file_id_type = ::file_id_type;
 
-  Decoder() = default;
+  decoder() = default;
 
-  [[nodiscard]] std::optional<ChunkDecodeResult> process_packet(std::span<const std::byte> packet_data,
-                                                                bool compute_sha256 = true);
+  [[nodiscard]] std::optional<chunk_decode_result> process_packet(std::span<const std::byte> packet_data,
+                                                                  bool compute_sha256 = true);
 
-  [[nodiscard]] std::optional<ChunkDecodeResult> process_verified_packet(const ParsedPacket& packet,
-                                                                         bool compute_sha256 = true);
+  [[nodiscard]] std::optional<chunk_decode_result> process_verified_packet(const parsed_packet& packet,
+                                                                           bool compute_sha256 = true);
 
   [[nodiscard]] bool is_chunk_complete(uint32_t chunk_index) const;
 
   [[nodiscard]] std::optional<std::vector<std::byte>> get_chunk_data(uint32_t chunk_index) const;
 
-  [[nodiscard]] std::optional<FileId> file_id() const {
+  [[nodiscard]] std::optional<file_id_type> file_id() const {
     return file_id_;
   }
 
@@ -135,11 +135,11 @@ public:
   }
 
 private:
-  std::optional<FileId> file_id_;
+  std::optional<file_id_type> file_id_;
   bool encrypted_ = false;
-  CryptoKey decrypt_key_{};
+  crypto_key decrypt_key_{};
   bool decrypt_key_set_ = false;
-  std::vector<std::optional<ChunkDecoder>> active_decoders_;
+  std::vector<std::optional<chunk_decoder>> active_decoders_;
   std::vector<std::optional<std::vector<std::byte>>> completed_chunks_;
   std::size_t completed_count_ = 0;
   std::size_t total_packets_ = 0;

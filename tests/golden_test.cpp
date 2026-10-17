@@ -106,10 +106,10 @@ std::vector<std::byte> decode_golden_stream(const char* name, const std::string_
   return fixtures::read_bytes(output.path());
 }
 
-std::vector<Packet> read_packets(const std::string& path) {
-  VideoDecoder decoder(path);
-  const VideoDecoder::PacketList extracted = decoder.decode_all_frames();
-  std::vector<Packet> packets(extracted.size());
+std::vector<packet> read_packets(const std::string& path) {
+  video_decoder decoder(path);
+  const video_decoder::packet_list extracted = decoder.decode_all_frames();
+  std::vector<packet> packets(extracted.size());
   for (std::size_t i = 0; i < extracted.size(); ++i) {
     const std::size_t size = std::min(extracted[i].size(), packets[i].bytes.size());
     std::copy_n(extracted[i].begin(), size, packets[i].bytes.begin());
@@ -117,8 +117,8 @@ std::vector<Packet> read_packets(const std::string& path) {
   return packets;
 }
 
-void write_video(const std::string& path, const std::vector<Packet>& packets) {
-  VideoEncoder encoder(path);
+void write_video(const std::string& path, const std::vector<packet>& packets) {
+  video_encoder encoder(path);
   encoder.encode_packets(packets);
   encoder.finalize();
 }
@@ -191,7 +191,7 @@ luma_planes read_luma_planes(const std::string& path) {
 void expect_identical_frames_from_reference_packets(const char* name) {
   const std::string reference_path = golden_path(name).string();
   const fixtures::temporary_file rendered(MATROSKA_EXTENSION);
-  const std::vector<Packet> packets = read_packets(reference_path);
+  const std::vector<packet> packets = read_packets(reference_path);
   write_video(rendered.string(), packets);
 
   const luma_planes expected = read_luma_planes(reference_path);

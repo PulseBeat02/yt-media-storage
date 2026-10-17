@@ -51,7 +51,7 @@ constexpr std::size_t CRYPTO_AEAD_TAG_BYTES = 16;
 constexpr std::size_t CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED =
     CHUNK_SIZE_BYTES - CRYPTO_PLAIN_SIZE_HEADER - CRYPTO_AEAD_TAG_BYTES;
 
-enum PacketFlag : uint8_t {
+enum packet_flag : uint8_t {
   FLAG_REPAIR_SYMBOL = 1 << 0,
   FLAG_LAST_CHUNK = 1 << 1,
   FLAG_ENCRYPTED = 1 << 2,
@@ -94,6 +94,6 @@ constexpr std::size_t CRC_OFFSET_V2 = ORIGINAL_SIZE_OFFSET + ORIGINAL_SIZE_SIZE;
 constexpr std::size_t HEADER_SIZE_V2 = CRC_OFFSET_V2 + CRC_SIZE;
 constexpr std::size_t PACKET_SIZE = HEADER_SIZE_V2 + SYMBOL_SIZE_BYTES;
 
-using FileId = std::array<std::byte, FILE_ID_SIZE>;
+using file_id_type = std::array<std::byte, FILE_ID_SIZE>;
 
 #endif

@@ -66,59 +66,59 @@ std::string describe_current_exception() {
   }
 }
 
-HashAlgorithm to_internal_hash(const ms_hash_algorithm_t algorithm) {
-  return algorithm == MS_HASH_XXHASH32 ? HashAlgorithm::XXHash32 : HashAlgorithm::CRC32;
+hash_algorithm_type to_internal_hash(const ms_hash_algorithm_t algorithm) {
+  return algorithm == MS_HASH_XXHASH32 ? hash_algorithm_type::XXHASH32 : hash_algorithm_type::CRC32;
 }
 
 std::span<const std::byte> password_span(const char* password, const std::size_t length) {
   return {reinterpret_cast<const std::byte*>(password), length};
 }
 
-class ScopedKey {
+class scoped_key {
 public:
-  ScopedKey() = default;
+  scoped_key() = default;
 
-  ScopedKey(const ScopedKey&) = delete;
+  scoped_key(const scoped_key&) = delete;
 
-  ScopedKey& operator=(const ScopedKey&) = delete;
+  scoped_key& operator=(const scoped_key&) = delete;
 
-  ~ScopedKey() {
+  ~scoped_key() {
     secure_zero(key_);
   }
 
-  void derive(const std::span<const std::byte> password, const FileId& file_id) {
+  void derive(const std::span<const std::byte> password, const file_id_type& file_id) {
     key_ = derive_key(password, file_id);
   }
 
-  [[nodiscard]] const CryptoKey& get() const {
+  [[nodiscard]] const crypto_key& get() const {
     return key_;
   }
 
 private:
-  CryptoKey key_{};
+  crypto_key key_{};
 };
 
-struct EncodeStatistics {
+struct encode_statistics {
   std::size_t total_chunks = 0;
   std::size_t total_packets = 0;
   int64_t total_frames = 0;
 };
 
-struct EncodeJob {
-  const FileChunkReader& reader;
-  const Encoder& encoder;
+struct encode_job {
+  const file_chunk_reader& reader;
+  const ::encoder& encoder;
   bool encrypt;
-  const CryptoKey& key;
+  const crypto_key& key;
   ms_progress_fn progress;
   void* progress_user;
 
-  using BatchResults = std::vector<std::vector<Packet>>;
+  using batch_results = std::vector<std::vector<packet>>;
 
-  [[nodiscard]] BatchResults encode_batch(const std::size_t batch_start, const int batch_count) const {
-    BatchResults results(batch_count);
+  [[nodiscard]] batch_results encode_batch(const std::size_t batch_start, const int batch_count) const {
+    batch_results results(batch_count);
     std::atomic<bool> batch_error{false};
     const std::size_t chunk_count = reader.chunk_count();
-    const FileId& file_id = encoder.file_id();
+    const file_id_type& file_id = encoder.file_id();
 
 #pragma omp parallel for schedule(dynamic)
     for (int j = 0; j < batch_count; ++j) {
@@ -145,14 +145,14 @@ struct EncodeJob {
     return results;
   }
 
-  template <typename FrameSink> [[nodiscard]] ms_status_t run(FrameSink& sink, EncodeStatistics& statistics) const {
+  template <typename FrameSink> [[nodiscard]] ms_status_t run(FrameSink& sink, encode_statistics& statistics) const {
     const std::size_t chunk_count = reader.chunk_count();
     const auto batch_size = static_cast<std::size_t>(std::max(1, omp_get_max_threads()));
     const auto batch_count_at = [&](const std::size_t start) {
       return static_cast<int>(std::min(start + batch_size, chunk_count) - start);
     };
 
-    std::future<BatchResults> pending =
+    std::future<batch_results> pending =
         std::async(std::launch::async, [this, batch_count_at] { return encode_batch(0, batch_count_at(0)); });
 
     for (std::size_t batch_start = 0; batch_start < chunk_count; batch_start += batch_size) {
@@ -161,7 +161,7 @@ struct EncodeJob {
         return fail(MS_ERR_ENCODE_FAILED, "cancelled by progress callback");
       }
 
-      BatchResults results = pending.get();
+      batch_results results = pending.get();
 
       if (const std::size_t next_start = batch_start + batch_size; next_start < chunk_count) {
         pending = std::async(std::launch::async, [this, next_start, batch_count_at] {
@@ -182,15 +182,15 @@ struct EncodeJob {
   }
 };
 
-struct DecodeStatistics {
+struct decode_statistics {
   std::size_t total_packets = 0;
   std::size_t decoded_chunks = 0;
   uint32_t expected_chunks = 0;
   int64_t total_frames = 0;
 };
 
-ms_status_t consume_video(VideoDecoder& video, Decoder& decoder, const ms_progress_fn progress, void* progress_user,
-                          DecodeStatistics& statistics) {
+ms_status_t consume_video(video_decoder& video, decoder& decoder, const ms_progress_fn progress, void* progress_user,
+                          decode_statistics& statistics) {
   const int64_t total = video.total_frames();
   const uint64_t total_for_progress = total > 0 ? static_cast<uint64_t>(total) : 0;
 
@@ -217,7 +217,7 @@ ms_status_t consume_video(VideoDecoder& video, Decoder& decoder, const ms_progre
   return MS_OK;
 }
 
-ms_status_t write_decoded_file(Decoder& decoder, const std::string& output_path, const DecodeStatistics& statistics,
+ms_status_t write_decoded_file(decoder& decoder, const std::string& output_path, const decode_statistics& statistics,
                                const char* password, const std::size_t password_length) {
   if (statistics.total_packets == 0) {
     return fail(MS_ERR_DECODE_FAILED, "no packets found in input");
@@ -231,7 +231,7 @@ ms_status_t write_decoded_file(Decoder& decoder, const std::string& output_path,
     if (!password || password_length == 0) {
       return fail(MS_ERR_CRYPTO, "input is encrypted but no password was given");
     }
-    ScopedKey key;
+    scoped_key key;
     key.derive(password_span(password, password_length), *decoder.file_id());
     decoder.set_decrypt_key(key.get());
   }
@@ -267,7 +267,7 @@ template <typename MakeSink>
 ms_status_t encode_file(const char* input_path_c_string, const bool encrypt, const char* password,
                         const std::size_t password_length, const ms_hash_algorithm_t hash_algorithm,
                         const ms_progress_fn progress, void* progress_user, MakeSink&& make_sink,
-                        EncodeStatistics& statistics, uint64_t& input_size) {
+                        encode_statistics& statistics, uint64_t& input_size) {
   if (encrypt && (!password || password_length == 0)) {
     return fail(MS_ERR_INVALID_ARGS, "encryption requires a password");
   }
@@ -282,18 +282,18 @@ ms_status_t encode_file(const char* input_path_c_string, const bool encrypt, con
   input_size = file_size_or_zero(input_path);
 
   try {
-    const FileChunkReader reader(input_path.c_str(), encrypt ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : 0);
+    const file_chunk_reader reader(input_path.c_str(), encrypt ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : 0);
     if (reader.file_size() > 0 && !reader.is_mapped()) {
       return fail(MS_ERR_IO, "failed to memory-map input file: " + input_path);
     }
 
-    const Encoder encoder(generate_file_id(), to_internal_hash(hash_algorithm));
-    ScopedKey key;
+    const encoder encoder(generate_file_id(), to_internal_hash(hash_algorithm));
+    scoped_key key;
     if (encrypt) {
       key.derive(password_span(password, password_length), encoder.file_id());
     }
 
-    const EncodeJob job{reader, encoder, encrypt, key.get(), progress, progress_user};
+    const encode_job job{reader, encoder, encrypt, key.get(), progress, progress_user};
     auto sink = make_sink();
     return job.run(*sink, statistics);
   } catch (...) {
@@ -309,11 +309,11 @@ ms_status_t ms_encode(const ms_encode_options_t* options, ms_result_t* result) {
   }
 
   const std::string output_path(options->output_path);
-  EncodeStatistics statistics;
+  encode_statistics statistics;
   uint64_t input_size = 0;
   const ms_status_t status = encode_file(
       options->input_path, options->encrypt != 0, options->password, options->password_len, options->hash_algorithm,
-      options->progress, options->progress_user, [&] { return std::make_unique<VideoEncoder>(output_path); },
+      options->progress, options->progress_user, [&] { return std::make_unique<video_encoder>(output_path); },
       statistics, input_size);
   if (status != MS_OK) {
     return status;
@@ -336,12 +336,12 @@ ms_status_t ms_stream_encode(const ms_stream_encode_options_t* options, ms_resul
   const int height = options->height > 0 ? options->height : FRAME_HEIGHT_STREAM;
   const int frames_per_second = options->fps > 0 ? options->fps : FRAMES_PER_SECOND;
 
-  EncodeStatistics statistics;
+  encode_statistics statistics;
   uint64_t input_size = 0;
   const ms_status_t status = encode_file(
       options->input_path, options->encrypt != 0, options->password, options->password_len, options->hash_algorithm,
       options->progress, options->progress_user,
-      [&] { return std::make_unique<StreamEncoder>(stream_url, bitrate, width, height, frames_per_second); },
+      [&] { return std::make_unique<stream_encoder>(stream_url, bitrate, width, height, frames_per_second); },
       statistics, input_size);
   if (status != MS_OK) {
     return status;
@@ -364,10 +364,10 @@ ms_status_t ms_decode(const ms_decode_options_t* options, ms_result_t* result) {
     return fail(MS_ERR_FILE_NOT_FOUND, "input file not found: " + input_path);
   }
 
-  Decoder decoder;
-  DecodeStatistics statistics;
+  decoder decoder;
+  decode_statistics statistics;
   try {
-    VideoDecoder video(input_path);
+    video_decoder video(input_path);
     if (const ms_status_t status = consume_video(video, decoder, options->progress, options->progress_user, statistics);
         status != MS_OK) {
       return status;
@@ -397,13 +397,13 @@ ms_status_t ms_stream_decode(const ms_stream_decode_options_t* options, ms_resul
   const std::string output_path(options->output_path);
   const int maximum_attempts = options->timeout_sec > 0 ? options->timeout_sec : DEFAULT_STREAM_CONNECT_TIMEOUT_SECONDS;
 
-  Decoder decoder;
-  DecodeStatistics statistics;
+  decoder decoder;
+  decode_statistics statistics;
   try {
-    std::unique_ptr<VideoDecoder> video;
+    std::unique_ptr<video_decoder> video;
     for (int attempt = 1; !video; ++attempt) {
       try {
-        video = std::make_unique<VideoDecoder>(stream_url);
+        video = std::make_unique<video_decoder>(stream_url);
       } catch (...) {
         if (attempt >= maximum_attempts)
           throw;

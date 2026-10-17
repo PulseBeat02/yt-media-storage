@@ -32,23 +32,23 @@ extern "C" {
 #include "frame_layout.h"
 #include "packet_format.h"
 
-class VideoEncoder {
+class video_encoder {
 public:
-  explicit VideoEncoder(const std::string& output_path);
+  explicit video_encoder(const std::string& output_path);
 
-  ~VideoEncoder();
+  ~video_encoder();
 
-  VideoEncoder(const VideoEncoder&) = delete;
+  video_encoder(const video_encoder&) = delete;
 
-  VideoEncoder& operator=(const VideoEncoder&) = delete;
+  video_encoder& operator=(const video_encoder&) = delete;
 
-  VideoEncoder(VideoEncoder&&) = delete;
+  video_encoder(video_encoder&&) = delete;
 
-  VideoEncoder& operator=(VideoEncoder&&) = delete;
+  video_encoder& operator=(video_encoder&&) = delete;
 
-  void add_packet(const Packet& packet);
+  void add_packet(const packet& packet);
 
-  void encode_packets(const std::vector<Packet>& packets);
+  void encode_packets(const std::vector<packet>& packets);
 
   void finalize();
 
@@ -66,7 +66,7 @@ private:
   AVPacket* av_packet_ = nullptr;
 
   std::vector<std::byte> frame_data_buffer_;
-  FrameLayout layout_{};
+  frame_layout layout_{};
   int64_t frame_index_ = 0;
   bool finalized_ = false;
 

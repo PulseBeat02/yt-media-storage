@@ -77,7 +77,7 @@ int32_t project_block(const uint8_t* block, const int stride, const std::identit
 #endif
 
 template <typename GrayOf>
-void extract_data_into(std::vector<std::byte>& destination, const AVFrame& source, const FrameLayout& layout,
+void extract_data_into(std::vector<std::byte>& destination, const AVFrame& source, const frame_layout& layout,
                        const GrayOf& gray_of) {
   const int blocks_per_row = layout.blocks_per_row;
   constexpr int blocks_per_byte = 8 / BITS_PER_BLOCK;
@@ -133,7 +133,7 @@ void extract_data_into(std::vector<std::byte>& destination, const AVFrame& sourc
 }
 }
 
-VideoDecoder::VideoDecoder(const std::string& input_path) {
+video_decoder::video_decoder(const std::string& input_path) {
   try {
     initialize_decoder(input_path);
   } catch (...) {
@@ -142,11 +142,11 @@ VideoDecoder::VideoDecoder(const std::string& input_path) {
   }
 }
 
-VideoDecoder::~VideoDecoder() {
+video_decoder::~video_decoder() {
   release();
 }
 
-void VideoDecoder::release() {
+void video_decoder::release() {
   if (sws_context_) {
     sws_freeContext(sws_context_);
     sws_context_ = nullptr;
@@ -163,7 +163,7 @@ void VideoDecoder::release() {
     avformat_close_input(&format_context_);
 }
 
-void VideoDecoder::initialize_decoder(const std::string& input_path) {
+void video_decoder::initialize_decoder(const std::string& input_path) {
   int status = avformat_open_input(&format_context_, input_path.c_str(), nullptr, nullptr);
   if (status < 0) {
     const std::string message = "Input file could not be opened!";
@@ -248,7 +248,7 @@ void VideoDecoder::initialize_decoder(const std::string& input_path) {
   extract_buffer_.reserve(static_cast<std::size_t>(layout_.bytes_per_frame) * 2);
 }
 
-int64_t VideoDecoder::total_frames() const {
+int64_t video_decoder::total_frames() const {
   const AVStream* stream = format_context_->streams[video_stream_index_];
   if (stream->nb_frames > 0) {
     return stream->nb_frames;
@@ -263,11 +263,11 @@ int64_t VideoDecoder::total_frames() const {
   return -1;
 }
 
-const AVFrame* VideoDecoder::gray_plane_frame() const {
+const AVFrame* video_decoder::gray_plane_frame() const {
   return is_gray8_ ? frame_ : gray_frame_;
 }
 
-void VideoDecoder::extract_packets_from_buffer(std::vector<std::byte>& accumulated, PacketList& out_packets) {
+void video_decoder::extract_packets_from_buffer(std::vector<std::byte>& accumulated, packet_list& out_packets) {
   std::size_t offset = 0;
   while (offset + MAGIC_SIZE <= accumulated.size()) {
     const std::span<const std::byte> remaining(accumulated.data() + offset, accumulated.size() - offset);
@@ -285,7 +285,7 @@ void VideoDecoder::extract_packets_from_buffer(std::vector<std::byte>& accumulat
   accumulated.erase(accumulated.begin(), accumulated.begin() + static_cast<std::ptrdiff_t>(offset));
 }
 
-VideoDecoder::PacketList VideoDecoder::consume_decoded_frame() {
+video_decoder::packet_list video_decoder::consume_decoded_frame() {
   const bool fits_gray_lookup =
       gray_lookup_ && frame_->width == layout_.frame_width && frame_->height == layout_.frame_height;
   if (fits_gray_lookup) {
@@ -300,13 +300,13 @@ VideoDecoder::PacketList VideoDecoder::consume_decoded_frame() {
   }
   ++frame_index_;
 
-  PacketList packets;
+  packet_list packets;
   packets.reserve(extract_buffer_.size() / PACKET_SIZE);
   extract_packets_from_buffer(extract_buffer_, packets);
   return packets;
 }
 
-bool VideoDecoder::feed_next_packet() {
+bool video_decoder::feed_next_packet() {
   while (true) {
     if (!pending_packet_) {
       if (av_read_frame(format_context_, av_packet_) < 0) {
@@ -331,7 +331,7 @@ bool VideoDecoder::feed_next_packet() {
   }
 }
 
-VideoDecoder::PacketList VideoDecoder::decode_next_frame() {
+video_decoder::packet_list video_decoder::decode_next_frame() {
   while (!eof_) {
     const int receive_status = avcodec_receive_frame(codec_context_, frame_);
     if (receive_status == 0) {
@@ -351,15 +351,15 @@ VideoDecoder::PacketList VideoDecoder::decode_next_frame() {
     feed_next_packet();
   }
 
-  PacketList packets;
+  packet_list packets;
   extract_packets_from_buffer(extract_buffer_, packets);
   return packets;
 }
 
-VideoDecoder::PacketList VideoDecoder::decode_all_frames() {
-  PacketList results;
+video_decoder::packet_list video_decoder::decode_all_frames() {
+  packet_list results;
   while (!eof_) {
-    for (PacketList packets = decode_next_frame(); auto& packet : packets) {
+    for (packet_list packets = decode_next_frame(); auto& packet : packets) {
       results.push_back(std::move(packet));
     }
   }

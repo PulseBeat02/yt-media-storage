@@ -111,8 +111,8 @@ private:
   AVFrame* frame_;
 };
 
-Packet make_framed_packet(const std::size_t seed) {
-  Packet packet{};
+packet make_framed_packet(const std::size_t seed) {
+  packet packet{};
   for (std::size_t i = 0; i < packet.bytes.size(); ++i) {
     packet.bytes[i] = static_cast<std::byte>((i * fixtures::PATTERN_MULTIPLIER + seed) & fixtures::BYTE_MASK);
   }
@@ -128,18 +128,18 @@ template <typename EncoderType> void add_framed_packets(EncoderType& encoder, co
 }
 
 int packets_spanning_frames(const int frame_count) {
-  return VideoEncoder::packets_per_frame() * (frame_count - 1) + 1;
+  return video_encoder::packets_per_frame() * (frame_count - 1) + 1;
 }
 
 void write_video(const std::string& path, const int frame_count) {
-  VideoEncoder encoder(path);
+  video_encoder encoder(path);
   add_framed_packets(encoder, packets_spanning_frames(frame_count));
   encoder.finalize();
 }
 
-void write_one_packet_stream(const std::string& path, const Packet& packet) {
-  StreamEncoder encoder(path, STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH, ONE_PACKET_FRAME_HEIGHT,
-                        FRAMES_PER_SECOND);
+void write_one_packet_stream(const std::string& path, const packet& packet) {
+  stream_encoder encoder(path, STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH, ONE_PACKET_FRAME_HEIGHT,
+                         FRAMES_PER_SECOND);
   encoder.add_packet(packet);
   encoder.finalize();
 }
@@ -200,7 +200,7 @@ void break_the_slice_chain_of_the_last_frame(const std::filesystem::path& path) 
 }
 
 int stream_packets_per_frame() {
-  const FrameLayout layout = compute_frame_layout(FRAME_WIDTH_STREAM, FRAME_HEIGHT_STREAM);
+  const frame_layout layout = compute_frame_layout(FRAME_WIDTH_STREAM, FRAME_HEIGHT_STREAM);
   return packets_per_frame(layout);
 }
 
@@ -325,7 +325,7 @@ TEST(av_utils_test, should_name_the_error_and_the_action_in_an_ffmpeg_failure_me
 TEST(video_encoder_test, should_reject_an_output_path_without_a_known_container) {
   const fixtures::temporary_file output(UNKNOWN_EXTENSION);
 
-  const std::string message = fixtures::find_error_message([&output] { VideoEncoder encoder(output.string()); });
+  const std::string message = fixtures::find_error_message([&output] { video_encoder encoder(output.string()); });
 
   const bool output_exists = std::filesystem::exists(output.path());
   EXPECT_EQ(message, "Output context could not be created!");
@@ -336,7 +336,7 @@ TEST(video_encoder_test, should_fail_to_open_an_output_file_in_a_missing_directo
   const fixtures::temporary_file missing_directory("");
   const std::filesystem::path output = missing_directory.path() / OUTPUT_NAME;
 
-  const std::string message = fixtures::find_error_message([&output] { VideoEncoder encoder(output.string()); });
+  const std::string message = fixtures::find_error_message([&output] { video_encoder encoder(output.string()); });
 
   const bool reports_open_failure = message.ends_with("occurred while trying to open the output file!");
   EXPECT_TRUE(reports_open_failure) << message;
@@ -345,7 +345,7 @@ TEST(video_encoder_test, should_fail_to_open_an_output_file_in_a_missing_directo
 TEST(video_encoder_test, should_fail_to_write_the_header_of_a_container_that_cannot_hold_ffv1) {
   const fixtures::temporary_file output(FLV_EXTENSION);
 
-  const std::string message = fixtures::find_error_message([&output] { VideoEncoder encoder(output.string()); });
+  const std::string message = fixtures::find_error_message([&output] { video_encoder encoder(output.string()); });
 
   const bool reports_header_failure = message.ends_with("occurred while trying to write the header!");
   EXPECT_TRUE(reports_header_failure) << message;
@@ -353,7 +353,7 @@ TEST(video_encoder_test, should_fail_to_write_the_header_of_a_container_that_can
 
 TEST(video_encoder_test, should_reject_a_packet_after_finalizing) {
   const fixtures::temporary_file output(MATROSKA_EXTENSION);
-  VideoEncoder encoder(output.string());
+  video_encoder encoder(output.string());
   encoder.finalize();
 
   const std::string message = fixtures::find_error_message([&encoder] { encoder.add_packet(make_framed_packet(0)); });
@@ -372,8 +372,8 @@ TEST(video_encoder_test, should_report_a_failed_frame_write_when_the_disk_is_ful
   std::filesystem::create_symlink(fixtures::FULL_DEVICE, output.path());
 
   const std::string message = fixtures::find_error_message([&output] {
-    VideoEncoder encoder(output.string());
-    add_framed_packets(encoder, VideoEncoder::packets_per_frame() * FRAMES_TO_OVERFLOW_THE_OUTPUT_BUFFER);
+    video_encoder encoder(output.string());
+    add_framed_packets(encoder, video_encoder::packets_per_frame() * FRAMES_TO_OVERFLOW_THE_OUTPUT_BUFFER);
     encoder.finalize();
   });
 
@@ -388,7 +388,7 @@ TEST(video_encoder_test, should_report_a_failed_trailer_when_the_disk_is_full) {
 
   const fixtures::temporary_file output(MATROSKA_EXTENSION);
   std::filesystem::create_symlink(fixtures::FULL_DEVICE, output.path());
-  VideoEncoder encoder(output.string());
+  video_encoder encoder(output.string());
   encoder.add_packet(make_framed_packet(0));
 
   const std::string message = fixtures::find_error_message([&encoder] { encoder.finalize(); });
@@ -406,7 +406,7 @@ TEST(video_encoder_test, should_not_throw_from_its_destructor_when_finalizing_fa
   std::filesystem::create_symlink(fixtures::FULL_DEVICE, output.path());
 
   EXPECT_NO_THROW({
-    VideoEncoder encoder(output.string());
+    video_encoder encoder(output.string());
     encoder.add_packet(make_framed_packet(0));
   });
 }
@@ -414,7 +414,7 @@ TEST(video_encoder_test, should_not_throw_from_its_destructor_when_finalizing_fa
 TEST(video_decoder_test, should_fail_to_open_a_missing_input) {
   const fixtures::temporary_file input(MATROSKA_EXTENSION);
 
-  const std::string message = fixtures::find_error_message([&input] { VideoDecoder decoder(input.string()); });
+  const std::string message = fixtures::find_error_message([&input] { video_decoder decoder(input.string()); });
 
   EXPECT_EQ(message, "Input file could not be opened!");
 }
@@ -423,7 +423,7 @@ TEST(video_decoder_test, should_reject_an_input_without_a_video_stream) {
   const fixtures::temporary_file input(SUBTITLE_EXTENSION);
   std::ofstream(input.path()) << SUBTITLE_CONTENTS;
 
-  const std::string message = fixtures::find_error_message([&input] { VideoDecoder decoder(input.string()); });
+  const std::string message = fixtures::find_error_message([&input] { video_decoder decoder(input.string()); });
 
   EXPECT_EQ(message, "Input has no video stream!");
 }
@@ -432,7 +432,7 @@ TEST(video_decoder_test, should_reject_a_video_whose_codec_has_no_decoder) {
   const fixtures::temporary_file input(AVI_EXTENSION);
   write_undecodable_video(input.string());
 
-  const std::string message = fixtures::find_error_message([&input] { VideoDecoder decoder(input.string()); });
+  const std::string message = fixtures::find_error_message([&input] { video_decoder decoder(input.string()); });
 
   EXPECT_EQ(message, "Decoder could not be found!");
 }
@@ -440,10 +440,10 @@ TEST(video_decoder_test, should_reject_a_video_whose_codec_has_no_decoder) {
 TEST(video_decoder_test, should_count_frames_from_the_frame_count_of_the_container) {
   const fixtures::temporary_file video(AVI_EXTENSION);
   write_video(video.string(), FRAMES_TO_WRITE);
-  VideoDecoder decoder(video.string());
+  video_decoder decoder(video.string());
 
   const int64_t total_frames = decoder.total_frames();
-  const VideoDecoder::PacketList packets = decoder.decode_all_frames();
+  const video_decoder::packet_list packets = decoder.decode_all_frames();
 
   const std::size_t expected_packets = static_cast<std::size_t>(packets_spanning_frames(FRAMES_TO_WRITE));
   const std::size_t packet_count = packets.size();
@@ -456,7 +456,7 @@ TEST(video_decoder_test, should_count_frames_from_the_frame_count_of_the_contain
 TEST(video_decoder_test, should_estimate_frames_from_the_duration_of_the_stream) {
   const fixtures::temporary_file video(MXF_EXTENSION);
   write_video(video.string(), FRAMES_TO_WRITE);
-  const VideoDecoder decoder(video.string());
+  const video_decoder decoder(video.string());
 
   const int64_t total_frames = decoder.total_frames();
 
@@ -465,12 +465,12 @@ TEST(video_decoder_test, should_estimate_frames_from_the_duration_of_the_stream)
 
 TEST(video_decoder_test, should_hold_back_a_magic_number_that_ends_the_last_frame) {
   const fixtures::temporary_file video(FLV_EXTENSION);
-  Packet packet{};
+  packet packet{};
   std::memcpy(packet.bytes.data() + packet.bytes.size() - MAGIC_SIZE, &MAGIC_ID, MAGIC_SIZE);
   write_one_packet_stream(video.string(), packet);
-  VideoDecoder decoder(video.string());
+  video_decoder decoder(video.string());
 
-  const VideoDecoder::PacketList packets = decoder.decode_all_frames();
+  const video_decoder::packet_list packets = decoder.decode_all_frames();
 
   const bool packets_empty = packets.empty();
   const int64_t frames_read = decoder.frames_read();
@@ -480,13 +480,13 @@ TEST(video_decoder_test, should_hold_back_a_magic_number_that_ends_the_last_fram
 
 TEST(video_decoder_test, should_size_a_packet_of_an_unknown_version_like_version_one) {
   const fixtures::temporary_file video(FLV_EXTENSION);
-  Packet packet{};
+  packet packet{};
   std::memcpy(packet.bytes.data(), &MAGIC_ID, MAGIC_SIZE);
   packet.bytes[VERSION_OFFSET] = std::byte{UNKNOWN_VERSION};
   write_one_packet_stream(video.string(), packet);
-  VideoDecoder decoder(video.string());
+  video_decoder decoder(video.string());
 
-  const VideoDecoder::PacketList packets = decoder.decode_all_frames();
+  const video_decoder::packet_list packets = decoder.decode_all_frames();
 
   const std::size_t packet_count = packets.size();
   const std::size_t packet_size = packets[0].size();
@@ -499,12 +499,12 @@ TEST(video_decoder_test, should_skip_a_frame_whose_slices_cannot_be_found) {
   const fixtures::temporary_file video(MATROSKA_EXTENSION);
   write_video(video.string(), FRAMES_TO_WRITE);
   break_the_slice_chain_of_the_last_frame(video.path());
-  VideoDecoder decoder(video.string());
+  video_decoder decoder(video.string());
 
-  const VideoDecoder::PacketList packets = decoder.decode_all_frames();
+  const video_decoder::packet_list packets = decoder.decode_all_frames();
 
   const std::size_t packet_count = packets.size();
-  const std::size_t expected_packet_count = static_cast<std::size_t>(VideoEncoder::packets_per_frame());
+  const std::size_t expected_packet_count = static_cast<std::size_t>(video_encoder::packets_per_frame());
   const int64_t frames_read = decoder.frames_read();
   const bool at_end = decoder.is_eof();
   EXPECT_EQ(packet_count, expected_packet_count);
@@ -516,9 +516,9 @@ TEST(video_decoder_test, should_read_every_frame_of_a_stream_whose_resolution_ch
   const fixtures::temporary_file stream(H264_EXTENSION);
   ASSERT_NO_FATAL_FAILURE(write_resizing_stream(stream.string()));
 
-  VideoDecoder decoder(stream.string());
+  video_decoder decoder(stream.string());
 
-  const VideoDecoder::PacketList packets = decoder.decode_all_frames();
+  const video_decoder::packet_list packets = decoder.decode_all_frames();
 
   const bool packets_empty = packets.empty();
   const int64_t frames_read = decoder.frames_read();
@@ -528,8 +528,8 @@ TEST(video_decoder_test, should_read_every_frame_of_a_stream_whose_resolution_ch
 
 TEST(stream_encoder_test, should_reject_a_packet_after_finalizing) {
   const fixtures::temporary_file output(FLV_EXTENSION);
-  StreamEncoder encoder(output.string(), STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH,
-                        ONE_PACKET_FRAME_HEIGHT, FRAMES_PER_SECOND);
+  stream_encoder encoder(output.string(), STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH,
+                         ONE_PACKET_FRAME_HEIGHT, FRAMES_PER_SECOND);
   encoder.finalize();
 
   const std::string message = fixtures::find_error_message([&encoder] { encoder.add_packet(make_framed_packet(0)); });
@@ -541,8 +541,8 @@ TEST(stream_encoder_test, should_report_a_frame_width_that_libx264_cannot_encode
   const fixtures::temporary_file output(FLV_EXTENSION);
 
   const std::string message = fixtures::find_error_message([&output] {
-    StreamEncoder encoder(output.string(), STREAM_BITRATE_KILOBITS_PER_SECOND, ODD_FRAME_WIDTH, ONE_PACKET_FRAME_HEIGHT,
-                          FRAMES_PER_SECOND);
+    stream_encoder encoder(output.string(), STREAM_BITRATE_KILOBITS_PER_SECOND, ODD_FRAME_WIDTH,
+                           ONE_PACKET_FRAME_HEIGHT, FRAMES_PER_SECOND);
   });
 
   const bool reports_codec_failure = message.ends_with("occurred while trying to open the libx264 codec!");
@@ -555,8 +555,8 @@ TEST(stream_encoder_test, should_report_a_failed_frame_write_when_the_disk_is_fu
   }
 
   const std::string message = fixtures::find_error_message([] {
-    StreamEncoder encoder(fixtures::FULL_DEVICE, HIGH_STREAM_BITRATE_KILOBITS_PER_SECOND, FRAME_WIDTH_STREAM,
-                          FRAME_HEIGHT_STREAM, FRAMES_PER_SECOND);
+    stream_encoder encoder(fixtures::FULL_DEVICE, HIGH_STREAM_BITRATE_KILOBITS_PER_SECOND, FRAME_WIDTH_STREAM,
+                           FRAME_HEIGHT_STREAM, FRAMES_PER_SECOND);
     add_framed_packets(encoder, stream_packets_per_frame() * FRAMES_TO_OVERFLOW_THE_OUTPUT_BUFFER);
     encoder.finalize();
   });
@@ -570,8 +570,8 @@ TEST(stream_encoder_test, should_report_a_failed_trailer_when_the_disk_is_full) 
     GTEST_SKIP() << fixtures::NO_FULL_DEVICE_MESSAGE;
   }
 
-  StreamEncoder encoder(fixtures::FULL_DEVICE, STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH,
-                        ONE_PACKET_FRAME_HEIGHT, FRAMES_PER_SECOND);
+  stream_encoder encoder(fixtures::FULL_DEVICE, STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH,
+                         ONE_PACKET_FRAME_HEIGHT, FRAMES_PER_SECOND);
   encoder.add_packet(make_framed_packet(0));
 
   const std::string message = fixtures::find_error_message([&encoder] { encoder.finalize(); });
@@ -586,8 +586,8 @@ TEST(stream_encoder_test, should_not_throw_from_its_destructor_when_finalizing_f
   }
 
   EXPECT_NO_THROW({
-    StreamEncoder encoder(fixtures::FULL_DEVICE, STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH,
-                          ONE_PACKET_FRAME_HEIGHT, FRAMES_PER_SECOND);
+    stream_encoder encoder(fixtures::FULL_DEVICE, STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH,
+                           ONE_PACKET_FRAME_HEIGHT, FRAMES_PER_SECOND);
     encoder.add_packet(make_framed_packet(0));
   });
 }

@@ -34,8 +34,8 @@
 #include <vector>
 
 namespace {
-Encoder::FileId make_test_file_id() {
-  Encoder::FileId file_id{};
+encoder::file_id_type make_test_file_id() {
+  encoder::file_id_type file_id{};
   for (std::size_t i = 0; i < file_id.size(); ++i) {
     file_id[i] = std::byte{static_cast<uint8_t>(i)};
   }
@@ -50,14 +50,14 @@ std::vector<std::byte> make_test_data(const std::size_t byte_count) {
   return data;
 }
 
-std::span<const std::byte> packet_span(const Packet& packet) {
+std::span<const std::byte> packet_span(const packet& packet) {
   return {packet.bytes.data(), packet.bytes.size()};
 }
 
-void encode_and_feed(const Encoder& encoder, Decoder& decoder, const std::span<const std::byte> chunk_data,
+void encode_and_feed(const encoder& encoder, decoder& decoder, const std::span<const std::byte> chunk_data,
                      const uint32_t chunk_index, const bool is_last_chunk) {
   for (auto [packets, manifest] = encoder.encode_chunk(chunk_index, chunk_data, is_last_chunk);
-       const Packet& packet : packets) {
+       const packet& packet : packets) {
     (void)decoder.process_packet(packet_span(packet), false);
   }
 }
@@ -65,8 +65,8 @@ void encode_and_feed(const Encoder& encoder, Decoder& decoder, const std::span<c
 
 TEST(roundtrip_test, should_restore_a_single_chunk) {
   const std::vector<std::byte> original_data = make_test_data(4096);
-  const Encoder encoder(make_test_file_id());
-  Decoder decoder;
+  const encoder encoder(make_test_file_id());
+  decoder decoder;
 
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
@@ -82,10 +82,10 @@ TEST(roundtrip_test, should_restore_a_single_chunk) {
 TEST(roundtrip_test, should_restore_several_chunks) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2 + 5000;
   const std::vector<std::byte> original_data = make_test_data(total_size);
-  const Encoder encoder(make_test_file_id());
-  Decoder decoder;
+  const encoder encoder(make_test_file_id());
+  decoder decoder;
 
-  const ChunkedStorageData chunked = chunk_byte_data(original_data);
+  const chunked_storage_data chunked = chunk_byte_data(original_data);
   const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
 
   for (uint32_t chunk_index = 0; chunk_index < chunk_count; ++chunk_index) {
@@ -105,8 +105,8 @@ TEST(roundtrip_test, should_restore_several_chunks) {
 
 TEST(roundtrip_test, should_restore_small_data) {
   const std::vector<std::byte> original_data = make_test_data(10);
-  const Encoder encoder(make_test_file_id());
-  Decoder decoder;
+  const encoder encoder(make_test_file_id());
+  decoder decoder;
 
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
@@ -118,16 +118,16 @@ TEST(roundtrip_test, should_restore_small_data) {
 
 TEST(roundtrip_test, should_restore_encrypted_data) {
   const std::vector<std::byte> original_data = make_test_data(8192);
-  const Encoder::FileId file_id = make_test_file_id();
-  const Encoder encoder(file_id);
-  Decoder decoder;
+  const encoder::file_id_type file_id = make_test_file_id();
+  const encoder encoder(file_id);
+  decoder decoder;
 
   static constexpr std::byte password[] = {std::byte{'t'}, std::byte{'e'}, std::byte{'s'}, std::byte{'t'}};
   auto encryption_key = derive_key(std::span(password), file_id);
 
   const std::vector<std::byte> encrypted_chunk = encrypt_chunk(original_data, encryption_key, file_id, 0);
   for (auto [packets, manifest] = encoder.encode_chunk(0, encrypted_chunk, true, true);
-       const Packet& packet : packets) {
+       const packet& packet : packets) {
     (void)decoder.process_packet(packet_span(packet), false);
   }
 
@@ -147,8 +147,8 @@ TEST(roundtrip_test, should_restore_encrypted_data) {
 
 TEST(roundtrip_test, should_restore_data_with_xxhash_checksums) {
   const std::vector<std::byte> original_data = make_test_data(4096);
-  const Encoder encoder(make_test_file_id(), HashAlgorithm::XXHash32);
-  Decoder decoder;
+  const encoder encoder(make_test_file_id(), hash_algorithm_type::XXHASH32);
+  decoder decoder;
 
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
@@ -160,8 +160,8 @@ TEST(roundtrip_test, should_restore_data_with_xxhash_checksums) {
 
 TEST(roundtrip_test, should_not_assemble_a_file_with_incomplete_chunks) {
   const std::vector<std::byte> original_data = make_test_data(4096);
-  const Encoder encoder(make_test_file_id());
-  Decoder decoder;
+  const encoder encoder(make_test_file_id());
+  decoder decoder;
 
   encode_and_feed(encoder, decoder, original_data, 0, false);
 
@@ -173,10 +173,10 @@ TEST(roundtrip_test, should_not_assemble_a_file_with_incomplete_chunks) {
 TEST(roundtrip_test, should_restore_data_matching_the_sha256_of_its_manifest) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES + 1000;
   const std::vector<std::byte> original_data = make_test_data(total_size);
-  const Encoder encoder(make_test_file_id());
-  Decoder decoder;
+  const encoder encoder(make_test_file_id());
+  decoder decoder;
 
-  const ChunkedStorageData chunked = chunk_byte_data(original_data);
+  const chunked_storage_data chunked = chunk_byte_data(original_data);
   const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
 
   for (uint32_t chunk_index = 0; chunk_index < chunk_count; ++chunk_index) {
@@ -185,10 +185,10 @@ TEST(roundtrip_test, should_restore_data_matching_the_sha256_of_its_manifest) {
 
     auto [packets, manifest] = encoder.encode_chunk(chunk_index, chunk, is_last);
 
-    const Sha256Digest expected_digest = sha256(chunk);
+    const sha256_digest expected_digest = sha256(chunk);
     EXPECT_EQ(manifest.sha256, expected_digest);
 
-    for (const Packet& packet : packets) {
+    for (const packet& packet : packets) {
       (void)decoder.process_packet(packet_span(packet), false);
     }
   }
@@ -201,15 +201,15 @@ TEST(roundtrip_test, should_restore_data_matching_the_sha256_of_its_manifest) {
 
 TEST(roundtrip_test, should_restore_encrypted_data_with_xxhash_checksums) {
   const std::vector<std::byte> original_data = make_test_data(8192);
-  const Encoder::FileId file_id = make_test_file_id();
-  const Encoder encoder(file_id, HashAlgorithm::XXHash32);
-  Decoder decoder;
+  const encoder::file_id_type file_id = make_test_file_id();
+  const encoder encoder(file_id, hash_algorithm_type::XXHASH32);
+  decoder decoder;
 
   static constexpr std::byte password[] = {std::byte{'t'}, std::byte{'e'}, std::byte{'s'}, std::byte{'t'}};
   auto key = derive_key(std::span(password), file_id);
 
   const std::vector<std::byte> encrypted = encrypt_chunk(original_data, key, file_id, 0);
-  for (auto [packets, manifest] = encoder.encode_chunk(0, encrypted, true, true); const Packet& packet : packets) {
+  for (auto [packets, manifest] = encoder.encode_chunk(0, encrypted, true, true); const packet& packet : packets) {
     (void)decoder.process_packet(packet_span(packet), false);
   }
 
@@ -229,8 +229,8 @@ TEST(roundtrip_test, should_restore_encrypted_data_with_xxhash_checksums) {
 
 TEST(roundtrip_test, should_restore_empty_data) {
   const std::vector<std::byte> original_data;
-  const Encoder encoder(make_test_file_id());
-  Decoder decoder;
+  const encoder encoder(make_test_file_id());
+  decoder decoder;
 
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
@@ -243,8 +243,8 @@ TEST(roundtrip_test, should_restore_empty_data) {
 
 TEST(roundtrip_test, should_restore_data_of_one_chunk_size) {
   const std::vector<std::byte> original_data = make_test_data(CHUNK_SIZE_BYTES);
-  const Encoder encoder(make_test_file_id());
-  Decoder decoder;
+  const encoder encoder(make_test_file_id());
+  decoder decoder;
 
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
@@ -257,10 +257,10 @@ TEST(roundtrip_test, should_restore_data_of_one_chunk_size) {
 TEST(roundtrip_test, should_restore_data_of_two_chunk_sizes) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2;
   const std::vector<std::byte> original_data = make_test_data(total_size);
-  const Encoder encoder(make_test_file_id());
-  Decoder decoder;
+  const encoder encoder(make_test_file_id());
+  decoder decoder;
 
-  const ChunkedStorageData chunked = chunk_byte_data(original_data);
+  const chunked_storage_data chunked = chunk_byte_data(original_data);
   const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
   ASSERT_EQ(chunk_count, 2u);
 
@@ -277,10 +277,10 @@ TEST(roundtrip_test, should_restore_data_of_two_chunk_sizes) {
 TEST(roundtrip_test, should_restore_many_chunks) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 5 + 12345;
   const std::vector<std::byte> original_data = make_test_data(total_size);
-  const Encoder encoder(make_test_file_id());
-  Decoder decoder;
+  const encoder encoder(make_test_file_id());
+  decoder decoder;
 
-  const ChunkedStorageData chunked = chunk_byte_data(original_data);
+  const chunked_storage_data chunked = chunk_byte_data(original_data);
   const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
   EXPECT_EQ(chunk_count, 6u);
 
@@ -296,13 +296,13 @@ TEST(roundtrip_test, should_restore_many_chunks) {
 
 TEST(roundtrip_test, should_restore_data_from_packets_out_of_order) {
   const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 4);
-  const Encoder encoder(make_test_file_id());
+  const encoder encoder(make_test_file_id());
   auto [packets, manifest] = encoder.encode_chunk(0, original_data, true);
 
   std::ranges::reverse(packets);
 
-  Decoder decoder;
-  for (const Packet& packet : packets) {
+  decoder decoder;
+  for (const packet& packet : packets) {
     (void)decoder.process_packet(packet_span(packet), false);
   }
 
@@ -314,13 +314,13 @@ TEST(roundtrip_test, should_restore_data_from_packets_out_of_order) {
 
 TEST(roundtrip_test, should_restore_data_despite_lost_packets) {
   const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 64);
-  const Encoder encoder(make_test_file_id());
+  const encoder encoder(make_test_file_id());
   auto [packets, manifest] = encoder.encode_chunk(0, original_data, true);
 
   const std::size_t repair = packets.size() - manifest.source_symbol_count;
   const std::size_t drop_every = packets.size() / (repair / 2);
 
-  Decoder decoder;
+  decoder decoder;
   for (std::size_t i = 0; i < packets.size(); ++i) {
     if (i % drop_every == 0)
       continue;
@@ -338,8 +338,8 @@ TEST(roundtrip_test, should_restore_data_despite_lost_packets) {
 
 TEST(roundtrip_test, should_write_the_assembled_file) {
   const std::vector<std::byte> original_data = make_test_data(4096);
-  const Encoder encoder(make_test_file_id());
-  Decoder decoder;
+  const encoder encoder(make_test_file_id());
+  decoder decoder;
 
   encode_and_feed(encoder, decoder, original_data, 0, true);
 

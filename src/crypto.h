@@ -29,13 +29,13 @@
 
 constexpr std::size_t CRYPTO_KEY_BYTES = 32u;
 
-using CryptoKey = std::array<std::byte, CRYPTO_KEY_BYTES>;
+using crypto_key = std::array<std::byte, CRYPTO_KEY_BYTES>;
 
-[[nodiscard]] FileId generate_file_id();
+[[nodiscard]] file_id_type generate_file_id();
 
 [[nodiscard]] uint32_t read_plain_size_from_header(std::span<const std::byte> chunk);
 
-[[nodiscard]] CryptoKey derive_key(std::span<const std::byte> password, std::span<const std::byte, FILE_ID_SIZE> salt);
+[[nodiscard]] crypto_key derive_key(std::span<const std::byte> password, std::span<const std::byte, FILE_ID_SIZE> salt);
 
 [[nodiscard]] std::vector<std::byte> encrypt_chunk(std::span<const std::byte> plain,
                                                    std::span<const std::byte, CRYPTO_KEY_BYTES> key,

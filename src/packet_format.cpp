@@ -63,8 +63,8 @@ std::size_t packet_header_size(const uint8_t version) {
   }
 }
 
-void write_packet_header(const std::span<std::byte> destination, const PacketHeader& header,
-                         const std::span<const std::byte> payload, const HashAlgorithm algorithm) {
+void write_packet_header(const std::span<std::byte> destination, const packet_header& header,
+                         const std::span<const std::byte> payload, const hash_algorithm_type algorithm) {
   write_uint32_little_endian(destination, MAGIC_OFFSET, MAGIC_ID);
   write_uint8(destination, VERSION_OFFSET, VERSION_ID_V2);
   write_uint8(destination, FLAGS_OFFSET, header.flags);
@@ -83,7 +83,7 @@ void write_packet_header(const std::span<std::byte> destination, const PacketHea
   write_uint32_little_endian(destination, CRC_OFFSET_V2, crc);
 }
 
-std::optional<ParsedPacket> parse_packet(const std::span<const std::byte> packet) {
+std::optional<parsed_packet> parse_packet(const std::span<const std::byte> packet) {
   if (packet.size() < HEADER_SIZE) {
     return std::nullopt;
   }
@@ -94,8 +94,8 @@ std::optional<ParsedPacket> parse_packet(const std::span<const std::byte> packet
     return std::nullopt;
   }
 
-  ParsedPacket result;
-  PacketHeader& header = result.header;
+  parsed_packet result;
+  packet_header& header = result.header;
   header.magic = read_uint32_little_endian(packet, MAGIC_OFFSET);
   if (header.magic != MAGIC_ID) {
     return std::nullopt;
@@ -123,9 +123,9 @@ std::optional<ParsedPacket> parse_packet(const std::span<const std::byte> packet
   return result;
 }
 
-bool verify_packet_checksum(const ParsedPacket& packet) {
+bool verify_packet_checksum(const parsed_packet& packet) {
   const std::size_t crc_offset = packet_crc_offset(packet.header.version);
-  const HashAlgorithm algorithm = packet.header.hash_algorithm();
+  const hash_algorithm_type algorithm = packet.header.hash_algorithm();
   if (packet_checksum(packet.raw_header, packet.payload, crc_offset, algorithm, CRC_SIZE) == packet.header.crc) {
     return true;
   }
@@ -136,7 +136,7 @@ bool verify_packet_checksum(const ParsedPacket& packet) {
              packet.header.crc;
 }
 
-std::optional<ParsedPacket> parse_and_verify_packet(const std::span<const std::byte> packet) {
+std::optional<parsed_packet> parse_and_verify_packet(const std::span<const std::byte> packet) {
   auto parsed = parse_packet(packet);
   if (!parsed || !verify_packet_checksum(*parsed)) {
     return std::nullopt;

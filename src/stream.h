@@ -33,25 +33,25 @@ extern "C" {
 #include "frame_layout.h"
 #include "packet_format.h"
 
-class StreamEncoder {
+class stream_encoder {
 public:
-  explicit StreamEncoder(const std::string& rtmp_url, int bitrate_kilobits_per_second = FRAME_BITRATE,
-                         int width = FRAME_WIDTH_STREAM, int height = FRAME_HEIGHT_STREAM,
-                         int frames_per_second = FRAMES_PER_SECOND);
+  explicit stream_encoder(const std::string& rtmp_url, int bitrate_kilobits_per_second = FRAME_BITRATE,
+                          int width = FRAME_WIDTH_STREAM, int height = FRAME_HEIGHT_STREAM,
+                          int frames_per_second = FRAMES_PER_SECOND);
 
-  ~StreamEncoder();
+  ~stream_encoder();
 
-  StreamEncoder(const StreamEncoder&) = delete;
+  stream_encoder(const stream_encoder&) = delete;
 
-  StreamEncoder& operator=(const StreamEncoder&) = delete;
+  stream_encoder& operator=(const stream_encoder&) = delete;
 
-  StreamEncoder(StreamEncoder&&) = delete;
+  stream_encoder(stream_encoder&&) = delete;
 
-  StreamEncoder& operator=(StreamEncoder&&) = delete;
+  stream_encoder& operator=(stream_encoder&&) = delete;
 
-  void add_packet(const Packet& packet);
+  void add_packet(const packet& packet);
 
-  void encode_packets(const std::vector<Packet>& packets);
+  void encode_packets(const std::vector<packet>& packets);
 
   void finalize();
 
@@ -63,7 +63,7 @@ public:
     return ::packets_per_frame(layout_);
   }
 
-  [[nodiscard]] const FrameLayout& layout() const {
+  [[nodiscard]] const frame_layout& layout() const {
     return layout_;
   }
 
@@ -86,7 +86,7 @@ private:
   int frames_per_second_;
 
   std::vector<std::byte> frame_data_buffer_;
-  FrameLayout layout_{};
+  frame_layout layout_{};
   int64_t frame_index_ = 0;
   bool finalized_ = false;
 

@@ -26,14 +26,14 @@
 #include <vector>
 
 namespace {
-struct TemporaryFile {
+struct temporary_file {
   std::string path_string;
 
-  explicit TemporaryFile(const std::string& name)
+  explicit temporary_file(const std::string& name)
       : path_string((std::filesystem::temp_directory_path() / name).string()) {
   }
 
-  ~TemporaryFile() {
+  ~temporary_file() {
     std::error_code error_code;
     std::filesystem::remove(path_string, error_code);
   }
@@ -42,9 +42,9 @@ struct TemporaryFile {
     return path_string.c_str();
   }
 
-  TemporaryFile(const TemporaryFile&) = delete;
+  temporary_file(const temporary_file&) = delete;
 
-  TemporaryFile& operator=(const TemporaryFile&) = delete;
+  temporary_file& operator=(const temporary_file&) = delete;
 };
 
 void write_test_file(const std::string& path, const std::size_t size) {
@@ -119,7 +119,7 @@ TEST(api_test, should_reject_encoding_without_paths) {
 }
 
 TEST(api_test, should_reject_encoding_without_an_input_path) {
-  const TemporaryFile output("api_enc_missing_input.mkv");
+  const temporary_file output("api_enc_missing_input.mkv");
   ms_encode_options_t options{};
   options.input_path = nullptr;
   options.output_path = output.c_string();
@@ -131,7 +131,7 @@ TEST(api_test, should_reject_encoding_without_an_input_path) {
 TEST(api_test, should_report_a_missing_input_file_when_encoding) {
   const std::string missing_input =
       (std::filesystem::temp_directory_path() / "nonexistent_ms_api_test_12345.bin").string();
-  const TemporaryFile output("api_encode_fnf_out.mkv");
+  const temporary_file output("api_encode_fnf_out.mkv");
   ms_encode_options_t options{};
   options.input_path = missing_input.c_str();
   options.output_path = output.c_string();
@@ -141,10 +141,10 @@ TEST(api_test, should_report_a_missing_input_file_when_encoding) {
 }
 
 TEST(api_test, should_reject_encrypting_without_a_password) {
-  const TemporaryFile input("api_test_enc_nopw.bin");
+  const temporary_file input("api_test_enc_nopw.bin");
   write_test_file(input.path_string, 1024);
 
-  const TemporaryFile output("api_test_enc_nopw.mkv");
+  const temporary_file output("api_test_enc_nopw.mkv");
   ms_encode_options_t options{};
   options.input_path = input.c_string();
   options.output_path = output.c_string();
@@ -169,7 +169,7 @@ TEST(api_test, should_reject_decoding_without_paths) {
 }
 
 TEST(api_test, should_reject_decoding_without_an_input_path) {
-  const TemporaryFile output("api_dec_missing_in.bin");
+  const temporary_file output("api_dec_missing_in.bin");
   ms_decode_options_t options{};
   options.input_path = nullptr;
   options.output_path = output.c_string();
@@ -190,7 +190,7 @@ TEST(api_test, should_reject_decoding_without_an_output_path) {
 TEST(api_test, should_report_a_missing_input_file_when_decoding) {
   const std::string missing_input =
       (std::filesystem::temp_directory_path() / "nonexistent_ms_api_test_12345.mkv").string();
-  const TemporaryFile output("api_decode_fnf_out.bin");
+  const temporary_file output("api_decode_fnf_out.bin");
   ms_decode_options_t options{};
   options.input_path = missing_input.c_str();
   options.output_path = output.c_string();
@@ -227,7 +227,7 @@ TEST(api_test, should_reject_stream_encoding_without_an_input_path) {
 }
 
 TEST(api_test, should_reject_encrypted_stream_encoding_without_a_password) {
-  const TemporaryFile input("api_stream_enc_nopw.bin");
+  const temporary_file input("api_stream_enc_nopw.bin");
   write_test_file(input.path_string, 1024);
 
   ms_stream_encode_options_t options{};
@@ -254,7 +254,7 @@ TEST(api_test, should_reject_stream_decoding_without_fields) {
 }
 
 TEST(api_test, should_reject_stream_decoding_without_a_stream_url) {
-  const TemporaryFile output("api_stream_dec_out.bin");
+  const temporary_file output("api_stream_dec_out.bin");
   ms_stream_decode_options_t options{};
   options.stream_url = nullptr;
   options.output_path = output.c_string();
@@ -273,9 +273,9 @@ TEST(api_test, should_reject_stream_decoding_without_an_output_path) {
 }
 
 TEST(api_test, should_decode_what_it_encoded) {
-  const TemporaryFile input("api_rt_input.bin");
-  const TemporaryFile encoded("api_rt.mkv");
-  const TemporaryFile decoded("api_rt_output.bin");
+  const temporary_file input("api_rt_input.bin");
+  const temporary_file encoded("api_rt.mkv");
+  const temporary_file decoded("api_rt_output.bin");
 
   write_test_file(input.path_string, 65536);
 
@@ -308,9 +308,9 @@ TEST(api_test, should_decode_what_it_encoded) {
 }
 
 TEST(api_test, should_decode_what_it_encrypted) {
-  const TemporaryFile input("api_enc_input.bin");
-  const TemporaryFile encoded("api_enc.mkv");
-  const TemporaryFile decoded("api_enc_output.bin");
+  const temporary_file input("api_enc_input.bin");
+  const temporary_file encoded("api_enc.mkv");
+  const temporary_file decoded("api_enc_output.bin");
 
   write_test_file(input.path_string, 32768);
   const std::string password = "test_api_password";
@@ -340,9 +340,9 @@ TEST(api_test, should_decode_what_it_encrypted) {
 }
 
 TEST(api_test, should_decode_what_it_encoded_with_xxhash_checksums) {
-  const TemporaryFile input("api_xxh_input.bin");
-  const TemporaryFile encoded("api_xxh.mkv");
-  const TemporaryFile decoded("api_xxh_output.bin");
+  const temporary_file input("api_xxh_input.bin");
+  const temporary_file encoded("api_xxh.mkv");
+  const temporary_file decoded("api_xxh_output.bin");
 
   write_test_file(input.path_string, 32768);
 
@@ -367,8 +367,8 @@ TEST(api_test, should_decode_what_it_encoded_with_xxhash_checksums) {
 }
 
 TEST(api_test, should_report_encoding_progress) {
-  const TemporaryFile input("api_prog_input.bin");
-  const TemporaryFile encoded("api_prog.mkv");
+  const temporary_file input("api_prog_input.bin");
+  const temporary_file encoded("api_prog.mkv");
 
   write_test_file(input.path_string, 65536);
 
@@ -391,8 +391,8 @@ TEST(api_test, should_report_encoding_progress) {
 }
 
 TEST(api_test, should_cancel_encoding_from_the_progress_callback) {
-  const TemporaryFile input("api_cancel_input.bin");
-  const TemporaryFile encoded("api_cancel.mkv");
+  const temporary_file input("api_cancel_input.bin");
+  const temporary_file encoded("api_cancel.mkv");
 
   write_test_file(input.path_string, 65536);
 
@@ -411,8 +411,8 @@ TEST(api_test, should_describe_the_last_failure_and_clear_it_on_success) {
   EXPECT_EQ(rejected_status, MS_ERR_INVALID_ARGS);
   EXPECT_GT(last_error_length, 0u);
 
-  const TemporaryFile input("api_last_error_input.bin");
-  const TemporaryFile encoded("api_last_error.mkv");
+  const temporary_file input("api_last_error_input.bin");
+  const temporary_file encoded("api_last_error.mkv");
   write_test_file(input.path_string, 1024);
 
   ms_encode_options_t options{};
@@ -427,9 +427,9 @@ TEST(api_test, should_describe_the_last_failure_and_clear_it_on_success) {
 }
 
 TEST(api_test, should_report_a_crypto_error_for_the_wrong_password) {
-  const TemporaryFile input("api_wrongpw_input.bin");
-  const TemporaryFile encoded("api_wrongpw.mkv");
-  const TemporaryFile decoded("api_wrongpw_output.bin");
+  const temporary_file input("api_wrongpw_input.bin");
+  const temporary_file encoded("api_wrongpw.mkv");
+  const temporary_file decoded("api_wrongpw_output.bin");
 
   write_test_file(input.path_string, 16384);
   const std::string password = "correct horse";
@@ -458,9 +458,9 @@ TEST(api_test, should_report_a_crypto_error_for_the_wrong_password) {
 }
 
 TEST(api_test, should_report_a_crypto_error_without_a_password) {
-  const TemporaryFile input("api_nopw_dec_input.bin");
-  const TemporaryFile encoded("api_nopw_dec.mkv");
-  const TemporaryFile decoded("api_nopw_dec_output.bin");
+  const temporary_file input("api_nopw_dec_input.bin");
+  const temporary_file encoded("api_nopw_dec.mkv");
+  const temporary_file decoded("api_nopw_dec_output.bin");
 
   write_test_file(input.path_string, 4096);
   const std::string password = "secret";
@@ -485,7 +485,7 @@ TEST(api_test, should_report_a_crypto_error_without_a_password) {
 
 TEST(api_test, should_report_a_directory_as_input_without_throwing) {
   const std::string directory = std::filesystem::temp_directory_path().string();
-  const TemporaryFile output("api_dir_input.mkv");
+  const temporary_file output("api_dir_input.mkv");
 
   ms_encode_options_t options{};
   options.input_path = directory.c_str();

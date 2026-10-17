@@ -34,25 +34,25 @@ extern "C" {
 #include "frame_layout.h"
 #include "gray_lookup.h"
 
-class VideoDecoder {
+class video_decoder {
 public:
-  using PacketList = std::vector<std::vector<std::byte>>;
+  using packet_list = std::vector<std::vector<std::byte>>;
 
-  explicit VideoDecoder(const std::string& input_path);
+  explicit video_decoder(const std::string& input_path);
 
-  ~VideoDecoder();
+  ~video_decoder();
 
-  VideoDecoder(const VideoDecoder&) = delete;
+  video_decoder(const video_decoder&) = delete;
 
-  VideoDecoder& operator=(const VideoDecoder&) = delete;
+  video_decoder& operator=(const video_decoder&) = delete;
 
-  VideoDecoder(VideoDecoder&&) = delete;
+  video_decoder(video_decoder&&) = delete;
 
-  VideoDecoder& operator=(VideoDecoder&&) = delete;
+  video_decoder& operator=(video_decoder&&) = delete;
 
-  [[nodiscard]] PacketList decode_next_frame();
+  [[nodiscard]] packet_list decode_next_frame();
 
-  [[nodiscard]] PacketList decode_all_frames();
+  [[nodiscard]] packet_list decode_all_frames();
 
   [[nodiscard]] int64_t frames_read() const {
     return frame_index_;
@@ -78,7 +78,7 @@ private:
   bool draining_ = false;
   bool pending_packet_ = false;
   bool is_gray8_ = false;
-  FrameLayout layout_{};
+  frame_layout layout_{};
   std::optional<gray_lookup_table> gray_lookup_;
   std::vector<std::byte> extract_buffer_;
 
@@ -88,9 +88,9 @@ private:
 
   [[nodiscard]] const AVFrame* gray_plane_frame() const;
 
-  static void extract_packets_from_buffer(std::vector<std::byte>& accumulated, PacketList& out_packets);
+  static void extract_packets_from_buffer(std::vector<std::byte>& accumulated, packet_list& out_packets);
 
-  [[nodiscard]] PacketList consume_decoded_frame();
+  [[nodiscard]] packet_list consume_decoded_frame();
 
   bool feed_next_packet();
 };

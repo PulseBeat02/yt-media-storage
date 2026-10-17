@@ -22,12 +22,12 @@
 #include <algorithm>
 #include <cstring>
 
-FrameLayout compute_frame_layout() {
+frame_layout compute_frame_layout() {
   return compute_frame_layout(FRAME_WIDTH, FRAME_HEIGHT);
 }
 
-FrameLayout compute_frame_layout(const int width, const int height) {
-  FrameLayout layout{};
+frame_layout compute_frame_layout(const int width, const int height) {
+  frame_layout layout{};
   layout.frame_width = width;
   layout.frame_height = height;
   layout.blocks_per_row = width / 8;
@@ -38,7 +38,7 @@ FrameLayout compute_frame_layout(const int width, const int height) {
   return layout;
 }
 
-int packets_per_frame(const FrameLayout& layout) {
+int packets_per_frame(const frame_layout& layout) {
   return static_cast<int>(static_cast<std::size_t>(layout.bytes_per_frame) / PACKET_SIZE);
 }
 
@@ -46,7 +46,7 @@ std::size_t maximum_packet_bytes_per_frame() {
   return static_cast<std::size_t>(compute_frame_layout().bytes_per_frame);
 }
 
-void embed_data_into_plane(uint8_t* plane, const int stride, const FrameLayout& layout,
+void embed_data_into_plane(uint8_t* plane, const int stride, const frame_layout& layout,
                            const std::span<const std::byte> data) {
   const auto& blocks = get_precomputed_blocks();
   const auto& patterns = blocks.patterns;

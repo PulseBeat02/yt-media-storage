@@ -47,21 +47,21 @@ bool is_hexadecimal_character(const char character) {
 
 TEST(integrity_test, should_hash_empty_input_to_the_known_sha256_digest) {
   const std::vector<std::byte> empty_input;
-  const Sha256Digest digest = sha256(empty_input);
+  const sha256_digest digest = sha256(empty_input);
   const std::string hexadecimal_output = digest.hexadecimal_value();
   EXPECT_EQ(hexadecimal_output, "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855");
 }
 
 TEST(integrity_test, should_hash_known_input_to_its_sha256_digest) {
   const std::vector<std::byte> hello_bytes = bytes_from_string("hello");
-  const Sha256Digest digest = sha256(hello_bytes);
+  const sha256_digest digest = sha256(hello_bytes);
   const std::string hexadecimal_output = digest.hexadecimal_value();
   EXPECT_EQ(hexadecimal_output, "2CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824");
 }
 
 TEST(integrity_test, should_write_the_sha256_digest_in_hex) {
   const std::vector<std::byte> abc_bytes = bytes_from_string("abc");
-  const Sha256Digest digest = sha256(abc_bytes);
+  const sha256_digest digest = sha256(abc_bytes);
   for (const std::string hexadecimal_output = digest.hexadecimal_value(); const char character : hexadecimal_output) {
     const bool hexadecimal_digit = is_hexadecimal_character(character);
     EXPECT_TRUE(hexadecimal_digit);
@@ -71,9 +71,9 @@ TEST(integrity_test, should_write_the_sha256_digest_in_hex) {
 TEST(integrity_test, should_hash_equal_inputs_to_equal_digests) {
   const std::vector<std::byte> same_data = bytes_from_string("same");
   const std::vector<std::byte> different_data = bytes_from_string("diff");
-  const Sha256Digest digest_a = sha256(same_data);
-  const Sha256Digest digest_b = sha256(same_data);
-  const Sha256Digest digest_c = sha256(different_data);
+  const sha256_digest digest_a = sha256(same_data);
+  const sha256_digest digest_b = sha256(same_data);
+  const sha256_digest digest_c = sha256(different_data);
   EXPECT_EQ(digest_a, digest_b);
   EXPECT_NE(digest_a, digest_c);
 }
@@ -110,7 +110,7 @@ TEST(integrity_test, should_compute_crc32_packet_checksums_with_crc32) {
   const std::vector<std::byte> payload = bytes_from_string("pld");
   constexpr std::size_t crc_offset = 0;
 
-  const uint32_t dispatched = packet_checksum(header, payload, crc_offset, HashAlgorithm::CRC32);
+  const uint32_t dispatched = packet_checksum(header, payload, crc_offset, hash_algorithm_type::CRC32);
   const uint32_t direct = packet_crc32(header, payload, crc_offset);
   EXPECT_EQ(dispatched, direct);
 }
@@ -120,7 +120,7 @@ TEST(integrity_test, should_compute_xxhash_packet_checksums_with_xxhash) {
   const std::vector<std::byte> payload = bytes_from_string("pld");
   constexpr std::size_t crc_offset = 0;
 
-  const uint32_t dispatched = packet_checksum(header, payload, crc_offset, HashAlgorithm::XXHash32);
+  const uint32_t dispatched = packet_checksum(header, payload, crc_offset, hash_algorithm_type::XXHASH32);
   const uint32_t direct = packet_xxhash32(header, payload, crc_offset);
   EXPECT_EQ(dispatched, direct);
 }
@@ -171,8 +171,8 @@ TEST(integrity_test, should_hash_large_input) {
   for (std::size_t i = 0; i < large_data.size(); ++i) {
     large_data[i] = static_cast<std::byte>(i & 0xFF);
   }
-  const Sha256Digest digest = sha256(large_data);
-  const Sha256Digest digest_again = sha256(large_data);
+  const sha256_digest digest = sha256(large_data);
+  const sha256_digest digest_again = sha256(large_data);
   const std::size_t hexadecimal_length = digest.hexadecimal_value().size();
   EXPECT_EQ(digest, digest_again);
   EXPECT_EQ(hexadecimal_length, 64u);

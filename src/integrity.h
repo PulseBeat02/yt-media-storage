@@ -27,20 +27,20 @@
 
 constexpr std::size_t SHA256_HASH_SIZE = 32;
 
-enum class HashAlgorithm {
+enum class hash_algorithm_type {
   CRC32,
-  XXHash32,
+  XXHASH32,
 };
 
-struct Sha256Digest {
+struct sha256_digest {
   std::array<std::byte, SHA256_HASH_SIZE> bytes{};
 
   [[nodiscard]] std::string hexadecimal_value() const;
 
-  bool operator==(const Sha256Digest& other) const = default;
+  bool operator==(const sha256_digest& other) const = default;
 };
 
-[[nodiscard]] Sha256Digest sha256(std::span<const std::byte> data);
+[[nodiscard]] sha256_digest sha256(std::span<const std::byte> data);
 
 [[nodiscard]] uint32_t crc32_mpeg2(std::span<const std::byte> data, uint32_t seed = 0);
 
@@ -53,7 +53,7 @@ struct Sha256Digest {
                                        std::size_t crc_offset, std::size_t crc_size = 4);
 
 [[nodiscard]] uint32_t packet_checksum(std::span<const std::byte> header, std::span<const std::byte> payload,
-                                       std::size_t crc_offset, HashAlgorithm algorithm, std::size_t crc_size = 4);
+                                       std::size_t crc_offset, hash_algorithm_type algorithm, std::size_t crc_size = 4);
 
 [[nodiscard]] bool verify_packet_crc32(std::span<const std::byte> header, std::span<const std::byte> payload,
                                        std::size_t crc_offset, std::size_t crc_size = 4);

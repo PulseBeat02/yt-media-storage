@@ -35,15 +35,15 @@ constexpr const char* FILE_OPEN_FAILURE_MESSAGE = "File could not be opened!";
 constexpr const char* FILE_SIZE_FAILURE_MESSAGE = "Size of the file could not be determined!";
 constexpr const char* FILE_READ_FAILURE_MESSAGE = "File could not be read!";
 
-std::vector<ChunkSlice> slice_into_chunks(const std::size_t size, const std::size_t chunk_size) {
-  std::vector<ChunkSlice> chunks;
+std::vector<chunk_slice_type> slice_into_chunks(const std::size_t size, const std::size_t chunk_size) {
+  std::vector<chunk_slice_type> chunks;
   if (size == 0) {
-    chunks.push_back(ChunkSlice{0, 0});
+    chunks.push_back(chunk_slice_type{0, 0});
     return chunks;
   }
   chunks.reserve((size + chunk_size - 1) / chunk_size);
   for (std::size_t offset = 0; offset < size; offset += chunk_size) {
-    chunks.push_back(ChunkSlice{offset, (std::min)(chunk_size, size - offset)});
+    chunks.push_back(chunk_slice_type{offset, (std::min)(chunk_size, size - offset)});
   }
   return chunks;
 }
@@ -53,14 +53,14 @@ std::size_t effective_chunk_size(const std::size_t chunk_size) {
 }
 }
 
-ChunkedStorageData chunk_byte_data(const std::span<const std::byte> data) {
-  ChunkedStorageData result;
+chunked_storage_data chunk_byte_data(const std::span<const std::byte> data) {
+  chunked_storage_data result;
   result.storage.assign(data.begin(), data.end());
   result.chunks = slice_into_chunks(result.storage.size(), CHUNK_SIZE_BYTES);
   return result;
 }
 
-ChunkedStorageData chunk_file(const char* path, const std::size_t chunk_size) {
+chunked_storage_data chunk_file(const char* path, const std::size_t chunk_size) {
   std::ifstream file(path, std::ios::binary | std::ios::ate);
   if (!file) {
     throw std::runtime_error(FILE_OPEN_FAILURE_MESSAGE);
@@ -73,7 +73,7 @@ ChunkedStorageData chunk_file(const char* path, const std::size_t chunk_size) {
   const auto size = static_cast<std::size_t>(end);
   file.seekg(0);
 
-  ChunkedStorageData result;
+  chunked_storage_data result;
   result.storage.resize(size);
   if (size > 0 && !file.read(reinterpret_cast<char*>(result.storage.data()), static_cast<std::streamsize>(size))) {
     throw std::runtime_error(FILE_READ_FAILURE_MESSAGE);
@@ -82,7 +82,7 @@ ChunkedStorageData chunk_file(const char* path, const std::size_t chunk_size) {
   return result;
 }
 
-FileChunkReader::FileChunkReader(const char* path, const std::size_t chunk_size)
+file_chunk_reader::file_chunk_reader(const char* path, const std::size_t chunk_size)
     : chunk_size_(effective_chunk_size(chunk_size)), file_(path, std::ios::binary) {
   if (!file_) {
     throw std::runtime_error(FILE_OPEN_FAILURE_MESSAGE);
@@ -101,7 +101,7 @@ FileChunkReader::FileChunkReader(const char* path, const std::size_t chunk_size)
   }
 }
 
-void FileChunkReader::map_file(const char* path) {
+void file_chunk_reader::map_file(const char* path) {
 #if defined(_WIN32)
   HANDLE file =
       CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -135,7 +135,7 @@ void FileChunkReader::map_file(const char* path) {
 #endif
 }
 
-FileChunkReader::~FileChunkReader() {
+file_chunk_reader::~file_chunk_reader() {
 #if defined(_WIN32)
   if (mapped_)
     UnmapViewOfFile(mapped_);
@@ -151,19 +151,19 @@ FileChunkReader::~FileChunkReader() {
 #endif
 }
 
-ChunkSlice FileChunkReader::chunk_slice(const std::size_t index) const {
+chunk_slice_type file_chunk_reader::chunk_slice(const std::size_t index) const {
   if (index >= chunk_count_) {
     const std::string message = std::format("Chunk index {} must be below the chunk count {}!", index, chunk_count_);
     throw std::runtime_error(message);
   }
   const std::size_t offset = index * chunk_size_;
   if (offset >= file_size_) {
-    return ChunkSlice{offset, 0};
+    return chunk_slice_type{offset, 0};
   }
-  return ChunkSlice{offset, (std::min)(chunk_size_, file_size_ - offset)};
+  return chunk_slice_type{offset, (std::min)(chunk_size_, file_size_ - offset)};
 }
 
-std::span<const std::byte> FileChunkReader::chunk_view(const std::size_t index) const {
+std::span<const std::byte> file_chunk_reader::chunk_view(const std::size_t index) const {
   const auto [offset, length] = chunk_slice(index);
   if (length == 0) {
     return {};
@@ -175,7 +175,7 @@ std::span<const std::byte> FileChunkReader::chunk_view(const std::size_t index) 
   return {mapped_ + offset, length};
 }
 
-std::vector<std::byte> FileChunkReader::read_chunk(const std::size_t index) const {
+std::vector<std::byte> file_chunk_reader::read_chunk(const std::size_t index) const {
   const auto [offset, length] = chunk_slice(index);
   if (length == 0) {
     return {};

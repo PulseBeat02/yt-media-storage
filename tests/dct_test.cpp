@@ -27,12 +27,12 @@
 
 TEST(dct_test, should_precompute_one_block_per_bit_pattern) {
   constexpr int expected_patterns = 1 << BITS_PER_BLOCK;
-  EXPECT_EQ(PrecomputedBlocks::PATTERN_COUNT, expected_patterns);
+  EXPECT_EQ(precomputed_blocks::PATTERN_COUNT, expected_patterns);
 }
 
 TEST(dct_test, should_keep_precomputed_blocks_in_the_pixel_range) {
   const auto& [patterns] = get_precomputed_blocks();
-  for (int pattern = 0; pattern < PrecomputedBlocks::PATTERN_COUNT; ++pattern) {
+  for (int pattern = 0; pattern < precomputed_blocks::PATTERN_COUNT; ++pattern) {
     for (int y = 0; y < 8; ++y) {
       for (int x = 0; x < 8; ++x) {
         EXPECT_LE(patterns[pattern][y][x], 255u);
@@ -56,7 +56,7 @@ TEST(dct_test, should_extract_every_embedded_bit_pattern) {
   const auto& [patterns] = get_precomputed_blocks();
   const auto& [vectors] = get_decoder_projections();
 
-  for (int pattern = 0; pattern < PrecomputedBlocks::PATTERN_COUNT; ++pattern) {
+  for (int pattern = 0; pattern < precomputed_blocks::PATTERN_COUNT; ++pattern) {
     alignas(32) float block_flat[64];
     for (int y = 0; y < 8; ++y) {
       for (int x = 0; x < 8; ++x) {
@@ -127,13 +127,13 @@ TEST(dct_test, should_set_the_dc_cosine_to_one) {
 }
 
 TEST(dct_test, should_store_one_bit_per_block_in_the_frame_layout) {
-  const FrameLayout layout = compute_frame_layout(1920, 1080);
+  const frame_layout layout = compute_frame_layout(1920, 1080);
   EXPECT_EQ(layout.bits_per_frame, layout.total_blocks * BITS_PER_BLOCK);
   EXPECT_EQ(layout.bytes_per_frame, layout.bits_per_frame / 8);
 }
 
 TEST(dct_test, should_produce_a_different_block_for_each_pattern) {
-  if constexpr (PrecomputedBlocks::PATTERN_COUNT < 2) {
+  if constexpr (precomputed_blocks::PATTERN_COUNT < 2) {
     GTEST_SKIP() << "At least 2 patterns are needed!";
   }
 
@@ -157,7 +157,7 @@ TEST(dct_test, should_fill_the_margins_a_frame_width_leaves_beside_whole_blocks)
   constexpr int data_rows = 32;
   constexpr uint8_t untouched = 0xFF;
   constexpr uint8_t neutral = 128;
-  const FrameLayout layout = compute_frame_layout(frame_width, frame_height);
+  const frame_layout layout = compute_frame_layout(frame_width, frame_height);
   std::vector<uint8_t> plane(static_cast<std::size_t>(frame_width) * frame_height, untouched);
   const std::vector<std::byte> data = {std::byte{0xA5}};
 

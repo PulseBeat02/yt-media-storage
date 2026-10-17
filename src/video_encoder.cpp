@@ -23,7 +23,7 @@
 #include <stdexcept>
 #include <string>
 
-VideoEncoder::VideoEncoder(const std::string& output_path) {
+video_encoder::video_encoder(const std::string& output_path) {
   try {
     initialize_encoder(output_path);
   } catch (...) {
@@ -32,7 +32,7 @@ VideoEncoder::VideoEncoder(const std::string& output_path) {
   }
 }
 
-VideoEncoder::~VideoEncoder() {
+video_encoder::~video_encoder() {
   if (!finalized_) {
     try {
       finalize();
@@ -42,7 +42,7 @@ VideoEncoder::~VideoEncoder() {
   release();
 }
 
-void VideoEncoder::release() {
+void video_encoder::release() {
   if (av_packet_)
     av_packet_free(&av_packet_);
   if (frame_)
@@ -57,7 +57,7 @@ void VideoEncoder::release() {
   }
 }
 
-void VideoEncoder::initialize_encoder(const std::string& output_path) {
+void video_encoder::initialize_encoder(const std::string& output_path) {
   int status = avformat_alloc_output_context2(&format_context_, nullptr, nullptr, output_path.c_str());
   if (status < 0 || !format_context_) {
     const std::string message = "Output context could not be created!";
@@ -139,11 +139,11 @@ void VideoEncoder::initialize_encoder(const std::string& output_path) {
   }
 }
 
-int VideoEncoder::packets_per_frame() {
+int video_encoder::packets_per_frame() {
   return ::packets_per_frame(compute_frame_layout());
 }
 
-void VideoEncoder::write_pending_packets() {
+void video_encoder::write_pending_packets() {
   while (true) {
     const int status = avcodec_receive_packet(codec_context_, av_packet_);
     if (status == AVERROR(EAGAIN) || status == AVERROR_EOF) {
@@ -166,7 +166,7 @@ void VideoEncoder::write_pending_packets() {
   }
 }
 
-void VideoEncoder::encode_frame() {
+void video_encoder::encode_frame() {
   ensure_fresh_writable_frame(frame_);
   embed_data_into_plane(frame_->data[0], frame_->linesize[0], layout_, frame_data_buffer_);
   frame_->pts = frame_index_++;
@@ -178,7 +178,7 @@ void VideoEncoder::encode_frame() {
   write_pending_packets();
 }
 
-void VideoEncoder::add_packet(const Packet& packet) {
+void video_encoder::add_packet(const packet& packet) {
   if (finalized_) {
     const std::string message = "Encoder is already finalized!";
     throw std::runtime_error(message);
@@ -190,27 +190,27 @@ void VideoEncoder::add_packet(const Packet& packet) {
   frame_data_buffer_.insert(frame_data_buffer_.end(), packet.bytes.begin(), packet.bytes.end());
 }
 
-void VideoEncoder::encode_packets(const std::vector<Packet>& packets) {
-  for (const Packet& packet : packets) {
+void video_encoder::encode_packets(const std::vector<packet>& packets) {
+  for (const packet& packet : packets) {
     add_packet(packet);
   }
 }
 
-void VideoEncoder::flush_frame_buffer() {
+void video_encoder::flush_frame_buffer() {
   if (frame_data_buffer_.empty())
     return;
   encode_frame();
   frame_data_buffer_.clear();
 }
 
-void VideoEncoder::flush_encoder() {
+void video_encoder::flush_encoder() {
   if (avcodec_send_frame(codec_context_, nullptr) < 0) {
     return;
   }
   write_pending_packets();
 }
 
-void VideoEncoder::finalize() {
+void video_encoder::finalize() {
   if (finalized_)
     return;
   finalized_ = true;

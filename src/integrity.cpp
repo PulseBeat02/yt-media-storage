@@ -58,12 +58,12 @@ uint32_t read_uint32_little_endian(const std::span<const std::byte> buffer, cons
 }
 }
 
-std::string Sha256Digest::hexadecimal_value() const {
+std::string sha256_digest::hexadecimal_value() const {
   return bytes_to_hexadecimal(bytes);
 }
 
-Sha256Digest sha256(const std::span<const std::byte> data) {
-  Sha256Digest digest;
+sha256_digest sha256(const std::span<const std::byte> data) {
+  sha256_digest digest;
   const auto* begin = reinterpret_cast<const uint8_t*>(data.data());
   std::array<unsigned char, SHA256_HASH_SIZE> hash{};
 #if defined(__APPLE__)
@@ -131,8 +131,9 @@ uint32_t packet_xxhash32(const std::span<const std::byte> header, const std::spa
 }
 
 uint32_t packet_checksum(const std::span<const std::byte> header, const std::span<const std::byte> payload,
-                         const std::size_t crc_offset, const HashAlgorithm algorithm, const std::size_t crc_size) {
-  if (algorithm == HashAlgorithm::XXHash32) {
+                         const std::size_t crc_offset, const hash_algorithm_type algorithm,
+                         const std::size_t crc_size) {
+  if (algorithm == hash_algorithm_type::XXHASH32) {
     return packet_xxhash32(header, payload, crc_offset, crc_size);
   }
   return packet_crc32(header, payload, crc_offset, crc_size);

@@ -62,8 +62,8 @@ int frame_channel_count(const AVFrame* frame) {
 }
 }
 
-StreamEncoder::StreamEncoder(const std::string& rtmp_url, const int bitrate_kilobits_per_second, const int width,
-                             const int height, const int frames_per_second)
+stream_encoder::stream_encoder(const std::string& rtmp_url, const int bitrate_kilobits_per_second, const int width,
+                               const int height, const int frames_per_second)
     : width_(width), height_(height), frames_per_second_(frames_per_second) {
   if (width <= 0 || height <= 0 || frames_per_second <= 0 || bitrate_kilobits_per_second <= 0) {
     const std::string message = "Stream resolution, frame rate and bitrate must be positive!";
@@ -82,7 +82,7 @@ StreamEncoder::StreamEncoder(const std::string& rtmp_url, const int bitrate_kilo
   }
 }
 
-StreamEncoder::~StreamEncoder() {
+stream_encoder::~stream_encoder() {
   if (!finalized_) {
     try {
       finalize();
@@ -92,7 +92,7 @@ StreamEncoder::~StreamEncoder() {
   release();
 }
 
-void StreamEncoder::release() {
+void stream_encoder::release() {
   if (av_packet_)
     av_packet_free(&av_packet_);
   if (frame_)
@@ -111,7 +111,7 @@ void StreamEncoder::release() {
   }
 }
 
-void StreamEncoder::initialize_stream(const std::string& rtmp_url, const int bitrate_kilobits_per_second) {
+void stream_encoder::initialize_stream(const std::string& rtmp_url, const int bitrate_kilobits_per_second) {
   int status = avformat_alloc_output_context2(&format_context_, nullptr, "flv", rtmp_url.c_str());
   if (status < 0 || !format_context_) {
     const std::string message = "Output context of the RTMP stream could not be created!";
@@ -141,7 +141,7 @@ void StreamEncoder::initialize_stream(const std::string& rtmp_url, const int bit
   }
 }
 
-void StreamEncoder::initialize_video_encoder(const int bitrate_kilobits_per_second) {
+void stream_encoder::initialize_video_encoder(const int bitrate_kilobits_per_second) {
   const AVCodec* codec = avcodec_find_encoder_by_name("libx264");
   if (!codec) {
     const std::string message = "Encoder libx264 could not be found, so FFmpeg may lack x264 support!";
@@ -203,7 +203,7 @@ void StreamEncoder::initialize_video_encoder(const int bitrate_kilobits_per_seco
   }
 }
 
-void StreamEncoder::initialize_audio_encoder() {
+void stream_encoder::initialize_audio_encoder() {
   const AVCodec* codec = avcodec_find_encoder(AV_CODEC_ID_AAC);
   if (!codec) {
     const std::string message = "AAC encoder could not be found!";
@@ -282,8 +282,8 @@ void StreamEncoder::initialize_audio_encoder() {
   }
 }
 
-void StreamEncoder::write_pending_packets(AVCodecContext* codec_context, const AVStream* stream,
-                                          const bool ignore_errors) {
+void stream_encoder::write_pending_packets(AVCodecContext* codec_context, const AVStream* stream,
+                                           const bool ignore_errors) {
   while (true) {
     const int status = avcodec_receive_packet(codec_context, av_packet_);
     if (status == AVERROR(EAGAIN) || status == AVERROR_EOF) {
@@ -308,7 +308,7 @@ void StreamEncoder::write_pending_packets(AVCodecContext* codec_context, const A
   }
 }
 
-void StreamEncoder::write_audio_up_to(const int64_t video_pts) {
+void stream_encoder::write_audio_up_to(const int64_t video_pts) {
   const double video_time = static_cast<double>(video_pts) / frames_per_second_;
 
   while (true) {
@@ -330,7 +330,7 @@ void StreamEncoder::write_audio_up_to(const int64_t video_pts) {
   }
 }
 
-void StreamEncoder::encode_frame() {
+void stream_encoder::encode_frame() {
   ensure_fresh_writable_frame(frame_);
 
   embed_data_into_plane(frame_->data[0], frame_->linesize[0], layout_, frame_data_buffer_);
@@ -351,7 +351,7 @@ void StreamEncoder::encode_frame() {
   write_audio_up_to(frame_->pts);
 }
 
-void StreamEncoder::add_packet(const Packet& packet) {
+void stream_encoder::add_packet(const packet& packet) {
   if (finalized_) {
     const std::string message = "Stream encoder is already finalized!";
     throw std::runtime_error(message);
@@ -363,20 +363,20 @@ void StreamEncoder::add_packet(const Packet& packet) {
   frame_data_buffer_.insert(frame_data_buffer_.end(), packet.bytes.begin(), packet.bytes.end());
 }
 
-void StreamEncoder::encode_packets(const std::vector<Packet>& packets) {
-  for (const Packet& packet : packets) {
+void stream_encoder::encode_packets(const std::vector<packet>& packets) {
+  for (const packet& packet : packets) {
     add_packet(packet);
   }
 }
 
-void StreamEncoder::flush_frame_buffer() {
+void stream_encoder::flush_frame_buffer() {
   if (frame_data_buffer_.empty())
     return;
   encode_frame();
   frame_data_buffer_.clear();
 }
 
-void StreamEncoder::flush_encoders() {
+void stream_encoder::flush_encoders() {
   avcodec_send_frame(video_codec_context_, nullptr);
   write_pending_packets(video_codec_context_, video_stream_, false);
 
@@ -384,7 +384,7 @@ void StreamEncoder::flush_encoders() {
   write_pending_packets(audio_codec_context_, audio_stream_, true);
 }
 
-void StreamEncoder::finalize() {
+void stream_encoder::finalize() {
   if (finalized_)
     return;
   finalized_ = true;

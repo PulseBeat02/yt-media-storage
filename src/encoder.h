@@ -29,37 +29,37 @@
 #include "integrity.h"
 #include "packet_format.h"
 
-struct ChunkManifestEntry {
+struct chunk_manifest_entry {
   uint32_t chunk_index = 0;
   uint32_t chunk_size = 0;
   uint32_t original_size = 0;
-  Sha256Digest sha256{};
+  sha256_digest sha256{};
   uint32_t source_symbol_count = 0;
   uint16_t symbol_size = 0;
 };
 
-class Encoder {
+class encoder {
 public:
-  using FileId = ::FileId;
+  using file_id_type = ::file_id_type;
 
-  explicit Encoder(FileId file_id, HashAlgorithm hash_algorithm = HashAlgorithm::CRC32);
+  explicit encoder(file_id_type file_id, hash_algorithm_type hash_algorithm = hash_algorithm_type::CRC32);
 
-  [[nodiscard]] std::pair<std::vector<Packet>, ChunkManifestEntry> encode_chunk(uint32_t chunk_index,
-                                                                                std::span<const std::byte> chunk_data,
-                                                                                bool is_last_chunk,
-                                                                                bool encrypted = false) const;
+  [[nodiscard]] std::pair<std::vector<packet>, chunk_manifest_entry> encode_chunk(uint32_t chunk_index,
+                                                                                  std::span<const std::byte> chunk_data,
+                                                                                  bool is_last_chunk,
+                                                                                  bool encrypted = false) const;
 
-  [[nodiscard]] const FileId& file_id() const {
+  [[nodiscard]] const file_id_type& file_id() const {
     return file_id_;
   }
 
-  [[nodiscard]] HashAlgorithm hash_algorithm() const {
+  [[nodiscard]] hash_algorithm_type hash_algorithm() const {
     return hash_algorithm_;
   }
 
 private:
-  FileId file_id_;
-  HashAlgorithm hash_algorithm_;
+  file_id_type file_id_;
+  hash_algorithm_type hash_algorithm_;
 };
 
 #endif

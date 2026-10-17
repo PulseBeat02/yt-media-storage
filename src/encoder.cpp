@@ -27,13 +27,13 @@
 #include <type_traits>
 
 namespace {
-struct WirehairCodecDeleter {
+struct wirehair_codec_deleter {
   void operator()(const WirehairCodec codec) const {
     wirehair_free(codec);
   }
 };
 
-using WirehairCodecPointer = std::unique_ptr<std::remove_pointer_t<WirehairCodec>, WirehairCodecDeleter>;
+using wirehair_codec_pointer = std::unique_ptr<std::remove_pointer_t<WirehairCodec>, wirehair_codec_deleter>;
 
 uint32_t compute_source_symbol_count(const std::size_t data_size, const std::size_t symbol_size) {
   return static_cast<uint32_t>((data_size + symbol_size - 1) / symbol_size);
@@ -44,7 +44,7 @@ uint32_t compute_repair_count(const uint32_t source_symbol_count, const double o
 }
 
 uint8_t build_flags(const uint32_t block_id, const uint32_t source_symbol_count, const bool is_last_chunk,
-                    const bool encrypted, const HashAlgorithm algorithm) {
+                    const bool encrypted, const hash_algorithm_type algorithm) {
   uint8_t flags = 0;
   if (block_id > source_symbol_count) {
     flags |= FLAG_REPAIR_SYMBOL;
@@ -55,21 +55,21 @@ uint8_t build_flags(const uint32_t block_id, const uint32_t source_symbol_count,
   if (encrypted) {
     flags |= FLAG_ENCRYPTED;
   }
-  if (algorithm == HashAlgorithm::XXHash32) {
+  if (algorithm == hash_algorithm_type::XXHASH32) {
     flags |= FLAG_USE_XXHASH;
   }
   return flags;
 }
 }
 
-Encoder::Encoder(const FileId file_id, const HashAlgorithm hash_algorithm)
+encoder::encoder(const file_id_type file_id, const hash_algorithm_type hash_algorithm)
     : file_id_(file_id), hash_algorithm_(hash_algorithm) {
 }
 
-std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const uint32_t chunk_index,
-                                                                         const std::span<const std::byte> chunk_data,
-                                                                         const bool is_last_chunk,
-                                                                         const bool encrypted) const {
+std::pair<std::vector<packet>, chunk_manifest_entry> encoder::encode_chunk(const uint32_t chunk_index,
+                                                                           const std::span<const std::byte> chunk_data,
+                                                                           const bool is_last_chunk,
+                                                                           const bool encrypted) const {
   ensure_wirehair_initialized();
 
   if (chunk_data.size() > CHUNK_SIZE_BYTES) {
@@ -91,7 +91,7 @@ std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const u
   constexpr auto symbol_size = static_cast<uint16_t>(SYMBOL_SIZE_BYTES);
   const uint32_t source_symbol_count = compute_source_symbol_count(data_to_encode.size(), SYMBOL_SIZE_BYTES);
 
-  ChunkManifestEntry manifest;
+  chunk_manifest_entry manifest;
   manifest.chunk_index = chunk_index;
   manifest.chunk_size = chunk_size;
   manifest.original_size = static_cast<uint32_t>(chunk_data.size());
@@ -99,7 +99,7 @@ std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const u
   manifest.source_symbol_count = source_symbol_count;
   manifest.sha256 = sha256(chunk_data);
 
-  static thread_local WirehairCodecPointer reusable_codec;
+  static thread_local wirehair_codec_pointer reusable_codec;
   const WirehairCodec codec = wirehair_encoder_create(
       reusable_codec.release(), reinterpret_cast<const uint8_t*>(data_to_encode.data()), chunk_size, symbol_size);
   if (!codec) {
@@ -112,10 +112,10 @@ std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const u
   const uint32_t first_block_id = INCLUDE_SOURCE ? 1u : source_symbol_count + 1u;
   const uint32_t last_block_id = source_symbol_count + repair_count;
 
-  std::vector<Packet> packets;
+  std::vector<packet> packets;
   packets.reserve(last_block_id - first_block_id + 1);
 
-  PacketHeader header;
+  packet_header header;
   header.file_id = file_id_;
   header.chunk_index = chunk_index;
   header.chunk_size = chunk_size;
@@ -124,7 +124,7 @@ std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const u
   header.source_symbol_count = source_symbol_count;
 
   for (uint32_t block_id = first_block_id; block_id <= last_block_id; ++block_id) {
-    Packet& packet = packets.emplace_back();
+    packet& packet = packets.emplace_back();
     auto* payload_destination = reinterpret_cast<uint8_t*>(packet.bytes.data() + HEADER_SIZE_V2);
     uint32_t write_length = 0;
     if (wirehair_encode(codec, block_id, payload_destination, SYMBOL_SIZE_BYTES, &write_length) != Wirehair_Success) {

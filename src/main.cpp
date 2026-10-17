@@ -29,7 +29,7 @@
 namespace {
 constexpr int STREAM_DECODE_TIMEOUT_SECONDS = 30;
 
-struct CliOptions {
+struct cli_options {
   std::string command;
   std::string input_path;
   std::string output_path;
@@ -108,7 +108,7 @@ void print_statistics(const ms_result_t& result) {
             << "  Frames: " << result.total_frames << "\n";
 }
 
-int do_encode(const CliOptions& cli) {
+int do_encode(const cli_options& cli) {
   std::cout << "Input: " << cli.input_path << "\n";
   std::cout << "Output: " << cli.output_path << "\n";
 
@@ -133,7 +133,7 @@ int do_encode(const CliOptions& cli) {
   return 0;
 }
 
-int do_decode(const CliOptions& cli) {
+int do_decode(const cli_options& cli) {
   std::cout << "Input: " << cli.input_path << "\n";
   std::cout << "Output: " << cli.output_path << "\n";
 
@@ -156,7 +156,7 @@ int do_decode(const CliOptions& cli) {
   return 0;
 }
 
-int do_stream_encode(const CliOptions& cli) {
+int do_stream_encode(const cli_options& cli) {
   std::cout << "Input: " << cli.input_path << "\n";
   std::cout << "Stream URL: " << cli.stream_url << "\n";
   std::cout << "Resolution: " << cli.width << "x" << cli.height << " (" << cli.frames_per_second << " fps)\n";
@@ -185,7 +185,7 @@ int do_stream_encode(const CliOptions& cli) {
   return 0;
 }
 
-int do_stream_decode(const CliOptions& cli) {
+int do_stream_decode(const cli_options& cli) {
   std::cout << "Stream URL: " << cli.stream_url << "\n";
   std::cout << "Output: " << cli.output_path << "\n";
   std::cout << "Waiting for stream...\n";
@@ -218,8 +218,8 @@ std::optional<int> parse_positive_integer(const std::string_view text) {
   return value;
 }
 
-std::optional<CliOptions> parse_arguments(const int argc, char* argv[]) {
-  CliOptions cli;
+std::optional<cli_options> parse_arguments(const int argc, char* argv[]) {
+  cli_options cli;
   cli.command = argv[1];
 
   const auto take_value = [&](int& i) -> std::optional<std::string_view> {

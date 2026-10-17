@@ -32,7 +32,7 @@ constexpr const char* CHUNK_TOO_SMALL_MESSAGE = "Chunk is too small to decrypt!"
 constexpr const char* DECRYPTION_FAILURE_MESSAGE =
     "Chunk could not be decrypted, because the password is wrong or the data is corrupted!";
 
-using Nonce = std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_NPUBBYTES>;
+using nonce = std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_NPUBBYTES>;
 
 void ensure_sodium_initialized() {
   static std::once_flag initialization_flag;
@@ -44,8 +44,8 @@ void ensure_sodium_initialized() {
   });
 }
 
-Nonce build_nonce(const std::span<const std::byte, FILE_ID_SIZE> file_id, const uint32_t chunk_index) {
-  Nonce nonce{};
+nonce build_nonce(const std::span<const std::byte, FILE_ID_SIZE> file_id, const uint32_t chunk_index) {
+  nonce nonce{};
   std::memcpy(nonce.data(), file_id.data(), FILE_ID_SIZE);
   nonce[FILE_ID_SIZE] = static_cast<unsigned char>(chunk_index & 0xff);
   nonce[FILE_ID_SIZE + 1] = static_cast<unsigned char>((chunk_index >> 8) & 0xff);
@@ -62,9 +62,9 @@ void write_plain_size_header(std::span<std::byte> out, const uint32_t plain_size
 }
 }
 
-FileId generate_file_id() {
+file_id_type generate_file_id() {
   ensure_sodium_initialized();
-  FileId id{};
+  file_id_type id{};
   randombytes_buf(id.data(), id.size());
   return id;
 }
@@ -78,10 +78,10 @@ uint32_t read_plain_size_from_header(const std::span<const std::byte> chunk) {
   return plain_size;
 }
 
-CryptoKey derive_key(const std::span<const std::byte> password, const std::span<const std::byte, FILE_ID_SIZE> salt) {
+crypto_key derive_key(const std::span<const std::byte> password, const std::span<const std::byte, FILE_ID_SIZE> salt) {
   ensure_sodium_initialized();
 
-  CryptoKey key{};
+  crypto_key key{};
   if (crypto_pwhash(reinterpret_cast<unsigned char*>(key.data()), key.size(),
                     reinterpret_cast<const char*>(password.data()), password.size(),
                     reinterpret_cast<const unsigned char*>(salt.data()), crypto_pwhash_OPSLIMIT_INTERACTIVE,
@@ -98,7 +98,7 @@ std::vector<std::byte> encrypt_chunk(const std::span<const std::byte> plain,
                                      const uint32_t chunk_index) {
   ensure_sodium_initialized();
 
-  const Nonce nonce = build_nonce(file_id, chunk_index);
+  const nonce nonce = build_nonce(file_id, chunk_index);
   const std::size_t cipher_length = plain.size() + crypto_aead_xchacha20poly1305_ietf_ABYTES;
   std::vector<std::byte> result(CRYPTO_PLAIN_SIZE_HEADER + cipher_length);
   write_plain_size_header(result, static_cast<uint32_t>(plain.size()));
@@ -132,7 +132,7 @@ void decrypt_chunk_into(const std::span<std::byte> out, const std::span<const st
     throw std::runtime_error(DECRYPTION_FAILURE_MESSAGE);
   }
 
-  const Nonce nonce = build_nonce(file_id, chunk_index);
+  const nonce nonce = build_nonce(file_id, chunk_index);
   const auto cipher = chunk_from_decoder.subspan(CRYPTO_PLAIN_SIZE_HEADER, cipher_length);
 
   unsigned long long written = 0;

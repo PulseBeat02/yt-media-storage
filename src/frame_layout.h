@@ -23,7 +23,7 @@
 #include <cstdint>
 #include <span>
 
-struct FrameLayout {
+struct frame_layout {
   int frame_width;
   int frame_height;
   int blocks_per_row;
@@ -33,14 +33,14 @@ struct FrameLayout {
   int bytes_per_frame;
 };
 
-[[nodiscard]] FrameLayout compute_frame_layout();
+[[nodiscard]] frame_layout compute_frame_layout();
 
-[[nodiscard]] FrameLayout compute_frame_layout(int width, int height);
+[[nodiscard]] frame_layout compute_frame_layout(int width, int height);
 
-[[nodiscard]] int packets_per_frame(const FrameLayout& layout);
+[[nodiscard]] int packets_per_frame(const frame_layout& layout);
 
 [[nodiscard]] std::size_t maximum_packet_bytes_per_frame();
 
-void embed_data_into_plane(uint8_t* plane, int stride, const FrameLayout& layout, std::span<const std::byte> data);
+void embed_data_into_plane(uint8_t* plane, int stride, const frame_layout& layout, std::span<const std::byte> data);
 
 #endif

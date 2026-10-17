@@ -185,12 +185,12 @@ bool wait_until(const std::function<bool()>& condition) {
 }
 
 struct worker_recorder {
-  explicit worker_recorder(WorkerThread& worker) {
-    QObject::connect(&worker, &WorkerThread::progressUpdated, &context,
+  explicit worker_recorder(worker_thread& worker) {
+    QObject::connect(&worker, &worker_thread::progress_updated, &context,
                      [this](const int value) { progress.push_back(value); });
-    QObject::connect(&worker, &WorkerThread::logMessage, &context,
+    QObject::connect(&worker, &worker_thread::log_message, &context,
                      [this](const QString& message) { logs.append(message); });
-    QObject::connect(&worker, &WorkerThread::operationCompleted, &context,
+    QObject::connect(&worker, &worker_thread::operation_completed, &context,
                      [this](const bool succeeded) { success = succeeded; });
   }
 
@@ -213,7 +213,7 @@ protected:
   drive_manager_ui_test()
       : input_(".bin"), video_(".mkv"), output_(".out"), input_data_(fixtures::make_pattern(SMALL_INPUT_SIZE)) {
     fixtures::write_bytes(input_.path(), input_data_);
-    window_ = std::make_unique<DriveManagerUI>();
+    window_ = std::make_unique<drive_manager_ui>();
     window_->show();
   }
 
@@ -345,7 +345,7 @@ protected:
   fixtures::temporary_file output_;
   std::vector<std::byte> input_data_;
   dialog_driver driver_;
-  std::unique_ptr<DriveManagerUI> window_;
+  std::unique_ptr<drive_manager_ui> window_;
 };
 
 }
@@ -644,7 +644,7 @@ TEST_F(drive_manager_ui_test, should_warn_when_an_operation_is_already_running) 
   const bool encode_enabled = encode_button_enabled();
   EXPECT_FALSE(encode_enabled);
 
-  QMetaObject::invokeMethod(window_.get(), "startDecode");
+  QMetaObject::invokeMethod(window_.get(), "start_decode");
 
   const bool busy_warning_shown = driver_.has_message("Warning", "An operation is already in progress");
   const bool encode_succeeded = wait_for_message("Success", "Encoding completed successfully");
@@ -657,7 +657,7 @@ TEST_F(drive_manager_ui_test, should_warn_when_a_batch_starts_while_an_operation
   QPushButton* const encode = button("File Operations", "Encode to Video");
 
   encode->click();
-  QMetaObject::invokeMethod(window_.get(), "startBatchEncode");
+  QMetaObject::invokeMethod(window_.get(), "start_batch_encode");
 
   const bool busy_warning_shown = driver_.has_message("Warning", "An operation is already in progress");
   const bool encode_succeeded = wait_for_message("Success", "Encoding completed successfully");
@@ -856,11 +856,11 @@ TEST(worker_thread_test, should_report_progress_and_completion_for_an_encode) {
   const fixtures::temporary_file input(".bin");
   const fixtures::temporary_file video(".mkv");
   fixtures::write_bytes(input.path(), fixtures::make_pattern(SMALL_INPUT_SIZE));
-  WorkerRequest request;
-  request.operation = WorkerRequest::Operation::Encode;
-  request.inputPath = to_qstring(input);
-  request.outputPath = to_qstring(video);
-  WorkerThread worker(request);
+  worker_request request;
+  request.operation = worker_request::operation_type::ENCODE;
+  request.input_path = to_qstring(input);
+  request.output_path = to_qstring(video);
+  worker_thread worker(request);
   worker_recorder recorder(worker);
 
   worker.start();
@@ -882,15 +882,15 @@ TEST(worker_thread_test, should_stream_with_the_requested_settings) {
   const fixtures::temporary_file input(".bin");
   const fixtures::temporary_file stream(".flv");
   fixtures::write_bytes(input.path(), fixtures::make_pattern(SMALL_INPUT_SIZE));
-  WorkerRequest request;
-  request.operation = WorkerRequest::Operation::StreamEncode;
-  request.inputPath = to_qstring(input);
-  request.streamUrl = to_qstring(stream);
+  worker_request request;
+  request.operation = worker_request::operation_type::STREAM_ENCODE;
+  request.input_path = to_qstring(input);
+  request.stream_url = to_qstring(stream);
   request.width = STREAM_WIDTH;
   request.height = STREAM_HEIGHT;
-  request.framesPerSecond = STREAM_FRAMES_PER_SECOND;
-  request.bitrateKilobitsPerSecond = STREAM_BITRATE;
-  WorkerThread worker(request);
+  request.frames_per_second = STREAM_FRAMES_PER_SECOND;
+  request.bitrate_kilobits_per_second = STREAM_BITRATE;
+  worker_thread worker(request);
   worker_recorder recorder(worker);
 
   worker.start();

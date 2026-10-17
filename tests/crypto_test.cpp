@@ -65,10 +65,10 @@ std::vector<std::byte> make_patterned_data(const std::size_t byte_count, const u
 } // namespace
 
 TEST(crypto_test, should_generate_distinct_file_ids) {
-  const FileId first = generate_file_id();
-  const FileId second = generate_file_id();
+  const file_id_type first = generate_file_id();
+  const file_id_type second = generate_file_id();
   EXPECT_NE(first, second);
-  EXPECT_NE(first, FileId{});
+  EXPECT_NE(first, file_id_type{});
 }
 
 TEST(crypto_test, should_derive_the_same_key_from_the_same_password_and_salt) {

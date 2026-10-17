@@ -28,15 +28,15 @@
 #include "configuration.h"
 #include "integrity.h"
 
-struct Packet {
+struct packet {
   std::array<std::byte, PACKET_SIZE> bytes{};
 };
 
-struct PacketHeader {
+struct packet_header {
   uint32_t magic = 0;
   uint8_t version = 0;
   uint8_t flags = 0;
-  FileId file_id{};
+  file_id_type file_id{};
   uint32_t chunk_index = 0;
   uint32_t chunk_size = 0;
   uint32_t original_size = 0; // v2 only; equals chunk_size for v1
@@ -46,26 +46,26 @@ struct PacketHeader {
   uint16_t payload_length = 0;
   uint32_t crc = 0;
 
-  [[nodiscard]] HashAlgorithm hash_algorithm() const {
-    return (flags & FLAG_USE_XXHASH) ? HashAlgorithm::XXHash32 : HashAlgorithm::CRC32;
+  [[nodiscard]] hash_algorithm_type hash_algorithm() const {
+    return (flags & FLAG_USE_XXHASH) ? hash_algorithm_type::XXHASH32 : hash_algorithm_type::CRC32;
   }
 };
 
-struct ParsedPacket {
-  PacketHeader header;
+struct parsed_packet {
+  packet_header header;
   std::span<const std::byte> raw_header;
   std::span<const std::byte> payload;
 };
 
 [[nodiscard]] std::size_t packet_header_size(uint8_t version);
 
-void write_packet_header(std::span<std::byte> destination, const PacketHeader& header,
-                         std::span<const std::byte> payload, HashAlgorithm algorithm);
+void write_packet_header(std::span<std::byte> destination, const packet_header& header,
+                         std::span<const std::byte> payload, hash_algorithm_type algorithm);
 
-[[nodiscard]] std::optional<ParsedPacket> parse_packet(std::span<const std::byte> packet);
+[[nodiscard]] std::optional<parsed_packet> parse_packet(std::span<const std::byte> packet);
 
-[[nodiscard]] bool verify_packet_checksum(const ParsedPacket& packet);
+[[nodiscard]] bool verify_packet_checksum(const parsed_packet& packet);
 
-[[nodiscard]] std::optional<ParsedPacket> parse_and_verify_packet(std::span<const std::byte> packet);
+[[nodiscard]] std::optional<parsed_packet> parse_and_verify_packet(std::span<const std::byte> packet);
 
 #endif

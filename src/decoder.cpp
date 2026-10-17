@@ -30,12 +30,12 @@ namespace {
 constexpr const char* DATA_NOT_DECODED_MESSAGE = "Chunk data is not decoded yet!";
 }
 
-void ChunkDecoder::CodecDeleter::operator()(void* codec) const {
+void chunk_decoder::codec_deleter::operator()(void* codec) const {
   wirehair_free(static_cast<WirehairCodec>(codec));
 }
 
-ChunkDecoder::ChunkDecoder(const uint32_t chunk_index, const uint32_t chunk_size, const uint32_t source_symbol_count,
-                           const uint16_t symbol_size)
+chunk_decoder::chunk_decoder(const uint32_t chunk_index, const uint32_t chunk_size, const uint32_t source_symbol_count,
+                             const uint16_t symbol_size)
     : chunk_index_(chunk_index), chunk_size_(chunk_size), source_symbol_count_(source_symbol_count),
       symbol_size_(symbol_size) {
   ensure_wirehair_initialized();
@@ -46,7 +46,7 @@ ChunkDecoder::ChunkDecoder(const uint32_t chunk_index, const uint32_t chunk_size
   }
 }
 
-bool ChunkDecoder::add_packet(const uint32_t esi, const std::span<const std::byte> payload) {
+bool chunk_decoder::add_packet(const uint32_t esi, const std::span<const std::byte> payload) {
   if (decoded_) {
     return true;
   }
@@ -76,22 +76,22 @@ bool ChunkDecoder::add_packet(const uint32_t esi, const std::span<const std::byt
   return true;
 }
 
-std::vector<std::byte> ChunkDecoder::get_decoded_data() const {
+std::vector<std::byte> chunk_decoder::get_decoded_data() const {
   if (!decoded_) {
     throw std::runtime_error(DATA_NOT_DECODED_MESSAGE);
   }
   return decoded_data_;
 }
 
-std::vector<std::byte> ChunkDecoder::consume_decoded_data() {
+std::vector<std::byte> chunk_decoder::consume_decoded_data() {
   if (!decoded_) {
     throw std::runtime_error(DATA_NOT_DECODED_MESSAGE);
   }
   return std::move(decoded_data_);
 }
 
-std::optional<ChunkDecodeResult> Decoder::process_packet(const std::span<const std::byte> packet_data,
-                                                         const bool compute_sha256) {
+std::optional<chunk_decode_result> decoder::process_packet(const std::span<const std::byte> packet_data,
+                                                           const bool compute_sha256) {
   const auto parsed = parse_and_verify_packet(packet_data);
   if (!parsed) {
     ++total_packets_;
@@ -100,11 +100,11 @@ std::optional<ChunkDecodeResult> Decoder::process_packet(const std::span<const s
   return process_verified_packet(*parsed, compute_sha256);
 }
 
-std::optional<ChunkDecodeResult> Decoder::process_verified_packet(const ParsedPacket& packet,
-                                                                  const bool compute_sha256) {
+std::optional<chunk_decode_result> decoder::process_verified_packet(const parsed_packet& packet,
+                                                                    const bool compute_sha256) {
   ++total_packets_;
 
-  const PacketHeader& header = packet.header;
+  const packet_header& header = packet.header;
   if (!file_id_) {
     file_id_ = header.file_id;
     encrypted_ = (header.flags & FLAG_ENCRYPTED) != 0;
@@ -122,7 +122,7 @@ std::optional<ChunkDecodeResult> Decoder::process_verified_packet(const ParsedPa
   if (header.chunk_index >= active_decoders_.size()) {
     active_decoders_.resize(header.chunk_index + 1);
   }
-  std::optional<ChunkDecoder>& slot = active_decoders_[header.chunk_index];
+  std::optional<chunk_decoder>& slot = active_decoders_[header.chunk_index];
   if (!slot) {
     slot.emplace(header.chunk_index, header.chunk_size, header.source_symbol_count, header.symbol_size);
   }
@@ -131,7 +131,7 @@ std::optional<ChunkDecodeResult> Decoder::process_verified_packet(const ParsedPa
     return std::nullopt;
   }
 
-  ChunkDecodeResult result;
+  chunk_decode_result result;
   result.chunk_index = header.chunk_index;
   result.data = slot->consume_decoded_data();
   result.data.resize(std::min(static_cast<uint32_t>(result.data.size()), header.original_size));
@@ -150,18 +150,18 @@ std::optional<ChunkDecodeResult> Decoder::process_verified_packet(const ParsedPa
   return result;
 }
 
-bool Decoder::is_chunk_complete(const uint32_t chunk_index) const {
+bool decoder::is_chunk_complete(const uint32_t chunk_index) const {
   return chunk_index < completed_chunks_.size() && completed_chunks_[chunk_index].has_value();
 }
 
-std::optional<std::vector<std::byte>> Decoder::get_chunk_data(const uint32_t chunk_index) const {
+std::optional<std::vector<std::byte>> decoder::get_chunk_data(const uint32_t chunk_index) const {
   if (is_chunk_complete(chunk_index)) {
     return *completed_chunks_[chunk_index];
   }
   return std::nullopt;
 }
 
-std::vector<uint32_t> Decoder::completed_chunk_indices() const {
+std::vector<uint32_t> decoder::completed_chunk_indices() const {
   std::vector<uint32_t> indices;
   indices.reserve(completed_count_);
   for (uint32_t i = 0; i < completed_chunks_.size(); ++i) {
@@ -172,19 +172,19 @@ std::vector<uint32_t> Decoder::completed_chunk_indices() const {
   return indices;
 }
 
-void Decoder::set_decrypt_key(const std::span<const std::byte, CRYPTO_KEY_BYTES> key) {
+void decoder::set_decrypt_key(const std::span<const std::byte, CRYPTO_KEY_BYTES> key) {
   std::memcpy(decrypt_key_.data(), key.data(), CRYPTO_KEY_BYTES);
   decrypt_key_set_ = true;
 }
 
-void Decoder::clear_decrypt_key() {
+void decoder::clear_decrypt_key() {
   if (decrypt_key_set_) {
     secure_zero(decrypt_key_);
     decrypt_key_set_ = false;
   }
 }
 
-bool Decoder::ready_to_assemble(const uint32_t expected_chunks) const {
+bool decoder::ready_to_assemble(const uint32_t expected_chunks) const {
   if (completed_count_ != expected_chunks || completed_chunks_.size() > expected_chunks) {
     return false;
   }
@@ -199,7 +199,7 @@ bool Decoder::ready_to_assemble(const uint32_t expected_chunks) const {
   return true;
 }
 
-std::optional<std::vector<std::size_t>> Decoder::plain_chunk_sizes(const uint32_t expected_chunks) const {
+std::optional<std::vector<std::size_t>> decoder::plain_chunk_sizes(const uint32_t expected_chunks) const {
   if (!ready_to_assemble(expected_chunks)) {
     return std::nullopt;
   }
@@ -222,7 +222,7 @@ std::optional<std::vector<std::size_t>> Decoder::plain_chunk_sizes(const uint32_
   return sizes;
 }
 
-bool Decoder::decrypt_chunk_to(const uint32_t chunk_index, const std::span<std::byte> out) const {
+bool decoder::decrypt_chunk_to(const uint32_t chunk_index, const std::span<std::byte> out) const {
   try {
     decrypt_chunk_into(out, *completed_chunks_[chunk_index], decrypt_key_, *file_id_, chunk_index);
     return true;
@@ -231,7 +231,7 @@ bool Decoder::decrypt_chunk_to(const uint32_t chunk_index, const std::span<std::
   }
 }
 
-std::optional<std::vector<std::byte>> Decoder::assemble_file(const uint32_t expected_chunks) const {
+std::optional<std::vector<std::byte>> decoder::assemble_file(const uint32_t expected_chunks) const {
   const auto sizes = plain_chunk_sizes(expected_chunks);
   if (!sizes) {
     return std::nullopt;
@@ -263,7 +263,7 @@ std::optional<std::vector<std::byte>> Decoder::assemble_file(const uint32_t expe
   return result;
 }
 
-bool Decoder::write_assembled_file(const std::string& output_path, const uint32_t expected_chunks) const {
+bool decoder::write_assembled_file(const std::string& output_path, const uint32_t expected_chunks) const {
   const auto sizes = plain_chunk_sizes(expected_chunks);
   if (!sizes) {
     return false;

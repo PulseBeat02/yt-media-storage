@@ -109,13 +109,13 @@ static_assert(BITS_PER_BLOCK >= 1 && BITS_PER_BLOCK <= static_cast<int>(std::siz
               "BITS_PER_BLOCK must not exceed the number of embed positions");
 static_assert(8 % BITS_PER_BLOCK == 0, "BITS_PER_BLOCK must divide 8");
 
-struct CosineTable {
+struct cosine_table {
   float data[8][8];
 };
 
-inline const CosineTable& get_cosine_table() {
-  static const CosineTable table = [] {
-    CosineTable cosine_table{};
+inline const cosine_table& get_cosine_table() {
+  static const cosine_table table = [] {
+    cosine_table cosine_table{};
     for (int i = 0; i < 8; ++i) {
       for (int j = 0; j < 8; ++j) {
         cosine_table.data[i][j] = std::cos((2.0f * static_cast<float>(i) + 1.0f) * static_cast<float>(j) * PI / 16.0f);
@@ -130,14 +130,14 @@ constexpr float alpha(const int u) {
   return u == 0 ? 0.70710678118654752f : 1.0f;
 }
 
-struct PrecomputedBlocks {
+struct precomputed_blocks {
   static constexpr int PATTERN_COUNT = 1 << BITS_PER_BLOCK;
   uint8_t patterns[PATTERN_COUNT][8][8];
 };
 
-inline const PrecomputedBlocks& get_precomputed_blocks() {
-  static const PrecomputedBlocks blocks = [] {
-    PrecomputedBlocks result{};
+inline const precomputed_blocks& get_precomputed_blocks() {
+  static const precomputed_blocks blocks = [] {
+    precomputed_blocks result{};
     const auto& [data] = get_cosine_table();
 
     constexpr float dc_value = 0.25f * alpha(0) * alpha(0) * 64.0f * 128.0f;
@@ -160,7 +160,7 @@ inline const PrecomputedBlocks& get_precomputed_blocks() {
       }
     }
 
-    for (int pattern = 0; pattern < PrecomputedBlocks::PATTERN_COUNT; ++pattern) {
+    for (int pattern = 0; pattern < precomputed_blocks::PATTERN_COUNT; ++pattern) {
       for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
           float value = dc_image[y][x];
@@ -179,13 +179,13 @@ inline const PrecomputedBlocks& get_precomputed_blocks() {
   return blocks;
 }
 
-struct DecoderProjections {
+struct decoder_projections {
   alignas(32) float vectors[4][64];
 };
 
-inline const DecoderProjections& get_decoder_projections() {
-  static const DecoderProjections projections = [] {
-    DecoderProjections decoder_projections{};
+inline const decoder_projections& get_decoder_projections() {
+  static const decoder_projections projections = [] {
+    decoder_projections decoder_projections{};
     const auto& [data] = get_cosine_table();
     for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
       const auto [u, v] = EMBED_POSITIONS[bit_index];

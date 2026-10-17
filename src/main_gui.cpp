@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
     QApplication::setStyle("Fusion");
   }
 
-  DriveManagerUI window;
+  drive_manager_ui window;
   window.show();
 
   return QApplication::exec();

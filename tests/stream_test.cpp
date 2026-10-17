@@ -38,8 +38,8 @@
 #include <vector>
 
 namespace {
-Encoder::FileId make_test_file_id() {
-  Encoder::FileId file_id{};
+encoder::file_id_type make_test_file_id() {
+  encoder::file_id_type file_id{};
   for (std::size_t i = 0; i < file_id.size(); ++i) {
     file_id[i] = std::byte{static_cast<uint8_t>(i)};
   }
@@ -54,13 +54,13 @@ std::vector<std::byte> make_random_data(const std::size_t byte_count) {
   return data;
 }
 
-struct TemporaryFile {
+struct temporary_file {
   const std::string path;
 
-  explicit TemporaryFile(const std::string& name) : path((std::filesystem::temp_directory_path() / name).string()) {
+  explicit temporary_file(const std::string& name) : path((std::filesystem::temp_directory_path() / name).string()) {
   }
 
-  ~TemporaryFile() {
+  ~temporary_file() {
     std::filesystem::remove(path);
   }
 };
@@ -77,10 +77,10 @@ void stream_encode_file(const std::string& input_path, const std::string& output
                         const int bitrate_kilobits_per_second, const int width, const int height,
                         const bool encrypt = false, const std::string& password = {},
                         const int frames_per_second = FRAMES_PER_SECOND) {
-  const FileChunkReader reader(input_path.c_str(), encrypt ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : 0);
+  const file_chunk_reader reader(input_path.c_str(), encrypt ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : 0);
   const std::size_t chunk_count = reader.chunk_count();
   const auto file_id = make_test_file_id();
-  const Encoder encoder(file_id);
+  const encoder encoder(file_id);
 
   std::array<std::byte, CRYPTO_KEY_BYTES> key{};
   if (encrypt) {
@@ -88,7 +88,7 @@ void stream_encode_file(const std::string& input_path, const std::string& output
     key = derive_key(password_bytes, file_id);
   }
 
-  StreamEncoder stream_encoder(output_flv, bitrate_kilobits_per_second, width, height, frames_per_second);
+  stream_encoder stream_encoder(output_flv, bitrate_kilobits_per_second, width, height, frames_per_second);
 
   for (std::size_t i = 0; i < chunk_count; ++i) {
     std::vector<std::byte> chunk_data = reader.read_chunk(i);
@@ -109,8 +109,8 @@ void stream_encode_file(const std::string& input_path, const std::string& output
 }
 
 std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std::string& password = {}) {
-  VideoDecoder video_decoder(flv_path);
-  Decoder decoder;
+  video_decoder video_decoder(flv_path);
+  decoder decoder;
   std::size_t total_extracted = 0;
   std::size_t decoded_chunks = 0;
   uint32_t maximum_chunk_index = 0;
@@ -165,8 +165,8 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
 
 TEST(stream_test, should_restore_a_small_file_from_1080p_frames) {
   const auto original = make_random_data(65536);
-  const TemporaryFile input("test_stream_input.bin");
-  const TemporaryFile flv("test_stream_1080.flv");
+  const temporary_file input("test_stream_input.bin");
+  const temporary_file flv("test_stream_1080.flv");
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));
@@ -180,8 +180,8 @@ TEST(stream_test, should_restore_a_small_file_from_1080p_frames) {
 
 TEST(stream_test, should_restore_a_small_file_from_4k_frames) {
   const auto original = make_random_data(65536);
-  const TemporaryFile input("test_stream_input_4k.bin");
-  const TemporaryFile flv("test_stream_4k.flv");
+  const temporary_file input("test_stream_input_4k.bin");
+  const temporary_file flv("test_stream_4k.flv");
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 35000, 3840, 2160));
@@ -195,8 +195,8 @@ TEST(stream_test, should_restore_a_small_file_from_4k_frames) {
 
 TEST(stream_test, should_restore_a_larger_file_from_1080p_frames) {
   const auto original = make_random_data(256 * 1024);
-  const TemporaryFile input("test_stream_input_256k.bin");
-  const TemporaryFile flv("test_stream_256k.flv");
+  const temporary_file input("test_stream_input_256k.bin");
+  const temporary_file flv("test_stream_256k.flv");
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));
@@ -210,8 +210,8 @@ TEST(stream_test, should_restore_a_larger_file_from_1080p_frames) {
 
 TEST(stream_test, should_restore_an_encrypted_file_from_frames) {
   const auto original = make_random_data(65536);
-  const TemporaryFile input("test_stream_enc_input.bin");
-  const TemporaryFile flv("test_stream_enc.flv");
+  const temporary_file input("test_stream_enc_input.bin");
+  const temporary_file flv("test_stream_enc.flv");
   write_file(input.path, original);
 
   const std::string password = "test_password_123";
@@ -227,8 +227,8 @@ TEST(stream_test, should_restore_an_encrypted_file_from_frames) {
 
 TEST(stream_test, should_restore_small_data_from_frames) {
   const auto original = make_random_data(100);
-  const TemporaryFile input("test_stream_small.bin");
-  const TemporaryFile flv("test_stream_small.flv");
+  const temporary_file input("test_stream_small.bin");
+  const temporary_file flv("test_stream_small.flv");
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));
@@ -241,7 +241,7 @@ TEST(stream_test, should_restore_small_data_from_frames) {
 }
 
 TEST(stream_test, should_lay_out_1080p_frames) {
-  const FrameLayout layout = compute_frame_layout(1920, 1080);
+  const frame_layout layout = compute_frame_layout(1920, 1080);
   EXPECT_EQ(layout.frame_width, 1920);
   EXPECT_EQ(layout.frame_height, 1080);
   EXPECT_EQ(layout.blocks_per_row, 240);
@@ -250,7 +250,7 @@ TEST(stream_test, should_lay_out_1080p_frames) {
 }
 
 TEST(stream_test, should_lay_out_4k_frames) {
-  const FrameLayout layout = compute_frame_layout(3840, 2160);
+  const frame_layout layout = compute_frame_layout(3840, 2160);
   EXPECT_EQ(layout.frame_width, 3840);
   EXPECT_EQ(layout.frame_height, 2160);
   EXPECT_EQ(layout.blocks_per_row, 480);
@@ -259,8 +259,8 @@ TEST(stream_test, should_lay_out_4k_frames) {
 }
 
 TEST(stream_test, should_lay_out_default_frames_from_the_configuration) {
-  const FrameLayout default_layout = compute_frame_layout();
-  const FrameLayout explicit_layout = compute_frame_layout(FRAME_WIDTH, FRAME_HEIGHT);
+  const frame_layout default_layout = compute_frame_layout();
+  const frame_layout explicit_layout = compute_frame_layout(FRAME_WIDTH, FRAME_HEIGHT);
   EXPECT_EQ(default_layout.frame_width, explicit_layout.frame_width);
   EXPECT_EQ(default_layout.frame_height, explicit_layout.frame_height);
   EXPECT_EQ(default_layout.total_blocks, explicit_layout.total_blocks);
@@ -269,15 +269,15 @@ TEST(stream_test, should_lay_out_default_frames_from_the_configuration) {
 
 TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
   const auto original = make_random_data(65536);
-  const TemporaryFile input("test_mkv_input.bin");
-  const TemporaryFile mkv("test_mkv_roundtrip.mkv");
+  const temporary_file input("test_mkv_input.bin");
+  const temporary_file mkv("test_mkv_roundtrip.mkv");
   write_file(input.path, original);
 
   {
-    const FileChunkReader reader(input.path.c_str());
+    const file_chunk_reader reader(input.path.c_str());
     const auto file_id = make_test_file_id();
-    const Encoder encoder(file_id);
-    VideoEncoder video_encoder(mkv.path);
+    const encoder encoder(file_id);
+    video_encoder video_encoder(mkv.path);
 
     for (std::size_t i = 0; i < reader.chunk_count(); ++i) {
       auto chunk_data = reader.read_chunk(i);
@@ -292,8 +292,8 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
   ASSERT_TRUE(mkv_exists);
 
   {
-    VideoDecoder video_decoder(mkv.path);
-    Decoder decoder;
+    video_decoder video_decoder(mkv.path);
+    decoder decoder;
     std::size_t decoded_chunks = 0;
     uint32_t last_chunk_index = 0;
     bool found_last = false;
@@ -329,15 +329,15 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
 
 TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
   const auto original = make_random_data(65536);
-  const TemporaryFile input("test_stream_xxhash_input.bin");
-  const TemporaryFile flv("test_stream_xxhash.flv");
+  const temporary_file input("test_stream_xxhash_input.bin");
+  const temporary_file flv("test_stream_xxhash.flv");
   write_file(input.path, original);
 
   {
-    const FileChunkReader reader(input.path.c_str());
+    const file_chunk_reader reader(input.path.c_str());
     const auto file_id = make_test_file_id();
-    const Encoder encoder(file_id, HashAlgorithm::XXHash32);
-    StreamEncoder stream_encoder(flv.path, 8000, 1920, 1080);
+    const encoder encoder(file_id, hash_algorithm_type::XXHASH32);
+    stream_encoder stream_encoder(flv.path, 8000, 1920, 1080);
 
     for (std::size_t i = 0; i < reader.chunk_count(); ++i) {
       auto chunk_data = reader.read_chunk(i);
@@ -357,8 +357,8 @@ TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
 
 TEST(stream_test, should_restore_a_file_from_720p_frames) {
   const auto original = make_random_data(32768);
-  const TemporaryFile input("test_stream_720p_input.bin");
-  const TemporaryFile flv("test_stream_720p.flv");
+  const temporary_file input("test_stream_720p_input.bin");
+  const temporary_file flv("test_stream_720p.flv");
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 4000, 1280, 720));
@@ -372,8 +372,8 @@ TEST(stream_test, should_restore_a_file_from_720p_frames) {
 
 TEST(stream_test, should_restore_a_file_from_sixty_frames_per_second) {
   const auto original = make_random_data(65536);
-  const TemporaryFile input("test_stream_60fps_input.bin");
-  const TemporaryFile flv("test_stream_60fps.flv");
+  const temporary_file input("test_stream_60fps_input.bin");
+  const temporary_file flv("test_stream_60fps.flv");
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1280, 720, false, {}, 60));
@@ -387,8 +387,8 @@ TEST(stream_test, should_restore_a_file_from_sixty_frames_per_second) {
 
 TEST(stream_test, should_restore_a_file_from_one_frame_per_second) {
   const auto original = make_random_data(32768);
-  const TemporaryFile input("test_stream_1fps_input.bin");
-  const TemporaryFile flv("test_stream_1fps.flv");
+  const temporary_file input("test_stream_1fps_input.bin");
+  const temporary_file flv("test_stream_1fps.flv");
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 4000, 1280, 720, false, {}, 1));
@@ -401,13 +401,13 @@ TEST(stream_test, should_restore_a_file_from_one_frame_per_second) {
 }
 
 TEST(stream_test, should_reject_invalid_stream_parameters) {
-  EXPECT_THROW(StreamEncoder("unused.flv", 8000, 1280, 720, 0), std::invalid_argument);
-  EXPECT_THROW(StreamEncoder("unused.flv", 0, 1280, 720, 30), std::invalid_argument);
-  EXPECT_THROW(StreamEncoder("unused.flv", 8000, 16, 16, 30), std::invalid_argument);
+  EXPECT_THROW(stream_encoder("unused.flv", 8000, 1280, 720, 0), std::invalid_argument);
+  EXPECT_THROW(stream_encoder("unused.flv", 0, 1280, 720, 30), std::invalid_argument);
+  EXPECT_THROW(stream_encoder("unused.flv", 8000, 16, 16, 30), std::invalid_argument);
 }
 
 TEST(stream_test, should_fit_at_least_one_packet_in_a_frame) {
-  const int encoder_packets_per_frame = VideoEncoder::packets_per_frame();
+  const int encoder_packets_per_frame = video_encoder::packets_per_frame();
   const int expected_packet_count = packets_per_frame(compute_frame_layout());
   EXPECT_GT(encoder_packets_per_frame, 0);
   EXPECT_EQ(encoder_packets_per_frame, expected_packet_count);
@@ -419,15 +419,15 @@ TEST(stream_test, should_fit_at_least_one_packet_in_a_frame) {
 
 TEST(stream_test, should_fit_the_packet_bytes_the_layout_holds) {
   const std::size_t maximum_bytes = maximum_packet_bytes_per_frame();
-  const FrameLayout layout = compute_frame_layout();
+  const frame_layout layout = compute_frame_layout();
   const std::size_t layout_bytes = static_cast<std::size_t>(layout.bytes_per_frame);
   EXPECT_EQ(maximum_bytes, layout_bytes);
 }
 
 TEST(stream_test, should_restore_a_file_of_several_chunks_from_frames) {
   const auto original = make_random_data(CHUNK_SIZE_BYTES + 1024);
-  const TemporaryFile input("test_stream_multichunk_input.bin");
-  const TemporaryFile flv("test_stream_multichunk.flv");
+  const temporary_file input("test_stream_multichunk_input.bin");
+  const temporary_file flv("test_stream_multichunk.flv");
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));
@@ -441,18 +441,18 @@ TEST(stream_test, should_restore_a_file_of_several_chunks_from_frames) {
 
 TEST(stream_test, should_restore_a_file_from_every_frame_of_a_video) {
   const auto original = make_random_data(32768);
-  const TemporaryFile input("test_stream_decodeall_input.bin");
-  const TemporaryFile flv("test_stream_decodeall.flv");
+  const temporary_file input("test_stream_decodeall_input.bin");
+  const temporary_file flv("test_stream_decodeall.flv");
   write_file(input.path, original);
 
   stream_encode_file(input.path, flv.path, 8000, 1920, 1080);
 
-  VideoDecoder video_decoder(flv.path);
+  video_decoder video_decoder(flv.path);
   const auto all_packets = video_decoder.decode_all_frames();
   const std::size_t all_packet_count = all_packets.size();
   EXPECT_GT(all_packet_count, 0u);
 
-  Decoder decoder;
+  decoder decoder;
   for (const auto& packet_data : all_packets) {
     (void)decoder.process_packet(std::span(packet_data.data(), packet_data.size()), false);
   }
@@ -462,8 +462,8 @@ TEST(stream_test, should_restore_a_file_from_every_frame_of_a_video) {
 }
 
 TEST(stream_test, should_restore_an_empty_file_from_frames) {
-  const TemporaryFile input("test_stream_empty_input.bin");
-  const TemporaryFile flv("test_stream_empty.flv");
+  const temporary_file input("test_stream_empty_input.bin");
+  const temporary_file flv("test_stream_empty.flv");
   write_file(input.path, {});
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));

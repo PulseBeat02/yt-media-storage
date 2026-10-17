@@ -37,11 +37,11 @@ namespace {
 constexpr int STREAM_DECODE_TIMEOUT_SECONDS = 30;
 constexpr int CUSTOM_PLATFORM_INDEX = 2;
 
-QString documentsLocation() {
+QString documents_location() {
   return QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
 }
 
-QString describeFailure(const QString& prefix, const ms_status_t status) {
+QString describe_failure(const QString& prefix, const ms_status_t status) {
   QString message = QString("%1: %2").arg(prefix, ms_status_string(status));
   if (const QString detail = QString::fromUtf8(ms_last_error()); !detail.isEmpty()) {
     message += QString(" (%1)").arg(detail);
@@ -50,151 +50,151 @@ QString describeFailure(const QString& prefix, const ms_status_t status) {
 }
 }
 
-WorkerThread::WorkerThread(WorkerRequest request, QObject* parent) : QThread(parent), request(std::move(request)) {
+worker_thread::worker_thread(worker_request request, QObject* parent) : QThread(parent), request_(std::move(request)) {
 }
 
-int WorkerThread::progressCallback(const uint64_t current, const uint64_t total, void* user) {
-  auto* thread = static_cast<WorkerThread*>(user);
-  if (thread->cancelRequested) {
+int worker_thread::progress_callback(const uint64_t current, const uint64_t total, void* user) {
+  auto* thread = static_cast<worker_thread*>(user);
+  if (thread->cancel_requested_) {
     return 1;
   }
-  const auto [start, span] = thread->progressRange;
+  const auto [start, span] = thread->progress_range_;
   int percentage;
   if (total > 0) {
     percentage = start + static_cast<int>(static_cast<uint64_t>(span) * std::min(current + 1, total) / total);
   } else {
     percentage = start + static_cast<int>(current % static_cast<uint64_t>(span));
   }
-  emit thread->progressUpdated(std::min(percentage, start + span));
+  emit thread->progress_updated(std::min(percentage, start + span));
   return 0;
 }
 
-void WorkerThread::run() {
-  const std::string input = request.inputPath.toStdString();
-  const std::string output = request.outputPath.toStdString();
-  const std::string url = request.streamUrl.toStdString();
-  const std::string password = request.password.toStdString();
+void worker_thread::run() {
+  const std::string input = request_.input_path.toStdString();
+  const std::string output = request_.output_path.toStdString();
+  const std::string url = request_.stream_url.toStdString();
+  const std::string password = request_.password.toStdString();
 
-  switch (request.operation) {
-  case WorkerRequest::Operation::Encode:
-    runEncode(input, output, password);
+  switch (request_.operation) {
+  case worker_request::operation_type::ENCODE:
+    run_encode(input, output, password);
     break;
-  case WorkerRequest::Operation::Decode:
-    runDecode(input, output, password);
+  case worker_request::operation_type::DECODE:
+    run_decode(input, output, password);
     break;
-  case WorkerRequest::Operation::StreamEncode:
-    runStreamEncode(input, url, password);
+  case worker_request::operation_type::STREAM_ENCODE:
+    run_stream_encode(input, url, password);
     break;
-  case WorkerRequest::Operation::StreamDecode:
-    runStreamDecode(url, output, password);
+  case worker_request::operation_type::STREAM_DECODE:
+    run_stream_decode(url, output, password);
     break;
   }
 }
 
-void WorkerThread::finish(const ms_status_t status, const QString& successMessage, const QString& failurePrefix) {
+void worker_thread::finish(const ms_status_t status, const QString& success_message, const QString& failure_prefix) {
   if (status == MS_OK) {
-    emit progressUpdated(100);
-    emit operationCompleted(true, successMessage);
+    emit progress_updated(100);
+    emit operation_completed(true, success_message);
   } else {
-    emit operationCompleted(false, describeFailure(failurePrefix, status));
+    emit operation_completed(false, describe_failure(failure_prefix, status));
   }
 }
 
-void WorkerThread::runEncode(const std::string& input, const std::string& output, const std::string& password) {
-  emit statusUpdated("Starting encoding process...");
-  emit logMessage("Encoding: " + request.inputPath + " -> " + request.outputPath);
-  if (request.encrypt) {
-    emit logMessage("Encrypting chunks with password");
+void worker_thread::run_encode(const std::string& input, const std::string& output, const std::string& password) {
+  emit status_updated("Starting encoding process...");
+  emit log_message("Encoding: " + request_.input_path + " -> " + request_.output_path);
+  if (request_.encrypt) {
+    emit log_message("Encrypting chunks with password");
   }
-  progressRange = {5, 90};
-  emit progressUpdated(progressRange.start);
+  progress_range_ = {5, 90};
+  emit progress_updated(progress_range_.start);
 
   ms_encode_options_t options{};
   options.input_path = input.c_str();
   options.output_path = output.c_str();
-  options.encrypt = request.encrypt ? 1 : 0;
+  options.encrypt = request_.encrypt ? 1 : 0;
   options.password = password.c_str();
   options.password_len = password.size();
   options.hash_algorithm = MS_HASH_CRC32;
-  options.progress = progressCallback;
+  options.progress = progress_callback;
   options.progress_user = this;
 
   ms_result_t result{};
   const ms_status_t status = ms_encode(&options, &result);
   if (status == MS_OK) {
-    emit logMessage(QString("Input size: %1 bytes").arg(result.input_size));
-    emit logMessage(QString("Chunks: %1").arg(result.total_chunks));
-    emit logMessage(QString("Generated %1 packets in %2 frames").arg(result.total_packets).arg(result.total_frames));
+    emit log_message(QString("Input size: %1 bytes").arg(result.input_size));
+    emit log_message(QString("Chunks: %1").arg(result.total_chunks));
+    emit log_message(QString("Generated %1 packets in %2 frames").arg(result.total_packets).arg(result.total_frames));
   }
   finish(status, "Encoding completed successfully", "Encode error");
 }
 
-void WorkerThread::runDecode(const std::string& input, const std::string& output, const std::string& password) {
-  emit statusUpdated("Starting decoding process...");
-  emit logMessage("Decoding: " + request.inputPath + " -> " + request.outputPath);
-  progressRange = {10, 70};
-  emit progressUpdated(progressRange.start);
+void worker_thread::run_decode(const std::string& input, const std::string& output, const std::string& password) {
+  emit status_updated("Starting decoding process...");
+  emit log_message("Decoding: " + request_.input_path + " -> " + request_.output_path);
+  progress_range_ = {10, 70};
+  emit progress_updated(progress_range_.start);
 
   ms_decode_options_t options{};
   options.input_path = input.c_str();
   options.output_path = output.c_str();
   options.password = password.c_str();
   options.password_len = password.size();
-  options.progress = progressCallback;
+  options.progress = progress_callback;
   options.progress_user = this;
 
   ms_result_t result{};
   const ms_status_t status = ms_decode(&options, &result);
   if (status == MS_OK) {
-    emit logMessage(QString("Video size: %1 bytes").arg(result.input_size));
-    emit logMessage(QString("Packets extracted: %1").arg(result.total_packets));
-    emit logMessage(QString("Chunks decoded: %1").arg(result.total_chunks));
-    emit logMessage(QString("Frames: %1").arg(result.total_frames));
+    emit log_message(QString("Video size: %1 bytes").arg(result.input_size));
+    emit log_message(QString("Packets extracted: %1").arg(result.total_packets));
+    emit log_message(QString("Chunks decoded: %1").arg(result.total_chunks));
+    emit log_message(QString("Frames: %1").arg(result.total_frames));
   }
   finish(status, "Decoding completed successfully", "Decode error");
 }
 
-void WorkerThread::runStreamEncode(const std::string& input, const std::string& url, const std::string& password) {
-  emit statusUpdated("Starting stream encode...");
-  emit logMessage("Stream encode: " + request.inputPath + " -> " + request.streamUrl);
-  emit logMessage(
-      QString("Resolution: %1x%2 (%3 fps)").arg(request.width).arg(request.height).arg(request.framesPerSecond));
-  emit logMessage(QString("Bitrate: %1 kbps").arg(request.bitrateKilobitsPerSecond));
-  if (request.encrypt) {
-    emit logMessage("Encrypting chunks with password");
+void worker_thread::run_stream_encode(const std::string& input, const std::string& url, const std::string& password) {
+  emit status_updated("Starting stream encode...");
+  emit log_message("Stream encode: " + request_.input_path + " -> " + request_.stream_url);
+  emit log_message(
+      QString("Resolution: %1x%2 (%3 fps)").arg(request_.width).arg(request_.height).arg(request_.frames_per_second));
+  emit log_message(QString("Bitrate: %1 kbps").arg(request_.bitrate_kilobits_per_second));
+  if (request_.encrypt) {
+    emit log_message("Encrypting chunks with password");
   }
-  progressRange = {5, 90};
-  emit progressUpdated(progressRange.start);
+  progress_range_ = {5, 90};
+  emit progress_updated(progress_range_.start);
 
   ms_stream_encode_options_t options{};
   options.input_path = input.c_str();
   options.stream_url = url.c_str();
-  options.encrypt = request.encrypt ? 1 : 0;
+  options.encrypt = request_.encrypt ? 1 : 0;
   options.password = password.c_str();
   options.password_len = password.size();
   options.hash_algorithm = MS_HASH_CRC32;
-  options.bitrate_kbps = request.bitrateKilobitsPerSecond;
-  options.width = request.width;
-  options.height = request.height;
-  options.fps = request.framesPerSecond;
-  options.progress = progressCallback;
+  options.bitrate_kbps = request_.bitrate_kilobits_per_second;
+  options.width = request_.width;
+  options.height = request_.height;
+  options.fps = request_.frames_per_second;
+  options.progress = progress_callback;
   options.progress_user = this;
 
   ms_result_t result{};
   const ms_status_t status = ms_stream_encode(&options, &result);
   if (status == MS_OK) {
-    emit logMessage(QString("Input size: %1 bytes").arg(result.input_size));
-    emit logMessage(QString("Chunks: %1").arg(result.total_chunks));
-    emit logMessage(QString("Streamed %1 packets in %2 frames").arg(result.total_packets).arg(result.total_frames));
+    emit log_message(QString("Input size: %1 bytes").arg(result.input_size));
+    emit log_message(QString("Chunks: %1").arg(result.total_chunks));
+    emit log_message(QString("Streamed %1 packets in %2 frames").arg(result.total_packets).arg(result.total_frames));
   }
   finish(status, "Stream encode completed successfully", "Stream encode error");
 }
 
-void WorkerThread::runStreamDecode(const std::string& url, const std::string& output, const std::string& password) {
-  emit statusUpdated("Waiting for stream...");
-  emit logMessage("Stream decode: " + request.streamUrl + " -> " + request.outputPath);
-  progressRange = {10, 85};
-  emit progressUpdated(5);
+void worker_thread::run_stream_decode(const std::string& url, const std::string& output, const std::string& password) {
+  emit status_updated("Waiting for stream...");
+  emit log_message("Stream decode: " + request_.stream_url + " -> " + request_.output_path);
+  progress_range_ = {10, 85};
+  emit progress_updated(5);
 
   ms_stream_decode_options_t options{};
   options.stream_url = url.c_str();
@@ -202,227 +202,227 @@ void WorkerThread::runStreamDecode(const std::string& url, const std::string& ou
   options.password = password.c_str();
   options.password_len = password.size();
   options.timeout_sec = STREAM_DECODE_TIMEOUT_SECONDS;
-  options.progress = progressCallback;
+  options.progress = progress_callback;
   options.progress_user = this;
 
   ms_result_t result{};
   const ms_status_t status = ms_stream_decode(&options, &result);
   if (status == MS_OK) {
-    emit logMessage(QString("Packets extracted: %1").arg(result.total_packets));
-    emit logMessage(QString("Chunks decoded: %1").arg(result.total_chunks));
-    emit logMessage(QString("Frames: %1").arg(result.total_frames));
-    emit logMessage(QString("Output size: %1 bytes").arg(result.output_size));
+    emit log_message(QString("Packets extracted: %1").arg(result.total_packets));
+    emit log_message(QString("Chunks decoded: %1").arg(result.total_chunks));
+    emit log_message(QString("Frames: %1").arg(result.total_frames));
+    emit log_message(QString("Output size: %1 bytes").arg(result.output_size));
   }
   finish(status, "Stream decode completed successfully", "Stream decode error");
 }
 
-DriveManagerUI::DriveManagerUI(QWidget* parent) : QMainWindow(parent) {
+drive_manager_ui::drive_manager_ui(QWidget* parent) : QMainWindow(parent) {
   setWindowTitle("YouTube Media Storage - Drive Manager");
   setMinimumSize(1200, 800);
 
-  setupUI();
-  setupMenuBar();
-  setupStatusBar();
-  connectSignals();
-  loadSettings();
+  setup_ui();
+  setup_menu_bar();
+  setup_status_bar();
+  connect_signals();
+  load_settings();
 
-  resetProgress();
-  logMessage("Drive Manager initialized");
+  reset_progress();
+  log_message("Drive Manager initialized");
 }
 
-DriveManagerUI::~DriveManagerUI() {
-  if (workerThread) {
-    workerThread->requestCancel();
-    workerThread->wait();
+drive_manager_ui::~drive_manager_ui() {
+  if (worker_thread_) {
+    worker_thread_->request_cancel();
+    worker_thread_->wait();
   }
-  saveSettings();
+  save_settings();
 }
 
-void DriveManagerUI::setupUI() {
-  centralWidget = new QWidget(this);
-  setCentralWidget(centralWidget);
+void drive_manager_ui::setup_ui() {
+  central_widget_ = new QWidget(this);
+  setCentralWidget(central_widget_);
 
-  mainSplitter = new QSplitter(Qt::Horizontal, centralWidget);
+  main_splitter_ = new QSplitter(Qt::Horizontal, central_widget_);
 
-  auto* leftPanel = new QWidget();
-  auto* leftLayout = new QVBoxLayout(leftPanel);
+  auto* left_panel = new QWidget();
+  auto* left_layout = new QVBoxLayout(left_panel);
 
-  fileOperationsGroup = new QGroupBox("File Operations");
-  auto* fileOperationsLayout = new QGridLayout(fileOperationsGroup);
+  file_operations_group_ = new QGroupBox("File Operations");
+  auto* file_operations_layout = new QGridLayout(file_operations_group_);
 
-  fileOperationsLayout->addWidget(new QLabel("Input File:"), 0, 0);
-  inputFileEdit = new QLineEdit();
-  inputFileEdit->setReadOnly(true);
-  fileOperationsLayout->addWidget(inputFileEdit, 0, 1);
+  file_operations_layout->addWidget(new QLabel("Input File:"), 0, 0);
+  input_file_edit_ = new QLineEdit();
+  input_file_edit_->setReadOnly(true);
+  file_operations_layout->addWidget(input_file_edit_, 0, 1);
 
-  selectInputButton = new QPushButton("Browse...");
-  fileOperationsLayout->addWidget(selectInputButton, 0, 2);
+  select_input_button_ = new QPushButton("Browse...");
+  file_operations_layout->addWidget(select_input_button_, 0, 2);
 
-  fileOperationsLayout->addWidget(new QLabel("Output File:"), 1, 0);
-  outputFileEdit = new QLineEdit();
-  outputFileEdit->setReadOnly(true);
-  fileOperationsLayout->addWidget(outputFileEdit, 1, 1);
+  file_operations_layout->addWidget(new QLabel("Output File:"), 1, 0);
+  output_file_edit_ = new QLineEdit();
+  output_file_edit_->setReadOnly(true);
+  file_operations_layout->addWidget(output_file_edit_, 1, 1);
 
-  selectOutputButton = new QPushButton("Browse...");
-  fileOperationsLayout->addWidget(selectOutputButton, 1, 2);
+  select_output_button_ = new QPushButton("Browse...");
+  file_operations_layout->addWidget(select_output_button_, 1, 2);
 
-  encryptCheckBox = new QCheckBox("Encrypt with password");
-  fileOperationsLayout->addWidget(encryptCheckBox, 2, 0, 1, 3);
+  encrypt_check_box_ = new QCheckBox("Encrypt with password");
+  file_operations_layout->addWidget(encrypt_check_box_, 2, 0, 1, 3);
 
-  fileOperationsLayout->addWidget(new QLabel("Password:"), 3, 0);
-  passwordEdit = new QLineEdit();
-  passwordEdit->setPlaceholderText("For encrypt or decrypt");
-  passwordEdit->setEchoMode(QLineEdit::Password);
-  fileOperationsLayout->addWidget(passwordEdit, 3, 1);
-  passwordVisibilityButton = new QPushButton("Show");
-  passwordVisibilityButton->setFixedWidth(selectInputButton->sizeHint().width());
-  fileOperationsLayout->addWidget(passwordVisibilityButton, 3, 2);
+  file_operations_layout->addWidget(new QLabel("Password:"), 3, 0);
+  password_edit_ = new QLineEdit();
+  password_edit_->setPlaceholderText("For encrypt or decrypt");
+  password_edit_->setEchoMode(QLineEdit::Password);
+  file_operations_layout->addWidget(password_edit_, 3, 1);
+  password_visibility_button_ = new QPushButton("Show");
+  password_visibility_button_->setFixedWidth(select_input_button_->sizeHint().width());
+  file_operations_layout->addWidget(password_visibility_button_, 3, 2);
 
-  encodeButton = new QPushButton("Encode to Video");
-  encodeButton->setIcon(QIcon::fromTheme("media-record"));
-  fileOperationsLayout->addWidget(encodeButton, 4, 0, 1, 3);
+  encode_button_ = new QPushButton("Encode to Video");
+  encode_button_->setIcon(QIcon::fromTheme("media-record"));
+  file_operations_layout->addWidget(encode_button_, 4, 0, 1, 3);
 
-  decodeButton = new QPushButton("Decode from Video");
-  decodeButton->setIcon(QIcon::fromTheme("media-playback-start"));
-  fileOperationsLayout->addWidget(decodeButton, 5, 0, 1, 3);
+  decode_button_ = new QPushButton("Decode from Video");
+  decode_button_->setIcon(QIcon::fromTheme("media-playback-start"));
+  file_operations_layout->addWidget(decode_button_, 5, 0, 1, 3);
 
-  leftLayout->addWidget(fileOperationsGroup);
+  left_layout->addWidget(file_operations_group_);
 
-  batchGroup = new QGroupBox("Batch Operations");
-  auto* batchLayout = new QVBoxLayout(batchGroup);
+  batch_group_ = new QGroupBox("Batch Operations");
+  auto* batch_layout = new QVBoxLayout(batch_group_);
 
-  fileListWidget = new QListWidget();
-  fileListWidget->setSelectionMode(QAbstractItemView::ExtendedSelection);
-  batchLayout->addWidget(fileListWidget);
+  file_list_widget_ = new QListWidget();
+  file_list_widget_->setSelectionMode(QAbstractItemView::ExtendedSelection);
+  batch_layout->addWidget(file_list_widget_);
 
-  auto* batchButtonsLayout = new QHBoxLayout();
-  addFilesButton = new QPushButton("Add Files");
-  removeFilesButton = new QPushButton("Remove Selected");
-  clearFilesButton = new QPushButton("Clear All");
-  batchButtonsLayout->addWidget(addFilesButton);
-  batchButtonsLayout->addWidget(removeFilesButton);
-  batchButtonsLayout->addWidget(clearFilesButton);
-  batchLayout->addLayout(batchButtonsLayout);
+  auto* batch_buttons_layout = new QHBoxLayout();
+  add_files_button_ = new QPushButton("Add Files");
+  remove_files_button_ = new QPushButton("Remove Selected");
+  clear_files_button_ = new QPushButton("Clear All");
+  batch_buttons_layout->addWidget(add_files_button_);
+  batch_buttons_layout->addWidget(remove_files_button_);
+  batch_buttons_layout->addWidget(clear_files_button_);
+  batch_layout->addLayout(batch_buttons_layout);
 
-  auto* batchOutputLayout = new QHBoxLayout();
-  batchOutputLayout->addWidget(new QLabel("Output Directory:"));
-  batchOutputDirectoryEdit = new QLineEdit();
-  batchOutputDirectoryEdit->setReadOnly(true);
-  batchOutputButton = new QPushButton("Browse...");
-  batchOutputLayout->addWidget(batchOutputDirectoryEdit);
-  batchOutputLayout->addWidget(batchOutputButton);
-  batchLayout->addLayout(batchOutputLayout);
+  auto* batch_output_layout = new QHBoxLayout();
+  batch_output_layout->addWidget(new QLabel("Output Directory:"));
+  batch_output_directory_edit_ = new QLineEdit();
+  batch_output_directory_edit_->setReadOnly(true);
+  batch_output_button_ = new QPushButton("Browse...");
+  batch_output_layout->addWidget(batch_output_directory_edit_);
+  batch_output_layout->addWidget(batch_output_button_);
+  batch_layout->addLayout(batch_output_layout);
 
-  batchEncodeButton = new QPushButton("Batch Encode All");
-  batchEncodeButton->setIcon(QIcon::fromTheme("document-save-all"));
-  batchLayout->addWidget(batchEncodeButton);
+  batch_encode_button_ = new QPushButton("Batch Encode All");
+  batch_encode_button_->setIcon(QIcon::fromTheme("document-save-all"));
+  batch_layout->addWidget(batch_encode_button_);
 
-  leftLayout->addWidget(batchGroup);
+  left_layout->addWidget(batch_group_);
 
-  streamGroup = new QGroupBox("Streaming (Twitch / YouTube)");
-  auto* streamLayout = new QGridLayout(streamGroup);
+  stream_group_ = new QGroupBox("Streaming (Twitch / YouTube)");
+  auto* stream_layout = new QGridLayout(stream_group_);
 
-  streamLayout->addWidget(new QLabel("Platform:"), 0, 0);
-  platformComboBox = new QComboBox();
-  platformComboBox->addItem("Twitch", "rtmp://live.twitch.tv/app/");
-  platformComboBox->addItem("YouTube", "rtmp://a.rtmp.youtube.com/live2/");
-  platformComboBox->addItem("Custom", "");
-  streamLayout->addWidget(platformComboBox, 0, 1, 1, 2);
+  stream_layout->addWidget(new QLabel("Platform:"), 0, 0);
+  platform_combo_box_ = new QComboBox();
+  platform_combo_box_->addItem("Twitch", "rtmp://live.twitch.tv/app/");
+  platform_combo_box_->addItem("YouTube", "rtmp://a.rtmp.youtube.com/live2/");
+  platform_combo_box_->addItem("Custom", "");
+  stream_layout->addWidget(platform_combo_box_, 0, 1, 1, 2);
 
-  streamLayout->addWidget(new QLabel("RTMP URL:"), 1, 0);
-  streamUrlEdit = new QLineEdit();
-  streamUrlEdit->setPlaceholderText("rtmp://live.twitch.tv/app/");
-  streamUrlEdit->setText(platformComboBox->currentData().toString());
-  streamUrlEdit->setReadOnly(true);
-  streamLayout->addWidget(streamUrlEdit, 1, 1, 1, 2);
+  stream_layout->addWidget(new QLabel("RTMP URL:"), 1, 0);
+  stream_url_edit_ = new QLineEdit();
+  stream_url_edit_->setPlaceholderText("rtmp://live.twitch.tv/app/");
+  stream_url_edit_->setText(platform_combo_box_->currentData().toString());
+  stream_url_edit_->setReadOnly(true);
+  stream_layout->addWidget(stream_url_edit_, 1, 1, 1, 2);
 
-  streamLayout->addWidget(new QLabel("Stream Key:"), 2, 0);
-  streamKeyEdit = new QLineEdit();
-  streamKeyEdit->setPlaceholderText("Your stream key");
-  streamKeyEdit->setEchoMode(QLineEdit::Password);
-  streamLayout->addWidget(streamKeyEdit, 2, 1, 1, 2);
+  stream_layout->addWidget(new QLabel("Stream Key:"), 2, 0);
+  stream_key_edit_ = new QLineEdit();
+  stream_key_edit_->setPlaceholderText("Your stream key");
+  stream_key_edit_->setEchoMode(QLineEdit::Password);
+  stream_layout->addWidget(stream_key_edit_, 2, 1, 1, 2);
 
-  streamLayout->addWidget(new QLabel("Resolution:"), 3, 0);
-  resolutionComboBox = new QComboBox();
-  resolutionComboBox->addItem("1080p (1920x1080)", QSize(1920, 1080));
-  resolutionComboBox->addItem("1440p (2560x1440)", QSize(2560, 1440));
-  resolutionComboBox->addItem("4K (3840x2160)", QSize(3840, 2160));
-  resolutionComboBox->setCurrentIndex(0);
-  streamLayout->addWidget(resolutionComboBox, 3, 1, 1, 2);
+  stream_layout->addWidget(new QLabel("Resolution:"), 3, 0);
+  resolution_combo_box_ = new QComboBox();
+  resolution_combo_box_->addItem("1080p (1920x1080)", QSize(1920, 1080));
+  resolution_combo_box_->addItem("1440p (2560x1440)", QSize(2560, 1440));
+  resolution_combo_box_->addItem("4K (3840x2160)", QSize(3840, 2160));
+  resolution_combo_box_->setCurrentIndex(0);
+  stream_layout->addWidget(resolution_combo_box_, 3, 1, 1, 2);
 
-  streamLayout->addWidget(new QLabel("Bitrate (kbps):"), 4, 0);
-  bitrateSpinBox = new QSpinBox();
-  bitrateSpinBox->setRange(1000, 50000);
-  bitrateSpinBox->setValue(8000);
-  bitrateSpinBox->setSingleStep(1000);
-  bitrateSpinBox->setSuffix(" kbps");
-  streamLayout->addWidget(bitrateSpinBox, 4, 1, 1, 2);
+  stream_layout->addWidget(new QLabel("Bitrate (kbps):"), 4, 0);
+  bitrate_spin_box_ = new QSpinBox();
+  bitrate_spin_box_->setRange(1000, 50000);
+  bitrate_spin_box_->setValue(8000);
+  bitrate_spin_box_->setSingleStep(1000);
+  bitrate_spin_box_->setSuffix(" kbps");
+  stream_layout->addWidget(bitrate_spin_box_, 4, 1, 1, 2);
 
-  streamLayout->addWidget(new QLabel("FPS:"), 5, 0);
-  framesPerSecondSpinBox = new QSpinBox();
-  framesPerSecondSpinBox->setRange(1, 240);
-  framesPerSecondSpinBox->setValue(FRAMES_PER_SECOND);
-  framesPerSecondSpinBox->setSingleStep(1);
-  framesPerSecondSpinBox->setSuffix(" fps");
-  streamLayout->addWidget(framesPerSecondSpinBox, 5, 1, 1, 2);
+  stream_layout->addWidget(new QLabel("FPS:"), 5, 0);
+  frames_per_second_spin_box_ = new QSpinBox();
+  frames_per_second_spin_box_->setRange(1, 240);
+  frames_per_second_spin_box_->setValue(FRAMES_PER_SECOND);
+  frames_per_second_spin_box_->setSingleStep(1);
+  frames_per_second_spin_box_->setSuffix(" fps");
+  stream_layout->addWidget(frames_per_second_spin_box_, 5, 1, 1, 2);
 
-  streamEncodeButton = new QPushButton("Stream Encode");
-  streamEncodeButton->setIcon(QIcon::fromTheme("network-transmit"));
-  streamLayout->addWidget(streamEncodeButton, 6, 0, 1, 3);
+  stream_encode_button_ = new QPushButton("Stream Encode");
+  stream_encode_button_->setIcon(QIcon::fromTheme("network-transmit"));
+  stream_layout->addWidget(stream_encode_button_, 6, 0, 1, 3);
 
-  streamDecodeButton = new QPushButton("Stream Decode");
-  streamDecodeButton->setIcon(QIcon::fromTheme("network-receive"));
-  streamLayout->addWidget(streamDecodeButton, 7, 0, 1, 3);
+  stream_decode_button_ = new QPushButton("Stream Decode");
+  stream_decode_button_->setIcon(QIcon::fromTheme("network-receive"));
+  stream_layout->addWidget(stream_decode_button_, 7, 0, 1, 3);
 
-  leftLayout->addWidget(streamGroup);
+  left_layout->addWidget(stream_group_);
 
-  auto* rightPanel = new QWidget();
-  auto* rightLayout = new QVBoxLayout(rightPanel);
+  auto* right_panel = new QWidget();
+  auto* right_layout = new QVBoxLayout(right_panel);
 
-  statusGroup = new QGroupBox("Status");
-  auto* statusLayout = new QVBoxLayout(statusGroup);
+  status_group_ = new QGroupBox("Status");
+  auto* status_layout = new QVBoxLayout(status_group_);
 
-  progressBar = new QProgressBar();
-  progressBar->setRange(0, 100);
-  statusLayout->addWidget(progressBar);
+  progress_bar_ = new QProgressBar();
+  progress_bar_->setRange(0, 100);
+  status_layout->addWidget(progress_bar_);
 
-  progressLabel = new QLabel("Ready");
-  statusLayout->addWidget(progressLabel);
+  progress_label_ = new QLabel("Ready");
+  status_layout->addWidget(progress_label_);
 
-  statusLabel = new QLabel("Status: Idle");
-  statusLayout->addWidget(statusLabel);
+  status_label_ = new QLabel("Status: Idle");
+  status_layout->addWidget(status_label_);
 
-  rightLayout->addWidget(statusGroup);
+  right_layout->addWidget(status_group_);
 
-  logsGroup = new QGroupBox("Logs");
-  auto* logsLayout = new QVBoxLayout(logsGroup);
+  logs_group_ = new QGroupBox("Logs");
+  auto* logs_layout = new QVBoxLayout(logs_group_);
 
-  logTextEdit = new QTextEdit();
-  logTextEdit->setReadOnly(true);
-  logsLayout->addWidget(logTextEdit);
+  log_text_edit_ = new QTextEdit();
+  log_text_edit_->setReadOnly(true);
+  logs_layout->addWidget(log_text_edit_);
 
-  clearLogsButton = new QPushButton("Clear Logs");
-  logsLayout->addWidget(clearLogsButton);
+  clear_logs_button_ = new QPushButton("Clear Logs");
+  logs_layout->addWidget(clear_logs_button_);
 
-  rightLayout->addWidget(logsGroup);
+  right_layout->addWidget(logs_group_);
 
-  mainSplitter->addWidget(leftPanel);
-  mainSplitter->addWidget(rightPanel);
-  mainSplitter->setSizes({600, 600});
+  main_splitter_->addWidget(left_panel);
+  main_splitter_->addWidget(right_panel);
+  main_splitter_->setSizes({600, 600});
 
-  auto* mainLayout = new QHBoxLayout(centralWidget);
-  mainLayout->addWidget(mainSplitter);
+  auto* main_layout = new QHBoxLayout(central_widget_);
+  main_layout->addWidget(main_splitter_);
 }
 
-void DriveManagerUI::setupMenuBar() {
-  QMenu* fileMenu = menuBar()->addMenu("&File");
-  fileMenu->addAction("E&xit", this, &QWidget::close);
+void drive_manager_ui::setup_menu_bar() {
+  QMenu* file_menu = menuBar()->addMenu("&File");
+  file_menu->addAction("E&xit", this, &QWidget::close);
 
-  QMenu* toolsMenu = menuBar()->addMenu("&Tools");
-  toolsMenu->addAction("&Clear Logs", this, &DriveManagerUI::clearLogs);
+  QMenu* tools_menu = menuBar()->addMenu("&Tools");
+  tools_menu->addAction("&Clear Logs", this, &drive_manager_ui::clear_logs);
 
-  QMenu* helpMenu = menuBar()->addMenu("&Help");
-  helpMenu->addAction("&About", this, [this] {
+  QMenu* help_menu = menuBar()->addMenu("&Help");
+  help_menu->addAction("&About", this, [this] {
     QMessageBox::about(this, "About",
                        QString("YouTube Media Storage Drive Manager\n\n"
                                "Encode and decode files using video storage technology\n"
@@ -431,359 +431,360 @@ void DriveManagerUI::setupMenuBar() {
   });
 }
 
-void DriveManagerUI::setupStatusBar() {
-  permanentStatus = new QLabel("Ready");
-  statusBar()->addPermanentWidget(permanentStatus);
+void drive_manager_ui::setup_status_bar() {
+  permanent_status_ = new QLabel("Ready");
+  statusBar()->addPermanentWidget(permanent_status_);
 }
 
-void DriveManagerUI::connectSignals() {
-  connect(selectInputButton, &QPushButton::clicked, this, &DriveManagerUI::selectInputFile);
-  connect(selectOutputButton, &QPushButton::clicked, this, &DriveManagerUI::selectOutputFile);
-  connect(encodeButton, &QPushButton::clicked, this, &DriveManagerUI::startEncode);
-  connect(decodeButton, &QPushButton::clicked, this, &DriveManagerUI::startDecode);
+void drive_manager_ui::connect_signals() {
+  connect(select_input_button_, &QPushButton::clicked, this, &drive_manager_ui::select_input_file);
+  connect(select_output_button_, &QPushButton::clicked, this, &drive_manager_ui::select_output_file);
+  connect(encode_button_, &QPushButton::clicked, this, &drive_manager_ui::start_encode);
+  connect(decode_button_, &QPushButton::clicked, this, &drive_manager_ui::start_decode);
 
-  connect(addFilesButton, &QPushButton::clicked, this, &DriveManagerUI::addBatchFiles);
-  connect(removeFilesButton, &QPushButton::clicked, this, &DriveManagerUI::removeSelectedFiles);
-  connect(clearFilesButton, &QPushButton::clicked, this, &DriveManagerUI::clearFileList);
-  connect(batchOutputButton, &QPushButton::clicked, this, &DriveManagerUI::selectBatchOutputDirectory);
-  connect(batchEncodeButton, &QPushButton::clicked, this, &DriveManagerUI::startBatchEncode);
+  connect(add_files_button_, &QPushButton::clicked, this, &drive_manager_ui::add_batch_files);
+  connect(remove_files_button_, &QPushButton::clicked, this, &drive_manager_ui::remove_selected_files);
+  connect(clear_files_button_, &QPushButton::clicked, this, &drive_manager_ui::clear_file_list);
+  connect(batch_output_button_, &QPushButton::clicked, this, &drive_manager_ui::select_batch_output_directory);
+  connect(batch_encode_button_, &QPushButton::clicked, this, &drive_manager_ui::start_batch_encode);
 
-  connect(clearLogsButton, &QPushButton::clicked, this, &DriveManagerUI::clearLogs);
-  connect(passwordVisibilityButton, &QPushButton::clicked, this, &DriveManagerUI::togglePasswordVisibility);
+  connect(clear_logs_button_, &QPushButton::clicked, this, &drive_manager_ui::clear_logs);
+  connect(password_visibility_button_, &QPushButton::clicked, this, &drive_manager_ui::toggle_password_visibility);
 
-  connect(streamEncodeButton, &QPushButton::clicked, this, &DriveManagerUI::startStreamEncode);
-  connect(streamDecodeButton, &QPushButton::clicked, this, &DriveManagerUI::startStreamDecode);
-  connect(platformComboBox, &QComboBox::currentIndexChanged, this, &DriveManagerUI::onPlatformChanged);
-  connect(resolutionComboBox, &QComboBox::currentIndexChanged, this, &DriveManagerUI::onResolutionChanged);
+  connect(stream_encode_button_, &QPushButton::clicked, this, &drive_manager_ui::start_stream_encode);
+  connect(stream_decode_button_, &QPushButton::clicked, this, &drive_manager_ui::start_stream_decode);
+  connect(platform_combo_box_, &QComboBox::currentIndexChanged, this, &drive_manager_ui::on_platform_changed);
+  connect(resolution_combo_box_, &QComboBox::currentIndexChanged, this, &drive_manager_ui::on_resolution_changed);
 }
 
-void DriveManagerUI::togglePasswordVisibility() const {
-  const bool hidden = passwordEdit->echoMode() == QLineEdit::Password;
-  passwordEdit->setEchoMode(hidden ? QLineEdit::Normal : QLineEdit::Password);
-  passwordVisibilityButton->setText(hidden ? "Hide" : "Show");
+void drive_manager_ui::toggle_password_visibility() const {
+  const bool hidden = password_edit_->echoMode() == QLineEdit::Password;
+  password_edit_->setEchoMode(hidden ? QLineEdit::Normal : QLineEdit::Password);
+  password_visibility_button_->setText(hidden ? "Hide" : "Show");
 }
 
-void DriveManagerUI::selectInputFile() {
-  const QString fileName = QFileDialog::getOpenFileName(this, "Select Input File", documentsLocation());
-  if (!fileName.isEmpty()) {
-    inputFileEdit->setText(fileName);
-    logMessage("Selected input file: " + fileName);
+void drive_manager_ui::select_input_file() {
+  const QString file_name = QFileDialog::getOpenFileName(this, "Select Input File", documents_location());
+  if (!file_name.isEmpty()) {
+    input_file_edit_->setText(file_name);
+    log_message("Selected input file: " + file_name);
   }
 }
 
-void DriveManagerUI::selectOutputFile() {
-  const QString fileName = QFileDialog::getSaveFileName(this, "Select Output File", documentsLocation(),
-                                                        "Video Files (*.mkv *.mp4);;All Files (*)");
-  if (!fileName.isEmpty()) {
-    outputFileEdit->setText(fileName);
-    logMessage("Selected output file: " + fileName);
+void drive_manager_ui::select_output_file() {
+  const QString file_name = QFileDialog::getSaveFileName(this, "Select Output File", documents_location(),
+                                                         "Video Files (*.mkv *.mp4);;All Files (*)");
+  if (!file_name.isEmpty()) {
+    output_file_edit_->setText(file_name);
+    log_message("Selected output file: " + file_name);
   }
 }
 
-void DriveManagerUI::addBatchFiles() {
-  const QStringList fileNames = QFileDialog::getOpenFileNames(this, "Select Files to Encode", documentsLocation());
-  if (fileNames.isEmpty()) {
+void drive_manager_ui::add_batch_files() {
+  const QStringList file_names = QFileDialog::getOpenFileNames(this, "Select Files to Encode", documents_location());
+  if (file_names.isEmpty()) {
     return;
   }
 
-  for (const QString& fileName : fileNames) {
-    if (fileListWidget->findItems(fileName, Qt::MatchExactly).isEmpty()) {
-      fileListWidget->addItem(fileName);
+  for (const QString& file_name : file_names) {
+    if (file_list_widget_->findItems(file_name, Qt::MatchExactly).isEmpty()) {
+      file_list_widget_->addItem(file_name);
     }
   }
-  logMessage(QString("Added %1 files to batch list").arg(fileNames.size()));
-  updateFileList();
+  log_message(QString("Added %1 files to batch list").arg(file_names.size()));
+  update_file_list();
 }
 
-void DriveManagerUI::selectBatchOutputDirectory() {
-  const QString directoryName = QFileDialog::getExistingDirectory(this, "Select Output Directory", documentsLocation());
-  if (!directoryName.isEmpty()) {
-    batchOutputDirectoryEdit->setText(directoryName);
-    logMessage("Selected output directory: " + directoryName);
+void drive_manager_ui::select_batch_output_directory() {
+  const QString directory_name =
+      QFileDialog::getExistingDirectory(this, "Select Output Directory", documents_location());
+  if (!directory_name.isEmpty()) {
+    batch_output_directory_edit_->setText(directory_name);
+    log_message("Selected output directory: " + directory_name);
   }
 }
 
-bool DriveManagerUI::warnIfBusy() {
-  if (isOperationRunning) {
+bool drive_manager_ui::warn_if_busy() {
+  if (operation_running_) {
     QMessageBox::warning(this, "Warning", "An operation is already in progress");
   }
-  return isOperationRunning;
+  return operation_running_;
 }
 
-bool DriveManagerUI::validateInputFile() {
-  if (inputFileEdit->text().isEmpty()) {
+bool drive_manager_ui::validate_input_file() {
+  if (input_file_edit_->text().isEmpty()) {
     QMessageBox::warning(this, "Warning", "Please select an input file");
     return false;
   }
-  if (!QFile::exists(inputFileEdit->text())) {
+  if (!QFile::exists(input_file_edit_->text())) {
     QMessageBox::warning(this, "Warning", "Input file does not exist");
     return false;
   }
   return true;
 }
 
-bool DriveManagerUI::validateOutputFile() {
-  if (outputFileEdit->text().isEmpty()) {
+bool drive_manager_ui::validate_output_file() {
+  if (output_file_edit_->text().isEmpty()) {
     QMessageBox::warning(this, "Warning", "Please select an output file");
     return false;
   }
   return true;
 }
 
-bool DriveManagerUI::validatePassword() {
-  if (encryptCheckBox->isChecked() && passwordEdit->text().isEmpty()) {
+bool drive_manager_ui::validate_password() {
+  if (encrypt_check_box_->isChecked() && password_edit_->text().isEmpty()) {
     QMessageBox::warning(this, "Warning", "Password required when encrypting");
     return false;
   }
   return true;
 }
 
-void DriveManagerUI::startWorker(const WorkerRequest& request, const QString& operationName) {
-  isOperationRunning = true;
-  currentOperation = operationName;
-  setOperationRunning(true);
+void drive_manager_ui::start_worker(const worker_request& request, const QString& operation_name) {
+  operation_running_ = true;
+  current_operation_ = operation_name;
+  set_operation_running(true);
 
-  workerThread = std::make_unique<WorkerThread>(request);
-  connect(workerThread.get(), &WorkerThread::progressUpdated, this, &DriveManagerUI::onProgressUpdated);
-  connect(workerThread.get(), &WorkerThread::statusUpdated, this, &DriveManagerUI::onStatusUpdated);
-  connect(workerThread.get(), &WorkerThread::operationCompleted, this, &DriveManagerUI::onOperationCompleted);
-  connect(workerThread.get(), &WorkerThread::logMessage, this, &DriveManagerUI::logMessage);
-  workerThread->start();
+  worker_thread_ = std::make_unique<worker_thread>(request);
+  connect(worker_thread_.get(), &worker_thread::progress_updated, this, &drive_manager_ui::on_progress_updated);
+  connect(worker_thread_.get(), &worker_thread::status_updated, this, &drive_manager_ui::on_status_updated);
+  connect(worker_thread_.get(), &worker_thread::operation_completed, this, &drive_manager_ui::on_operation_completed);
+  connect(worker_thread_.get(), &worker_thread::log_message, this, &drive_manager_ui::log_message);
+  worker_thread_->start();
 }
 
-void DriveManagerUI::setOperationRunning(const bool running) {
-  encodeButton->setEnabled(!running);
-  decodeButton->setEnabled(!running);
-  batchEncodeButton->setEnabled(!running);
-  streamEncodeButton->setEnabled(!running);
-  streamDecodeButton->setEnabled(!running);
+void drive_manager_ui::set_operation_running(const bool running) {
+  encode_button_->setEnabled(!running);
+  decode_button_->setEnabled(!running);
+  batch_encode_button_->setEnabled(!running);
+  stream_encode_button_->setEnabled(!running);
+  stream_decode_button_->setEnabled(!running);
 }
 
-void DriveManagerUI::startEncode() {
-  if (warnIfBusy() || !validateInputFile() || !validateOutputFile() || !validatePassword()) {
+void drive_manager_ui::start_encode() {
+  if (warn_if_busy() || !validate_input_file() || !validate_output_file() || !validate_password()) {
     return;
   }
 
-  WorkerRequest request;
-  request.operation = WorkerRequest::Operation::Encode;
-  request.inputPath = inputFileEdit->text();
-  request.outputPath = outputFileEdit->text();
-  request.encrypt = encryptCheckBox->isChecked();
-  request.password = passwordEdit->text();
-  startWorker(request, "Encoding");
+  worker_request request;
+  request.operation = worker_request::operation_type::ENCODE;
+  request.input_path = input_file_edit_->text();
+  request.output_path = output_file_edit_->text();
+  request.encrypt = encrypt_check_box_->isChecked();
+  request.password = password_edit_->text();
+  start_worker(request, "Encoding");
 }
 
-void DriveManagerUI::startDecode() {
-  if (warnIfBusy() || !validateInputFile() || !validateOutputFile()) {
+void drive_manager_ui::start_decode() {
+  if (warn_if_busy() || !validate_input_file() || !validate_output_file()) {
     return;
   }
 
-  WorkerRequest request;
-  request.operation = WorkerRequest::Operation::Decode;
-  request.inputPath = inputFileEdit->text();
-  request.outputPath = outputFileEdit->text();
-  request.password = passwordEdit->text();
-  startWorker(request, "Decoding");
+  worker_request request;
+  request.operation = worker_request::operation_type::DECODE;
+  request.input_path = input_file_edit_->text();
+  request.output_path = output_file_edit_->text();
+  request.password = password_edit_->text();
+  start_worker(request, "Decoding");
 }
 
-void DriveManagerUI::startBatchEncode() {
-  if (warnIfBusy()) {
+void drive_manager_ui::start_batch_encode() {
+  if (warn_if_busy()) {
     return;
   }
-  if (fileListWidget->count() == 0) {
+  if (file_list_widget_->count() == 0) {
     QMessageBox::warning(this, "Warning", "No files in batch list");
     return;
   }
-  if (batchOutputDirectoryEdit->text().isEmpty()) {
+  if (batch_output_directory_edit_->text().isEmpty()) {
     QMessageBox::warning(this, "Warning", "Please select an output directory");
     return;
   }
-  if (!validatePassword()) {
+  if (!validate_password()) {
     return;
   }
 
-  batchQueue.clear();
-  for (int i = 0; i < fileListWidget->count(); ++i) {
-    batchQueue.append(fileListWidget->item(i)->text());
+  batch_queue_.clear();
+  for (int i = 0; i < file_list_widget_->count(); ++i) {
+    batch_queue_.append(file_list_widget_->item(i)->text());
   }
-  batchSucceeded = 0;
-  batchFailed = 0;
-  batchRunning = true;
-  logMessage(QString("Batch encoding %1 files").arg(batchQueue.size()));
-  startNextBatchItem();
+  batch_succeeded_ = 0;
+  batch_failed_ = 0;
+  batch_running_ = true;
+  log_message(QString("Batch encoding %1 files").arg(batch_queue_.size()));
+  start_next_batch_item();
 }
 
-void DriveManagerUI::startNextBatchItem() {
-  const QString inputPath = batchQueue.takeFirst();
-  const QDir outputDirectory(batchOutputDirectoryEdit->text());
+void drive_manager_ui::start_next_batch_item() {
+  const QString input_path = batch_queue_.takeFirst();
+  const QDir output_directory(batch_output_directory_edit_->text());
 
-  WorkerRequest request;
-  request.operation = WorkerRequest::Operation::Encode;
-  request.inputPath = inputPath;
-  request.outputPath = outputDirectory.filePath(QFileInfo(inputPath).fileName() + ".mkv");
-  request.encrypt = encryptCheckBox->isChecked();
-  request.password = passwordEdit->text();
-  startWorker(request, QString("Batch Encoding (%1 remaining)").arg(batchQueue.size()));
+  worker_request request;
+  request.operation = worker_request::operation_type::ENCODE;
+  request.input_path = input_path;
+  request.output_path = output_directory.filePath(QFileInfo(input_path).fileName() + ".mkv");
+  request.encrypt = encrypt_check_box_->isChecked();
+  request.password = password_edit_->text();
+  start_worker(request, QString("Batch Encoding (%1 remaining)").arg(batch_queue_.size()));
 }
 
-void DriveManagerUI::finishBatch() {
-  batchRunning = false;
-  setOperationRunning(false);
-  resetProgress();
+void drive_manager_ui::finish_batch() {
+  batch_running_ = false;
+  set_operation_running(false);
+  reset_progress();
 
   const QString summary =
-      QString("Batch encoding finished: %1 succeeded, %2 failed").arg(batchSucceeded).arg(batchFailed);
-  logMessage(summary);
-  if (batchFailed == 0) {
+      QString("Batch encoding finished: %1 succeeded, %2 failed").arg(batch_succeeded_).arg(batch_failed_);
+  log_message(summary);
+  if (batch_failed_ == 0) {
     QMessageBox::information(this, "Success", summary);
-    passwordEdit->clear();
+    password_edit_->clear();
   } else {
     QMessageBox::warning(this, "Batch Finished", summary);
   }
 }
 
-void DriveManagerUI::onPlatformChanged(const int index) const {
-  streamUrlEdit->setText(platformComboBox->itemData(index).toString());
-  streamUrlEdit->setReadOnly(index != CUSTOM_PLATFORM_INDEX);
+void drive_manager_ui::on_platform_changed(const int index) const {
+  stream_url_edit_->setText(platform_combo_box_->itemData(index).toString());
+  stream_url_edit_->setReadOnly(index != CUSTOM_PLATFORM_INDEX);
 }
 
-void DriveManagerUI::onResolutionChanged(const int index) const {
-  const QSize resolution = resolutionComboBox->itemData(index).toSize();
+void drive_manager_ui::on_resolution_changed(const int index) const {
+  const QSize resolution = resolution_combo_box_->itemData(index).toSize();
   if (resolution.height() <= 1080) {
-    bitrateSpinBox->setValue(8000);
+    bitrate_spin_box_->setValue(8000);
   } else if (resolution.height() <= 1440) {
-    bitrateSpinBox->setValue(16000);
+    bitrate_spin_box_->setValue(16000);
   } else {
-    bitrateSpinBox->setValue(35000);
+    bitrate_spin_box_->setValue(35000);
   }
 }
 
-void DriveManagerUI::startStreamEncode() {
-  if (warnIfBusy() || !validateInputFile()) {
+void drive_manager_ui::start_stream_encode() {
+  if (warn_if_busy() || !validate_input_file()) {
     return;
   }
-  if (streamKeyEdit->text().isEmpty()) {
+  if (stream_key_edit_->text().isEmpty()) {
     QMessageBox::warning(this, "Warning", "Please enter your stream key");
     return;
   }
-  if (!validatePassword()) {
+  if (!validate_password()) {
     return;
   }
 
-  const QSize resolution = resolutionComboBox->currentData().toSize();
-  WorkerRequest request;
-  request.operation = WorkerRequest::Operation::StreamEncode;
-  request.inputPath = inputFileEdit->text();
-  request.streamUrl = streamUrlEdit->text() + streamKeyEdit->text();
-  request.encrypt = encryptCheckBox->isChecked();
-  request.password = passwordEdit->text();
-  request.bitrateKilobitsPerSecond = bitrateSpinBox->value();
+  const QSize resolution = resolution_combo_box_->currentData().toSize();
+  worker_request request;
+  request.operation = worker_request::operation_type::STREAM_ENCODE;
+  request.input_path = input_file_edit_->text();
+  request.stream_url = stream_url_edit_->text() + stream_key_edit_->text();
+  request.encrypt = encrypt_check_box_->isChecked();
+  request.password = password_edit_->text();
+  request.bitrate_kilobits_per_second = bitrate_spin_box_->value();
   request.width = resolution.width();
   request.height = resolution.height();
-  request.framesPerSecond = framesPerSecondSpinBox->value();
-  startWorker(request, "Stream Encoding");
+  request.frames_per_second = frames_per_second_spin_box_->value();
+  start_worker(request, "Stream Encoding");
 }
 
-void DriveManagerUI::startStreamDecode() {
-  if (warnIfBusy() || !validateOutputFile()) {
+void drive_manager_ui::start_stream_decode() {
+  if (warn_if_busy() || !validate_output_file()) {
     return;
   }
-  if (streamUrlEdit->text().isEmpty()) {
+  if (stream_url_edit_->text().isEmpty()) {
     QMessageBox::warning(this, "Warning", "Please enter a stream URL to decode from");
     return;
   }
 
-  WorkerRequest request;
-  request.operation = WorkerRequest::Operation::StreamDecode;
-  request.outputPath = outputFileEdit->text();
-  request.streamUrl = streamUrlEdit->text() + streamKeyEdit->text();
-  request.password = passwordEdit->text();
-  startWorker(request, "Stream Decoding");
+  worker_request request;
+  request.operation = worker_request::operation_type::STREAM_DECODE;
+  request.output_path = output_file_edit_->text();
+  request.stream_url = stream_url_edit_->text() + stream_key_edit_->text();
+  request.password = password_edit_->text();
+  start_worker(request, "Stream Decoding");
 }
 
-void DriveManagerUI::clearLogs() const {
-  logTextEdit->clear();
-  logMessage("Logs cleared");
+void drive_manager_ui::clear_logs() const {
+  log_text_edit_->clear();
+  log_message("Logs cleared");
 }
 
-void DriveManagerUI::removeSelectedFiles() const {
-  for (const QListWidgetItem* item : fileListWidget->selectedItems()) {
-    delete fileListWidget->takeItem(fileListWidget->row(item));
+void drive_manager_ui::remove_selected_files() const {
+  for (const QListWidgetItem* item : file_list_widget_->selectedItems()) {
+    delete file_list_widget_->takeItem(file_list_widget_->row(item));
   }
-  updateFileList();
+  update_file_list();
 }
 
-void DriveManagerUI::clearFileList() const {
-  fileListWidget->clear();
-  updateFileList();
+void drive_manager_ui::clear_file_list() const {
+  file_list_widget_->clear();
+  update_file_list();
 }
 
-void DriveManagerUI::updateFileList() const {
-  permanentStatus->setText(QString("Files in queue: %1").arg(fileListWidget->count()));
+void drive_manager_ui::update_file_list() const {
+  permanent_status_->setText(QString("Files in queue: %1").arg(file_list_widget_->count()));
 }
 
-void DriveManagerUI::onOperationCompleted(const bool success, const QString& message) {
-  if (workerThread) {
-    workerThread->wait();
-    workerThread.reset();
+void drive_manager_ui::on_operation_completed(const bool success, const QString& message) {
+  if (worker_thread_) {
+    worker_thread_->wait();
+    worker_thread_.reset();
   }
 
-  isOperationRunning = false;
+  operation_running_ = false;
 
-  if (batchRunning) {
-    logMessage((success ? "✓ " : "✗ ") + message);
-    ++(success ? batchSucceeded : batchFailed);
-    if (batchQueue.isEmpty()) {
-      finishBatch();
+  if (batch_running_) {
+    log_message((success ? "✓ " : "✗ ") + message);
+    ++(success ? batch_succeeded_ : batch_failed_);
+    if (batch_queue_.isEmpty()) {
+      finish_batch();
     } else {
-      startNextBatchItem();
+      start_next_batch_item();
     }
     return;
   }
 
-  setOperationRunning(false);
+  set_operation_running(false);
 
   if (success) {
-    logMessage("✓ " + message);
+    log_message("✓ " + message);
     QMessageBox::information(this, "Success", message);
-    passwordEdit->clear();
+    password_edit_->clear();
   } else {
-    logMessage("✗ " + message);
+    log_message("✗ " + message);
     QMessageBox::critical(this, "Error", message);
   }
 
-  resetProgress();
+  reset_progress();
 }
 
-void DriveManagerUI::onProgressUpdated(const int percentage) const {
-  progressBar->setValue(percentage);
-  progressLabel->setText(QString("%1% - %2").arg(percentage).arg(currentOperation));
+void drive_manager_ui::on_progress_updated(const int percentage) const {
+  progress_bar_->setValue(percentage);
+  progress_label_->setText(QString("%1% - %2").arg(percentage).arg(current_operation_));
 }
 
-void DriveManagerUI::onStatusUpdated(const QString& status) const {
-  statusLabel->setText("Status: " + status);
-  permanentStatus->setText(status);
+void drive_manager_ui::on_status_updated(const QString& status) const {
+  status_label_->setText("Status: " + status);
+  permanent_status_->setText(status);
 }
 
-void DriveManagerUI::resetProgress() {
-  progressBar->setValue(0);
-  progressLabel->setText("Ready");
-  statusLabel->setText("Status: Idle");
-  currentOperation = "Idle";
+void drive_manager_ui::reset_progress() {
+  progress_bar_->setValue(0);
+  progress_label_->setText("Ready");
+  status_label_->setText("Status: Idle");
+  current_operation_ = "Idle";
 }
 
-void DriveManagerUI::logMessage(const QString& message) const {
+void drive_manager_ui::log_message(const QString& message) const {
   const QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
-  logTextEdit->append(QString("[%1] %2").arg(timestamp, message));
+  log_text_edit_->append(QString("[%1] %2").arg(timestamp, message));
 }
 
-void DriveManagerUI::loadSettings() {
+void drive_manager_ui::load_settings() {
   const QSettings settings;
   restoreGeometry(settings.value("geometry").toByteArray());
   restoreState(settings.value("windowState").toByteArray());
 }
 
-void DriveManagerUI::saveSettings() const {
+void drive_manager_ui::save_settings() const {
   QSettings settings;
   settings.setValue("geometry", saveGeometry());
   settings.setValue("windowState", saveState());

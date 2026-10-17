@@ -26,39 +26,39 @@
 #include <string>
 #include <vector>
 
-struct ChunkSlice {
+struct chunk_slice_type {
   std::size_t offset = 0;
   std::size_t length = 0;
 };
 
-struct ChunkedStorageData {
+struct chunked_storage_data {
   std::vector<std::byte> storage;
-  std::vector<ChunkSlice> chunks;
+  std::vector<chunk_slice_type> chunks;
 };
 
-[[nodiscard]] ChunkedStorageData chunk_byte_data(std::span<const std::byte> data);
+[[nodiscard]] chunked_storage_data chunk_byte_data(std::span<const std::byte> data);
 
-[[nodiscard]] ChunkedStorageData chunk_file(const char* path, std::size_t chunk_size = 0);
+[[nodiscard]] chunked_storage_data chunk_file(const char* path, std::size_t chunk_size = 0);
 
-[[nodiscard]] inline std::span<const std::byte> chunk_span(const ChunkedStorageData& chunked_data,
+[[nodiscard]] inline std::span<const std::byte> chunk_span(const chunked_storage_data& chunked_data,
                                                            const std::size_t index) {
   const auto& [offset, length] = chunked_data.chunks[index];
   return {chunked_data.storage.data() + offset, length};
 }
 
-class FileChunkReader {
+class file_chunk_reader {
 public:
-  explicit FileChunkReader(const char* path, std::size_t chunk_size = 0);
+  explicit file_chunk_reader(const char* path, std::size_t chunk_size = 0);
 
-  ~FileChunkReader();
+  ~file_chunk_reader();
 
-  FileChunkReader(const FileChunkReader&) = delete;
+  file_chunk_reader(const file_chunk_reader&) = delete;
 
-  FileChunkReader& operator=(const FileChunkReader&) = delete;
+  file_chunk_reader& operator=(const file_chunk_reader&) = delete;
 
-  FileChunkReader(FileChunkReader&&) = delete;
+  file_chunk_reader(file_chunk_reader&&) = delete;
 
-  FileChunkReader& operator=(FileChunkReader&&) = delete;
+  file_chunk_reader& operator=(file_chunk_reader&&) = delete;
 
   [[nodiscard]] std::size_t chunk_count() const {
     return chunk_count_;
@@ -96,7 +96,7 @@ private:
 
   void map_file(const char* path);
 
-  [[nodiscard]] ChunkSlice chunk_slice(std::size_t index) const;
+  [[nodiscard]] chunk_slice_type chunk_slice(std::size_t index) const;
 };
 
 #endif
