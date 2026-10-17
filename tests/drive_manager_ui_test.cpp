@@ -200,12 +200,12 @@ public:
 private:
   void answer_modal_widget() {
     QWidget* const modal = QApplication::activeModalWidget();
-    if (auto* const box = qobject_cast<QMessageBox*>(modal)) {
+    if (QMessageBox* const box = qobject_cast<QMessageBox*>(modal)) {
       answer_message_box(box);
       return;
     }
 
-    if (auto* const dialog = qobject_cast<QFileDialog*>(modal)) {
+    if (QFileDialog* const dialog = qobject_cast<QFileDialog*>(modal)) {
       answer_file_dialog(dialog);
     }
   }

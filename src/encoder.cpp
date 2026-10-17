@@ -88,8 +88,8 @@ std::pair<std::vector<packet>, chunk_manifest_entry> encoder::encode_chunk(const
     data_to_encode = padded_data;
   }
 
-  const auto chunk_size = static_cast<uint32_t>(data_to_encode.size());
-  constexpr auto symbol_size = static_cast<uint16_t>(SYMBOL_SIZE_BYTES);
+  const uint32_t chunk_size = static_cast<uint32_t>(data_to_encode.size());
+  constexpr uint16_t symbol_size = static_cast<uint16_t>(SYMBOL_SIZE_BYTES);
   const uint32_t source_symbol_count = compute_source_symbol_count(data_to_encode.size(), SYMBOL_SIZE_BYTES);
 
   chunk_manifest_entry manifest;
@@ -126,7 +126,7 @@ std::pair<std::vector<packet>, chunk_manifest_entry> encoder::encode_chunk(const
 
   for (uint32_t block_id = first_block_id; block_id <= last_block_id; ++block_id) {
     packet& packet = packets.emplace_back();
-    auto* payload_destination = reinterpret_cast<uint8_t*>(packet.bytes.data() + HEADER_SIZE_V2);
+    uint8_t* payload_destination = reinterpret_cast<uint8_t*>(packet.bytes.data() + HEADER_SIZE_V2);
     uint32_t write_length = 0;
     if (wirehair_encode(codec, block_id, payload_destination, SYMBOL_SIZE_BYTES, &write_length) != Wirehair_Success) {
       const std::string message = "Wirehair could not encode block " + std::to_string(block_id) + "!";

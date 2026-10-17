@@ -173,7 +173,7 @@ std::vector<std::byte> read_last_frame_data(const std::string& path) {
 
   AVPacket* packet = av_packet_alloc();
   while (av_read_frame(context, packet) >= 0) {
-    const auto* const data = reinterpret_cast<const std::byte*>(packet->data);
+    const std::byte* const data = reinterpret_cast<const std::byte*>(packet->data);
     last_frame.assign(data, data + packet->size);
     av_packet_unref(packet);
   }

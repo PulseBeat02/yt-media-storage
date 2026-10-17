@@ -299,9 +299,9 @@ TEST(chunker_test, should_read_chunks_in_any_order) {
   const std::size_t chunk_count = reader.chunk_count();
   ASSERT_EQ(chunk_count, 3u);
 
-  const auto chunk2 = reader.read_chunk(THIRD_CHUNK_INDEX);
-  const auto chunk0 = reader.read_chunk(0);
-  const auto chunk1 = reader.read_chunk(1);
+  const std::vector<std::byte> chunk2 = reader.read_chunk(THIRD_CHUNK_INDEX);
+  const std::vector<std::byte> chunk0 = reader.read_chunk(0);
+  const std::vector<std::byte> chunk1 = reader.read_chunk(1);
 
   for (std::size_t i = 0; i < CUSTOM_CHUNK_SIZE; ++i) {
     EXPECT_EQ(chunk0[i], original_data[i]);
@@ -318,8 +318,8 @@ TEST(chunker_test, should_read_the_same_chunk_twice) {
   const std::string input_path = input.string();
   const file_chunk_reader reader(input_path.c_str(), CUSTOM_CHUNK_SIZE);
 
-  const auto first_read = reader.read_chunk(0);
-  const auto second_read = reader.read_chunk(0);
+  const std::vector<std::byte> first_read = reader.read_chunk(0);
+  const std::vector<std::byte> second_read = reader.read_chunk(0);
 
   EXPECT_EQ(first_read, second_read);
 }

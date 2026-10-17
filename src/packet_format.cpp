@@ -137,7 +137,7 @@ bool verify_packet_checksum(const parsed_packet& packet) {
 }
 
 std::optional<parsed_packet> parse_and_verify_packet(const std::span<const std::byte> packet) {
-  auto parsed = parse_packet(packet);
+  std::optional<parsed_packet> parsed = parse_packet(packet);
   if (!parsed || !verify_packet_checksum(*parsed)) {
     return std::nullopt;
   }

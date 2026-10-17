@@ -73,7 +73,7 @@ void stream_encode_file(const std::string& input_path, const std::string& output
   const file_chunk_reader reader(input_path.c_str(),
                                  encrypt ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : AUTOMATIC_CHUNK_SIZE);
   const std::size_t chunk_count = reader.chunk_count();
-  const auto file_id = make_test_file_id();
+  const file_id_type file_id = make_test_file_id();
   const encoder encoder(file_id);
 
   std::array<std::byte, CRYPTO_KEY_BYTES> key{};
@@ -112,10 +112,11 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
   uint32_t last_chunk_index = 0;
 
   while (!video_decoder.is_eof()) {
-    for (auto frame_packets = video_decoder.decode_next_frame(); auto& packet_data : frame_packets) {
+    std::vector<std::vector<std::byte>> frame_packets = video_decoder.decode_next_frame();
+    for (std::vector<std::byte>& packet_data : frame_packets) {
       ++total_extracted;
       if (packet_data.size() >= HEADER_SIZE) {
-        const auto flags = static_cast<uint8_t>(packet_data[FLAGS_OFFSET]);
+        const uint8_t flags = static_cast<uint8_t>(packet_data[FLAGS_OFFSET]);
         uint32_t chunk_index = 0;
         std::memcpy(&chunk_index, packet_data.data() + CHUNK_INDEX_OFFSET, sizeof(chunk_index));
         if (chunk_index > maximum_chunk_index)
@@ -126,7 +127,8 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
         }
       }
       const std::span<const std::byte> data(packet_data.data(), packet_data.size());
-      if (auto chunk_result = decoder.process_packet(data, false); chunk_result && chunk_result->success) {
+      if (std::optional<chunk_decode_result> chunk_result = decoder.process_packet(data, false);
+          chunk_result && chunk_result->success) {
         ++decoded_chunks;
       }
     }
@@ -145,12 +147,12 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
       return {};
     const std::span<const std::byte> password_bytes(reinterpret_cast<const std::byte*>(password.data()),
                                                     password.size());
-    auto key = derive_key(password_bytes, *decoder.file_id());
+    crypto_key key = derive_key(password_bytes, *decoder.file_id());
     decoder.set_decrypt_key(key);
     secure_zero(std::span<std::byte>(key));
   }
 
-  auto assembled = decoder.assemble_file(expected_chunks);
+  std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(expected_chunks);
   if (decoder.is_encrypted())
     decoder.clear_decrypt_key();
   return assembled.value_or(std::vector<std::byte>{});
@@ -158,7 +160,7 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
 }
 
 TEST(stream_test, should_restore_a_small_file_from_1080p_frames) {
-  const auto original = fixtures::make_pattern(INPUT_SIZE);
+  const std::vector<std::byte> original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -169,12 +171,12 @@ TEST(stream_test, should_restore_a_small_file_from_1080p_frames) {
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
 
-  const auto decoded = stream_decode_file(flv.string());
+  const std::vector<std::byte> decoded = stream_decode_file(flv.string());
   EXPECT_EQ(decoded, original);
 }
 
 TEST(stream_test, should_restore_a_small_file_from_4k_frames) {
-  const auto original = fixtures::make_pattern(INPUT_SIZE);
+  const std::vector<std::byte> original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -184,12 +186,12 @@ TEST(stream_test, should_restore_a_small_file_from_4k_frames) {
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
 
-  const auto decoded = stream_decode_file(flv.string());
+  const std::vector<std::byte> decoded = stream_decode_file(flv.string());
   EXPECT_EQ(decoded, original);
 }
 
 TEST(stream_test, should_restore_a_larger_file_from_1080p_frames) {
-  const auto original = fixtures::make_pattern(256 * 1024);
+  const std::vector<std::byte> original = fixtures::make_pattern(256 * 1024);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -200,12 +202,12 @@ TEST(stream_test, should_restore_a_larger_file_from_1080p_frames) {
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
 
-  const auto decoded = stream_decode_file(flv.string());
+  const std::vector<std::byte> decoded = stream_decode_file(flv.string());
   EXPECT_EQ(decoded, original);
 }
 
 TEST(stream_test, should_restore_an_encrypted_file_from_frames) {
-  const auto original = fixtures::make_pattern(INPUT_SIZE);
+  const std::vector<std::byte> original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -218,12 +220,12 @@ TEST(stream_test, should_restore_an_encrypted_file_from_frames) {
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
 
-  const auto decoded = stream_decode_file(flv.string(), password);
+  const std::vector<std::byte> decoded = stream_decode_file(flv.string(), password);
   EXPECT_EQ(decoded, original);
 }
 
 TEST(stream_test, should_restore_small_data_from_frames) {
-  const auto original = fixtures::make_pattern(100);
+  const std::vector<std::byte> original = fixtures::make_pattern(100);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -234,7 +236,7 @@ TEST(stream_test, should_restore_small_data_from_frames) {
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
 
-  const auto decoded = stream_decode_file(flv.string());
+  const std::vector<std::byte> decoded = stream_decode_file(flv.string());
   EXPECT_EQ(decoded, original);
 }
 
@@ -266,7 +268,7 @@ TEST(stream_test, should_lay_out_default_frames_from_the_configuration) {
 }
 
 TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
-  const auto original = fixtures::make_pattern(INPUT_SIZE);
+  const std::vector<std::byte> original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file mkv(MATROSKA_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -274,12 +276,12 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
   {
     const std::string input_path = input.string();
     const file_chunk_reader reader(input_path.c_str());
-    const auto file_id = make_test_file_id();
+    const file_id_type file_id = make_test_file_id();
     const encoder encoder(file_id);
     video_encoder video_encoder(mkv.string());
 
     for (std::size_t i = 0; i < reader.chunk_count(); ++i) {
-      auto chunk_data = reader.read_chunk(i);
+      std::vector<std::byte> chunk_data = reader.read_chunk(i);
       const bool is_last = (i == reader.chunk_count() - 1);
       auto [packets, manifest] = encoder.encode_chunk(static_cast<uint32_t>(i), chunk_data, is_last);
       video_encoder.encode_packets(packets);
@@ -298,9 +300,10 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
     bool found_last = false;
 
     while (!video_decoder.is_eof()) {
-      for (auto frame_packets = video_decoder.decode_next_frame(); auto& packet_data : frame_packets) {
+      std::vector<std::vector<std::byte>> frame_packets = video_decoder.decode_next_frame();
+      for (std::vector<std::byte>& packet_data : frame_packets) {
         if (packet_data.size() >= HEADER_SIZE) {
-          const auto flags = static_cast<uint8_t>(packet_data[FLAGS_OFFSET]);
+          const uint8_t flags = static_cast<uint8_t>(packet_data[FLAGS_OFFSET]);
           uint32_t chunk_index = 0;
           std::memcpy(&chunk_index, packet_data.data() + CHUNK_INDEX_OFFSET, sizeof(chunk_index));
           if (flags & FLAG_LAST_CHUNK) {
@@ -308,7 +311,8 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
             last_chunk_index = chunk_index;
           }
         }
-        if (auto chunk_result = decoder.process_packet(std::span(packet_data.data(), packet_data.size()), false);
+        if (std::optional<chunk_decode_result> chunk_result =
+                decoder.process_packet(std::span(packet_data.data(), packet_data.size()), false);
             chunk_result && chunk_result->success) {
           ++decoded_chunks;
         }
@@ -319,7 +323,7 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
     const uint32_t expected = last_chunk_index + 1;
     ASSERT_GE(decoded_chunks, expected);
 
-    const auto assembled = decoder.assemble_file(expected);
+    const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(expected);
     const bool assembled_present = assembled.has_value();
     ASSERT_TRUE(assembled_present);
     EXPECT_EQ(*assembled, original);
@@ -327,7 +331,7 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
 }
 
 TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
-  const auto original = fixtures::make_pattern(INPUT_SIZE);
+  const std::vector<std::byte> original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -335,12 +339,12 @@ TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
   {
     const std::string input_path = input.string();
     const file_chunk_reader reader(input_path.c_str());
-    const auto file_id = make_test_file_id();
+    const file_id_type file_id = make_test_file_id();
     const encoder encoder(file_id, hash_algorithm_type::XXHASH32);
     stream_encoder stream_encoder(flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P, HEIGHT_1080P);
 
     for (std::size_t i = 0; i < reader.chunk_count(); ++i) {
-      auto chunk_data = reader.read_chunk(i);
+      std::vector<std::byte> chunk_data = reader.read_chunk(i);
       const bool is_last = (i == reader.chunk_count() - 1);
       auto [packets, manifest] = encoder.encode_chunk(static_cast<uint32_t>(i), chunk_data, is_last);
       stream_encoder.encode_packets(packets);
@@ -351,12 +355,12 @@ TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
 
-  const auto decoded = stream_decode_file(flv.string());
+  const std::vector<std::byte> decoded = stream_decode_file(flv.string());
   EXPECT_EQ(decoded, original);
 }
 
 TEST(stream_test, should_restore_a_file_from_720p_frames) {
-  const auto original = fixtures::make_pattern(HALF_INPUT_SIZE);
+  const std::vector<std::byte> original = fixtures::make_pattern(HALF_INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -367,12 +371,12 @@ TEST(stream_test, should_restore_a_file_from_720p_frames) {
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
 
-  const auto decoded = stream_decode_file(flv.string());
+  const std::vector<std::byte> decoded = stream_decode_file(flv.string());
   EXPECT_EQ(decoded, original);
 }
 
 TEST(stream_test, should_restore_a_file_from_sixty_frames_per_second) {
-  const auto original = fixtures::make_pattern(INPUT_SIZE);
+  const std::vector<std::byte> original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -383,12 +387,12 @@ TEST(stream_test, should_restore_a_file_from_sixty_frames_per_second) {
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
 
-  const auto decoded = stream_decode_file(flv.string());
+  const std::vector<std::byte> decoded = stream_decode_file(flv.string());
   EXPECT_EQ(decoded, original);
 }
 
 TEST(stream_test, should_restore_a_file_from_one_frame_per_second) {
-  const auto original = fixtures::make_pattern(HALF_INPUT_SIZE);
+  const std::vector<std::byte> original = fixtures::make_pattern(HALF_INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -399,7 +403,7 @@ TEST(stream_test, should_restore_a_file_from_one_frame_per_second) {
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
 
-  const auto decoded = stream_decode_file(flv.string());
+  const std::vector<std::byte> decoded = stream_decode_file(flv.string());
   EXPECT_EQ(decoded, original);
 }
 
@@ -429,7 +433,7 @@ TEST(stream_test, should_fit_the_packet_bytes_the_layout_holds) {
 }
 
 TEST(stream_test, should_restore_a_file_of_several_chunks_from_frames) {
-  const auto original = fixtures::make_pattern(CHUNK_SIZE_BYTES + 1024);
+  const std::vector<std::byte> original = fixtures::make_pattern(CHUNK_SIZE_BYTES + 1024);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -440,12 +444,12 @@ TEST(stream_test, should_restore_a_file_of_several_chunks_from_frames) {
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
 
-  const auto decoded = stream_decode_file(flv.string());
+  const std::vector<std::byte> decoded = stream_decode_file(flv.string());
   EXPECT_EQ(decoded, original);
 }
 
 TEST(stream_test, should_restore_a_file_from_every_frame_of_a_video) {
-  const auto original = fixtures::make_pattern(HALF_INPUT_SIZE);
+  const std::vector<std::byte> original = fixtures::make_pattern(HALF_INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -453,12 +457,12 @@ TEST(stream_test, should_restore_a_file_from_every_frame_of_a_video) {
   stream_encode_file(input.string(), flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P, HEIGHT_1080P);
 
   video_decoder video_decoder(flv.string());
-  const auto all_packets = video_decoder.decode_all_frames();
+  const std::vector<std::vector<std::byte>> all_packets = video_decoder.decode_all_frames();
   const std::size_t all_packet_count = all_packets.size();
   EXPECT_GT(all_packet_count, 0u);
 
   decoder decoder;
-  for (const auto& packet_data : all_packets) {
+  for (const std::vector<std::byte>& packet_data : all_packets) {
     (void)decoder.process_packet(std::span(packet_data.data(), packet_data.size()), false);
   }
 
@@ -477,7 +481,7 @@ TEST(stream_test, should_restore_an_empty_file_from_frames) {
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
 
-  const auto decoded = stream_decode_file(flv.string());
+  const std::vector<std::byte> decoded = stream_decode_file(flv.string());
   const bool decoded_empty = decoded.empty();
   EXPECT_TRUE(decoded_empty);
 }

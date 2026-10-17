@@ -49,13 +49,13 @@ std::size_t maximum_packet_bytes_per_frame() {
 
 void embed_data_into_plane(uint8_t* plane, const int stride, const frame_layout& layout,
                            const std::span<const std::byte> data) {
-  const auto& blocks = get_precomputed_blocks();
+  const precomputed_blocks& blocks = get_precomputed_blocks();
   const auto& patterns = blocks.patterns;
 
   const std::size_t total_bits = data.size() * CHAR_BIT;
   const int active_blocks = static_cast<int>(
       std::min(static_cast<std::size_t>(layout.total_blocks), (total_bits + BITS_PER_BLOCK - 1) / BITS_PER_BLOCK));
-  const auto* source = reinterpret_cast<const uint8_t*>(data.data());
+  const uint8_t* source = reinterpret_cast<const uint8_t*>(data.data());
   const int blocks_per_row = layout.blocks_per_row;
 
   const int covered_rows = blocks_per_row > 0 ? (active_blocks / blocks_per_row) * BLOCK_SIZE : 0;

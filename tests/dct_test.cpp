@@ -116,8 +116,8 @@ TEST(dct_test, should_compute_a_zero_dot_product_for_orthogonal_vectors) {
 }
 
 TEST(dct_test, should_build_the_same_cosine_table_every_time) {
-  const auto& table1 = get_cosine_table();
-  const auto& table2 = get_cosine_table();
+  const cosine_table& table1 = get_cosine_table();
+  const cosine_table& table2 = get_cosine_table();
   EXPECT_EQ(&table1, &table2);
 }
 

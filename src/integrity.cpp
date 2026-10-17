@@ -49,7 +49,7 @@ std::string bytes_to_hexadecimal(const std::span<const std::byte> input) {
   std::string hexadecimal(input.size() * HEXADECIMAL_DIGITS_PER_BYTE, '\0');
   char* out = hexadecimal.data();
   for (const std::byte input_byte : input) {
-    const auto value = std::to_integer<unsigned char>(input_byte);
+    const unsigned char value = std::to_integer<unsigned char>(input_byte);
     *out++ = HEXADECIMAL_DIGITS[value >> BITS_PER_HEXADECIMAL_DIGIT];
     *out++ = HEXADECIMAL_DIGITS[value & HEXADECIMAL_DIGIT_MASK];
   }
@@ -76,13 +76,13 @@ std::string sha256_digest::hexadecimal_value() const {
 
 sha256_digest sha256(const std::span<const std::byte> data) {
   sha256_digest digest;
-  const auto* begin = reinterpret_cast<const uint8_t*>(data.data());
+  const uint8_t* begin = reinterpret_cast<const uint8_t*>(data.data());
   std::array<unsigned char, SHA256_HASH_SIZE> hash{};
 #if defined(__APPLE__)
   CC_SHA256_CTX context;
   CC_SHA256_Init(&context);
   for (std::size_t offset = 0; offset < data.size();) {
-    const auto step = static_cast<CC_LONG>(std::min<std::size_t>(data.size() - offset, MAXIMUM_DIGEST_STEP));
+    const CC_LONG step = static_cast<CC_LONG>(std::min<std::size_t>(data.size() - offset, MAXIMUM_DIGEST_STEP));
     CC_SHA256_Update(&context, begin + offset, step);
     offset += step;
   }
@@ -115,7 +115,7 @@ uint32_t crc32_mpeg2_concat(const std::span<const std::byte> first, const std::s
 
 uint32_t packet_crc32(const std::span<const std::byte> header, const std::span<const std::byte> payload,
                       const std::size_t crc_offset, const std::size_t crc_size) {
-  const auto& table = crc_table();
+  const CRC::Table<uint32_t, CRC_WIDTH_BITS>& table = crc_table();
   uint32_t crc = CRC::Calculate(header.data(), crc_offset, table);
   if (crc_size == CRC_SIZE) {
     constexpr uint8_t zeros[CRC_SIZE] = {};

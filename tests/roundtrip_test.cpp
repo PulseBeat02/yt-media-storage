@@ -93,7 +93,7 @@ TEST(roundtrip_test, should_restore_several_chunks) {
   decoder decoder;
 
   const chunked_storage_data chunked = chunk_byte_data(original_data);
-  const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
+  const uint32_t chunk_count = static_cast<uint32_t>(chunked.chunks.size());
 
   for (uint32_t chunk_index = 0; chunk_index < chunk_count; ++chunk_index) {
     const std::span<const std::byte> chunk = chunk_span(chunked, chunk_index);
@@ -130,7 +130,7 @@ TEST(roundtrip_test, should_restore_encrypted_data) {
   decoder decoder;
 
   static constexpr std::byte password[] = {std::byte{'t'}, std::byte{'e'}, std::byte{'s'}, std::byte{'t'}};
-  auto encryption_key = derive_key(std::span(password), file_id);
+  crypto_key encryption_key = derive_key(std::span(password), file_id);
 
   const std::vector<std::byte> encrypted_chunk = encrypt_chunk(original_data, encryption_key, file_id, 0);
   for (auto [packets, manifest] = encoder.encode_chunk(0, encrypted_chunk, true, true);
@@ -184,7 +184,7 @@ TEST(roundtrip_test, should_restore_data_matching_the_sha256_of_its_manifest) {
   decoder decoder;
 
   const chunked_storage_data chunked = chunk_byte_data(original_data);
-  const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
+  const uint32_t chunk_count = static_cast<uint32_t>(chunked.chunks.size());
 
   for (uint32_t chunk_index = 0; chunk_index < chunk_count; ++chunk_index) {
     const std::span<const std::byte> chunk = chunk_span(chunked, chunk_index);
@@ -213,7 +213,7 @@ TEST(roundtrip_test, should_restore_encrypted_data_with_xxhash_checksums) {
   decoder decoder;
 
   static constexpr std::byte password[] = {std::byte{'t'}, std::byte{'e'}, std::byte{'s'}, std::byte{'t'}};
-  auto key = derive_key(std::span(password), file_id);
+  crypto_key key = derive_key(std::span(password), file_id);
 
   const std::vector<std::byte> encrypted = encrypt_chunk(original_data, key, file_id, 0);
   for (auto [packets, manifest] = encoder.encode_chunk(0, encrypted, true, true); const packet& packet : packets) {
@@ -225,7 +225,7 @@ TEST(roundtrip_test, should_restore_encrypted_data_with_xxhash_checksums) {
 
   decoder.set_decrypt_key(key);
 
-  const auto assembled = decoder.assemble_file(1);
+  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
   const bool assembled_present = assembled.has_value();
   ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
@@ -241,7 +241,7 @@ TEST(roundtrip_test, should_restore_empty_data) {
 
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
-  const auto assembled = decoder.assemble_file(1);
+  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
   const bool assembled_present = assembled.has_value();
   const bool assembled_empty = assembled->empty();
   ASSERT_TRUE(assembled_present);
@@ -255,7 +255,7 @@ TEST(roundtrip_test, should_restore_data_of_one_chunk_size) {
 
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
-  const auto assembled = decoder.assemble_file(1);
+  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
   const bool assembled_present = assembled.has_value();
   ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
@@ -268,14 +268,14 @@ TEST(roundtrip_test, should_restore_data_of_two_chunk_sizes) {
   decoder decoder;
 
   const chunked_storage_data chunked = chunk_byte_data(original_data);
-  const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
+  const uint32_t chunk_count = static_cast<uint32_t>(chunked.chunks.size());
   ASSERT_EQ(chunk_count, 2u);
 
   for (uint32_t i = 0; i < chunk_count; ++i) {
     encode_and_feed(encoder, decoder, chunk_span(chunked, i), i, i == chunk_count - 1);
   }
 
-  const auto assembled = decoder.assemble_file(chunk_count);
+  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(chunk_count);
   const bool assembled_present = assembled.has_value();
   ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
@@ -288,14 +288,14 @@ TEST(roundtrip_test, should_restore_many_chunks) {
   decoder decoder;
 
   const chunked_storage_data chunked = chunk_byte_data(original_data);
-  const auto chunk_count = static_cast<uint32_t>(chunked.chunks.size());
+  const uint32_t chunk_count = static_cast<uint32_t>(chunked.chunks.size());
   EXPECT_EQ(chunk_count, 6u);
 
   for (uint32_t i = 0; i < chunk_count; ++i) {
     encode_and_feed(encoder, decoder, chunk_span(chunked, i), i, i == chunk_count - 1);
   }
 
-  const auto assembled = decoder.assemble_file(chunk_count);
+  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(chunk_count);
   const bool assembled_present = assembled.has_value();
   ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
@@ -313,7 +313,7 @@ TEST(roundtrip_test, should_restore_data_from_packets_out_of_order) {
     (void)decoder.process_packet(packet_span(packet), false);
   }
 
-  const auto assembled = decoder.assemble_file(1);
+  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
   const bool assembled_present = assembled.has_value();
   ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
@@ -337,7 +337,7 @@ TEST(roundtrip_test, should_restore_data_despite_lost_packets) {
   const bool chunk_complete = decoder.is_chunk_complete(0);
   EXPECT_TRUE(chunk_complete);
 
-  const auto assembled = decoder.assemble_file(1);
+  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
   const bool assembled_present = assembled.has_value();
   ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);

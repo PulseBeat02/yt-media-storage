@@ -132,7 +132,7 @@ void decrypt_chunk_into(const std::span<std::byte> out, const std::span<const st
   }
 
   const nonce nonce = build_nonce(file_id, chunk_index);
-  const auto cipher = chunk_from_decoder.subspan(CRYPTO_PLAIN_SIZE_HEADER, cipher_length);
+  const std::span<const std::byte> cipher = chunk_from_decoder.subspan(CRYPTO_PLAIN_SIZE_HEADER, cipher_length);
 
   unsigned long long written = 0;
   if (crypto_aead_xchacha20poly1305_ietf_decrypt(reinterpret_cast<unsigned char*>(out.data()), &written, nullptr,

@@ -103,7 +103,7 @@ void extract_data_into(std::vector<std::byte>& destination, const AVFrame& sourc
 
   const std::size_t base = destination.size();
   destination.resize(base + total_bytes);
-  auto* out = reinterpret_cast<uint8_t*>(destination.data() + base);
+  uint8_t* out = reinterpret_cast<uint8_t*>(destination.data() + base);
 
   if constexpr (BITS_PER_BLOCK == 1) {
     for (int byte_index = 0; byte_index < total_bytes; ++byte_index) {
@@ -119,7 +119,7 @@ void extract_data_into(std::vector<std::byte>& destination, const AVFrame& sourc
       out[byte_index] = current_byte;
     }
   } else {
-    const auto& projections = get_decoder_projections();
+    const decoder_projections& projections = get_decoder_projections();
     const auto& vectors = projections.vectors;
 
     for (int byte_index = 0; byte_index < total_bytes; ++byte_index) {
@@ -375,7 +375,8 @@ video_decoder::packet_list video_decoder::decode_next_frame() {
 video_decoder::packet_list video_decoder::decode_all_frames() {
   packet_list results;
   while (!eof_) {
-    for (packet_list packets = decode_next_frame(); auto& packet : packets) {
+    packet_list packets = decode_next_frame();
+    for (std::vector<std::byte>& packet : packets) {
       results.push_back(std::move(packet));
     }
   }

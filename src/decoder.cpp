@@ -57,7 +57,7 @@ bool chunk_decoder::add_packet(const uint32_t esi, const std::span<const std::by
 
   ++packets_received_;
 
-  const auto codec = static_cast<WirehairCodec>(codec_.get());
+  const WirehairCodec codec = static_cast<WirehairCodec>(codec_.get());
   const WirehairResult result = wirehair_decode(codec, esi, payload.data(), static_cast<uint32_t>(payload.size()));
   if (result == Wirehair_NeedMore) {
     return false;
@@ -92,7 +92,7 @@ std::vector<std::byte> chunk_decoder::consume_decoded_data() {
 
 std::optional<chunk_decode_result> decoder::process_packet(const std::span<const std::byte> packet_data,
                                                            const bool compute_sha256) {
-  const auto parsed = parse_and_verify_packet(packet_data);
+  const std::optional<parsed_packet> parsed = parse_and_verify_packet(packet_data);
   if (!parsed) {
     ++total_packets_;
     return std::nullopt;
@@ -206,7 +206,7 @@ std::optional<std::vector<std::size_t>> decoder::plain_chunk_sizes(const uint32_
 
   std::vector<std::size_t> sizes(expected_chunks);
   for (uint32_t i = 0; i < expected_chunks; ++i) {
-    const auto& chunk = *completed_chunks_[i];
+    const std::vector<std::byte>& chunk = *completed_chunks_[i];
     if (!encrypted_) {
       sizes[i] = chunk.size();
       continue;
@@ -232,7 +232,7 @@ bool decoder::decrypt_chunk_to(const uint32_t chunk_index, const std::span<std::
 }
 
 std::optional<std::vector<std::byte>> decoder::assemble_file(const uint32_t expected_chunks) const {
-  const auto sizes = plain_chunk_sizes(expected_chunks);
+  const std::optional<std::vector<std::size_t>> sizes = plain_chunk_sizes(expected_chunks);
   if (!sizes) {
     return std::nullopt;
   }
@@ -264,7 +264,7 @@ std::optional<std::vector<std::byte>> decoder::assemble_file(const uint32_t expe
 }
 
 bool decoder::write_assembled_file(const std::string& output_path, const uint32_t expected_chunks) const {
-  const auto sizes = plain_chunk_sizes(expected_chunks);
+  const std::optional<std::vector<std::size_t>> sizes = plain_chunk_sizes(expected_chunks);
   if (!sizes) {
     return false;
   }

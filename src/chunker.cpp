@@ -77,7 +77,7 @@ chunked_storage_data chunk_file(const char* path, const std::size_t chunk_size) 
   if (end < 0) {
     throw std::runtime_error(FILE_SIZE_FAILURE_MESSAGE);
   }
-  const auto size = static_cast<std::size_t>(end);
+  const std::size_t size = static_cast<std::size_t>(end);
   file.seekg(0);
 
   chunked_storage_data result;

@@ -137,7 +137,7 @@ worker_thread::worker_thread(worker_request request, QObject* parent) : QThread(
 }
 
 int worker_thread::progress_callback(const uint64_t current, const uint64_t total, void* user) {
-  auto* thread = static_cast<worker_thread*>(user);
+  worker_thread* thread = static_cast<worker_thread*>(user);
   if (thread->cancel_requested_) {
     return CANCEL_OPERATION;
   }
@@ -327,11 +327,11 @@ void drive_manager_ui::setup_ui() {
 
   main_splitter_ = new QSplitter(Qt::Horizontal, central_widget_);
 
-  auto* left_panel = new QWidget();
-  auto* left_layout = new QVBoxLayout(left_panel);
+  QWidget* left_panel = new QWidget();
+  QVBoxLayout* left_layout = new QVBoxLayout(left_panel);
 
   file_operations_group_ = new QGroupBox("File Operations");
-  auto* file_operations_layout = new QGridLayout(file_operations_group_);
+  QGridLayout* file_operations_layout = new QGridLayout(file_operations_group_);
 
   file_operations_layout->addWidget(new QLabel("Input File:"), INPUT_FILE_ROW, LABEL_COLUMN);
   input_file_edit_ = new QLineEdit();
@@ -375,13 +375,13 @@ void drive_manager_ui::setup_ui() {
   left_layout->addWidget(file_operations_group_);
 
   batch_group_ = new QGroupBox("Batch Operations");
-  auto* batch_layout = new QVBoxLayout(batch_group_);
+  QVBoxLayout* batch_layout = new QVBoxLayout(batch_group_);
 
   file_list_widget_ = new QListWidget();
   file_list_widget_->setSelectionMode(QAbstractItemView::ExtendedSelection);
   batch_layout->addWidget(file_list_widget_);
 
-  auto* batch_buttons_layout = new QHBoxLayout();
+  QHBoxLayout* batch_buttons_layout = new QHBoxLayout();
   add_files_button_ = new QPushButton("Add Files");
   remove_files_button_ = new QPushButton("Remove Selected");
   clear_files_button_ = new QPushButton("Clear All");
@@ -390,7 +390,7 @@ void drive_manager_ui::setup_ui() {
   batch_buttons_layout->addWidget(clear_files_button_);
   batch_layout->addLayout(batch_buttons_layout);
 
-  auto* batch_output_layout = new QHBoxLayout();
+  QHBoxLayout* batch_output_layout = new QHBoxLayout();
   batch_output_layout->addWidget(new QLabel("Output Directory:"));
   batch_output_directory_edit_ = new QLineEdit();
   batch_output_directory_edit_->setReadOnly(true);
@@ -406,7 +406,7 @@ void drive_manager_ui::setup_ui() {
   left_layout->addWidget(batch_group_);
 
   stream_group_ = new QGroupBox("Streaming (Twitch / YouTube)");
-  auto* stream_layout = new QGridLayout(stream_group_);
+  QGridLayout* stream_layout = new QGridLayout(stream_group_);
 
   stream_layout->addWidget(new QLabel("Platform:"), PLATFORM_ROW, LABEL_COLUMN);
   platform_combo_box_ = new QComboBox();
@@ -466,11 +466,11 @@ void drive_manager_ui::setup_ui() {
 
   left_layout->addWidget(stream_group_);
 
-  auto* right_panel = new QWidget();
-  auto* right_layout = new QVBoxLayout(right_panel);
+  QWidget* right_panel = new QWidget();
+  QVBoxLayout* right_layout = new QVBoxLayout(right_panel);
 
   status_group_ = new QGroupBox("Status");
-  auto* status_layout = new QVBoxLayout(status_group_);
+  QVBoxLayout* status_layout = new QVBoxLayout(status_group_);
 
   progress_bar_ = new QProgressBar();
   progress_bar_->setRange(0, MAXIMUM_PROGRESS);
@@ -485,7 +485,7 @@ void drive_manager_ui::setup_ui() {
   right_layout->addWidget(status_group_);
 
   logs_group_ = new QGroupBox("Logs");
-  auto* logs_layout = new QVBoxLayout(logs_group_);
+  QVBoxLayout* logs_layout = new QVBoxLayout(logs_group_);
 
   log_text_edit_ = new QTextEdit();
   log_text_edit_->setReadOnly(true);
@@ -500,7 +500,7 @@ void drive_manager_ui::setup_ui() {
   main_splitter_->addWidget(right_panel);
   main_splitter_->setSizes({INITIAL_PANEL_WIDTH, INITIAL_PANEL_WIDTH});
 
-  auto* main_layout = new QHBoxLayout(central_widget_);
+  QHBoxLayout* main_layout = new QHBoxLayout(central_widget_);
   main_layout->addWidget(main_splitter_);
 }
 

@@ -71,7 +71,7 @@ struct cli_options {
 std::string format_size(const uint64_t bytes) {
   constexpr int last_unit = static_cast<int>(std::size(SIZE_UNITS)) - 1;
   int unit = 0;
-  auto size = static_cast<double>(bytes);
+  double size = static_cast<double>(bytes);
   while (size >= SIZE_UNIT_RATIO && unit < last_unit) {
     size /= SIZE_UNIT_RATIO;
     ++unit;
@@ -253,10 +253,10 @@ std::optional<cli_options> parse_arguments(const int argc, char* argv[]) {
   };
 
   const auto take_positive_integer = [&](int& i, const std::string_view flag) -> std::optional<int> {
-    const auto text = take_value(i);
+    const std::optional<std::string_view> text = take_value(i);
     if (!text)
       return std::nullopt;
-    const auto value = parse_positive_integer(*text);
+    const std::optional<int> value = parse_positive_integer(*text);
     if (!value) {
       std::cerr << ERROR_LABEL << flag << " expects a positive integer, got '" << *text << "'\n";
     }
@@ -327,7 +327,7 @@ int main(const int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  const auto cli = parse_arguments(argc, argv);
+  const std::optional<cli_options> cli = parse_arguments(argc, argv);
   if (!cli) {
     return EXIT_FAILURE;
   }

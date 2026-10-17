@@ -153,7 +153,7 @@ TEST(integrity_test, should_reject_a_packet_with_a_corrupted_payload) {
   const uint32_t computed_crc = packet_crc32(header, payload, CHECKSUM_OFFSET);
   write_uint32_little_endian(header, CHECKSUM_OFFSET, computed_crc);
 
-  const auto original_byte = static_cast<unsigned char>(payload[0]);
+  const unsigned char original_byte = static_cast<unsigned char>(payload[0]);
   payload[0] = static_cast<std::byte>(original_byte ^ 0xFFu);
 
   const bool checksum_valid = verify_packet_crc32(header, payload, CHECKSUM_OFFSET);

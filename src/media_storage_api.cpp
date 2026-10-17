@@ -149,7 +149,7 @@ struct encode_job {
 
   template <typename FrameSink> [[nodiscard]] ms_status_t run(FrameSink& sink, encode_statistics& statistics) const {
     const std::size_t chunk_count = reader.chunk_count();
-    const auto batch_size = static_cast<std::size_t>(std::max(1, omp_get_max_threads()));
+    const std::size_t batch_size = static_cast<std::size_t>(std::max(1, omp_get_max_threads()));
     const auto batch_count_at = [&](const std::size_t start) {
       return static_cast<int>(std::min(start + batch_size, chunk_count) - start);
     };
@@ -171,7 +171,7 @@ struct encode_job {
         });
       }
 
-      for (const auto& packets : results) {
+      for (const std::vector<packet>& packets : results) {
         statistics.total_packets += packets.size();
         sink.encode_packets(packets);
       }
@@ -197,7 +197,7 @@ ms_status_t consume_video(video_decoder& video, decoder& decoder, const ms_progr
   const uint64_t total_for_progress = total > 0 ? static_cast<uint64_t>(total) : 0;
 
   while (!video.is_eof()) {
-    if (const auto last = decoder.last_chunk_index();
+    if (const std::optional<uint32_t> last = decoder.last_chunk_index();
         last && statistics.decoded_chunks >= static_cast<std::size_t>(*last) + 1) {
       break;
     }
@@ -205,9 +205,9 @@ ms_status_t consume_video(video_decoder& video, decoder& decoder, const ms_progr
       return fail(MS_ERR_DECODE_FAILED, CANCELLED_MESSAGE);
     }
 
-    for (const auto& packet_bytes : video.decode_next_frame()) {
+    for (const std::vector<std::byte>& packet_bytes : video.decode_next_frame()) {
       ++statistics.total_packets;
-      if (const auto chunk_result = decoder.process_packet(packet_bytes, false);
+      if (const std::optional<chunk_decode_result> chunk_result = decoder.process_packet(packet_bytes, false);
           chunk_result && chunk_result->success) {
         ++statistics.decoded_chunks;
       }
@@ -261,7 +261,7 @@ void fill_result(ms_result_t* result, const uint64_t input_size, const uint64_t 
 
 uint64_t file_size_or_zero(const std::string& path) {
   std::error_code error_code;
-  const auto size = std::filesystem::file_size(path, error_code);
+  const std::uintmax_t size = std::filesystem::file_size(path, error_code);
   return error_code ? 0 : static_cast<uint64_t>(size);
 }
 
