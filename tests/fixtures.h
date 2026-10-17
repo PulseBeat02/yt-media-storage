@@ -18,8 +18,10 @@
 #define MEDIA_STORAGE_TESTS_FIXTURES_H
 
 #include <cstddef>
+#include <exception>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <string>
 #include <vector>
@@ -31,6 +33,12 @@ namespace fixtures {
 constexpr std::size_t PATTERN_MULTIPLIER = 131;
 constexpr std::size_t PATTERN_OFFSET = 17;
 constexpr std::size_t BYTE_MASK = 0xFF;
+
+constexpr const char* FULL_DEVICE = "/dev/full";
+constexpr const char* NO_FULL_DEVICE_MESSAGE = "This platform has no full device to write to!";
+
+constexpr const char* UNMAPPABLE_FILE = "/sys/devices/system/cpu/online";
+constexpr const char* NO_UNMAPPABLE_FILE_MESSAGE = "This platform has no file that cannot be memory-mapped!";
 
 class temporary_file {
 public:
@@ -78,6 +86,16 @@ inline std::vector<std::byte> make_pattern(const std::size_t size) {
 inline void write_bytes(const std::filesystem::path& path, const std::vector<std::byte>& data) {
   std::ofstream stream(path, std::ios::binary);
   stream.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
+}
+
+inline std::string find_error_message(const std::function<void()>& action) {
+  try {
+    action();
+  } catch (const std::exception& exception) {
+    return exception.what();
+  }
+
+  return "";
 }
 
 inline std::vector<std::byte> read_bytes(const std::filesystem::path& path) {

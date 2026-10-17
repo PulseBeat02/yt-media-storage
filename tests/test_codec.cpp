@@ -512,7 +512,6 @@ namespace {
     constexpr const char *OUTPUT_NAME = "out.bin";
     constexpr const char *BINARY_EXTENSION = ".bin";
     constexpr const char *NO_EXTENSION = "";
-    constexpr const char *FULL_DEVICE = "/dev/full";
     constexpr std::size_t LARGE_CHUNK_BYTES = 64 * 1024;
     constexpr std::byte KEY_FILL{0x5A};
     constexpr std::byte WRONG_KEY_FILL{0xA5};
@@ -716,13 +715,13 @@ TEST(Codec, should_not_write_into_a_missing_directory) {
 }
 
 TEST(Codec, should_report_a_failed_write) {
-    if (!std::filesystem::exists(FULL_DEVICE)) {
-        GTEST_SKIP() << "This platform has no " << FULL_DEVICE << ".";
+    if (!std::filesystem::exists(fixtures::FULL_DEVICE)) {
+        GTEST_SKIP() << fixtures::NO_FULL_DEVICE_MESSAGE;
     }
 
     const Decoder decoder = decode_chunk(make_test_data(LARGE_CHUNK_BYTES), false);
 
-    const bool written = decoder.write_assembled_file(FULL_DEVICE, 1);
+    const bool written = decoder.write_assembled_file(fixtures::FULL_DEVICE, 1);
 
     EXPECT_FALSE(written);
 }
@@ -737,4 +736,11 @@ TEST(Codec, should_write_an_encrypted_file_with_its_key) {
 
     EXPECT_TRUE(written);
     EXPECT_EQ(fixtures::read_bytes(output.path()), plain);
+}
+
+TEST(Codec, should_reject_a_chunk_larger_than_the_chunk_size) {
+    const Encoder encoder(make_test_file_id());
+    const std::vector<std::byte> oversized = make_test_data(CHUNK_SIZE_BYTES + 1);
+
+    EXPECT_THROW(static_cast<void>(encoder.encode_chunk(0, oversized, true)), std::runtime_error);
 }

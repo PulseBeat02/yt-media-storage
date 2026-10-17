@@ -18,6 +18,7 @@
 
 #include "chunker.h"
 #include "configuration.h"
+#include "fixtures.h"
 
 #include <atomic>
 #include <cstdint>
@@ -30,6 +31,11 @@
 #include <vector>
 
 namespace {
+
+constexpr const char *UNSEEKABLE_FILE = "/proc/self/status";
+constexpr const char *NO_UNSEEKABLE_FILE_MESSAGE = "This platform has no file without a size!";
+
+constexpr std::size_t SINGLE_BYTE_CHUNK_SIZE = 1;
 
 std::filesystem::path make_unique_temp_path() {
     static std::atomic<std::uint64_t> counter{0};
@@ -334,4 +340,61 @@ TEST(Chunker, ChunkFile_EmptyFile) {
     ASSERT_EQ(chunks.size(), 1u);
     EXPECT_EQ(chunks[0].length, 0u);
     EXPECT_TRUE(storage.empty());
+}
+
+TEST(Chunker, should_return_an_empty_view_of_an_empty_file) {
+    const TempFile temp_file({});
+    const FileChunkReader reader(temp_file.path_cstr());
+
+    const std::span<const std::byte> view = reader.chunk_view(0);
+    EXPECT_TRUE(view.empty());
+}
+
+TEST(Chunker, should_stream_a_file_that_cannot_be_memory_mapped) {
+    if (!std::filesystem::exists(fixtures::UNMAPPABLE_FILE)) {
+        GTEST_SKIP() << fixtures::NO_UNMAPPABLE_FILE_MESSAGE;
+    }
+
+    const FileChunkReader reader(fixtures::UNMAPPABLE_FILE, SINGLE_BYTE_CHUNK_SIZE);
+
+    const std::vector<std::byte> first_chunk = reader.read_chunk(0);
+    EXPECT_FALSE(reader.is_mapped());
+    EXPECT_EQ(first_chunk.size(), SINGLE_BYTE_CHUNK_SIZE);
+}
+
+TEST(Chunker, should_fail_to_read_past_the_content_of_an_unmapped_file) {
+    if (!std::filesystem::exists(fixtures::UNMAPPABLE_FILE)) {
+        GTEST_SKIP() << fixtures::NO_UNMAPPABLE_FILE_MESSAGE;
+    }
+
+    const FileChunkReader reader(fixtures::UNMAPPABLE_FILE, SINGLE_BYTE_CHUNK_SIZE);
+    const std::size_t last_chunk = reader.num_chunks() - 1;
+
+    EXPECT_THROW(static_cast<void>(reader.read_chunk(last_chunk)), std::runtime_error);
+}
+
+TEST(Chunker, should_refuse_a_view_of_an_unmapped_file) {
+    if (!std::filesystem::exists(fixtures::UNMAPPABLE_FILE)) {
+        GTEST_SKIP() << fixtures::NO_UNMAPPABLE_FILE_MESSAGE;
+    }
+
+    const FileChunkReader reader(fixtures::UNMAPPABLE_FILE, SINGLE_BYTE_CHUNK_SIZE);
+
+    EXPECT_THROW(static_cast<void>(reader.chunk_view(0)), std::runtime_error);
+}
+
+TEST(Chunker, should_fail_to_chunk_a_file_shorter_than_its_reported_size) {
+    if (!std::filesystem::exists(fixtures::UNMAPPABLE_FILE)) {
+        GTEST_SKIP() << fixtures::NO_UNMAPPABLE_FILE_MESSAGE;
+    }
+
+    EXPECT_THROW(static_cast<void>(chunk_file(fixtures::UNMAPPABLE_FILE)), std::runtime_error);
+}
+
+TEST(Chunker, should_fail_to_read_a_file_without_a_size) {
+    if (!std::filesystem::exists(UNSEEKABLE_FILE)) {
+        GTEST_SKIP() << NO_UNSEEKABLE_FILE_MESSAGE;
+    }
+
+    EXPECT_THROW(FileChunkReader reader(UNSEEKABLE_FILE), std::runtime_error);
 }
