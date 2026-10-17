@@ -42,6 +42,7 @@
 
 namespace {
 constexpr int DEFAULT_STREAM_CONNECT_TIMEOUT_SECONDS = 30;
+constexpr std::chrono::seconds STREAM_RETRY_DELAY{1};
 
 constexpr const char* CANCELLED_MESSAGE = "cancelled by progress callback";
 constexpr const char* INPUT_AND_OUTPUT_REQUIRED_MESSAGE = "input_path and output_path are required";
@@ -207,7 +208,7 @@ std::unique_ptr<video_decoder> open_stream_with_retries(const std::string& strea
     try {
       return std::make_unique<video_decoder>(stream_url);
     } catch (...) {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      std::this_thread::sleep_for(STREAM_RETRY_DELAY);
     }
   }
   return std::make_unique<video_decoder>(stream_url);
