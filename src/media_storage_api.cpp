@@ -156,12 +156,8 @@ struct encode_job {
   template <typename FrameSink> [[nodiscard]] ms_status_t run(FrameSink& sink, encode_statistics& statistics) const {
     const std::size_t chunk_count = reader.chunk_count();
     const std::size_t batch_size = static_cast<std::size_t>(std::max(1, omp_get_max_threads()));
-    const auto batch_count_at = [&](const std::size_t start) {
-      return static_cast<int>(std::min(start + batch_size, chunk_count) - start);
-    };
 
-    std::future<batch_results> pending =
-        std::async(std::launch::async, [this, batch_count_at] { return encode_batch(0, batch_count_at(0)); });
+    std::future<batch_results> pending = start_batch(0, batch_size);
 
     for (std::size_t batch_start = 0; batch_start < chunk_count; batch_start += batch_size) {
       if (progress && progress(batch_start, chunk_count, progress_user) != 0) {
@@ -172,9 +168,7 @@ struct encode_job {
       const batch_results results = pending.get();
 
       if (const std::size_t next_start = batch_start + batch_size; next_start < chunk_count) {
-        pending = std::async(std::launch::async, [this, next_start, batch_count_at] {
-          return encode_batch(next_start, batch_count_at(next_start));
-        });
+        pending = start_batch(next_start, batch_size);
       }
 
       for (const std::vector<packet>& packets : results) {
@@ -187,6 +181,16 @@ struct encode_job {
     statistics.total_chunks = chunk_count;
     statistics.total_frames = sink.frames_written();
     return MS_OK;
+  }
+
+  [[nodiscard]] std::future<batch_results> start_batch(const std::size_t batch_start,
+                                                       const std::size_t batch_size) const {
+    const int batch_count = count_chunks_in_batch(batch_start, batch_size);
+    return std::async(std::launch::async, &encode_job::encode_batch, this, batch_start, batch_count);
+  }
+
+  [[nodiscard]] int count_chunks_in_batch(const std::size_t batch_start, const std::size_t batch_size) const {
+    return static_cast<int>(std::min(batch_start + batch_size, reader.chunk_count()) - batch_start);
   }
 };
 

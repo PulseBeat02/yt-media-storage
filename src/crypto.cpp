@@ -36,14 +36,16 @@ constexpr const char* DECRYPTION_FAILURE_MESSAGE =
 
 using nonce = std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_NPUBBYTES>;
 
+void initialize_sodium() {
+  if (sodium_init() < 0) {
+    const std::string message = "Libsodium could not be initialized!";
+    throw std::runtime_error(message);
+  }
+}
+
 void ensure_sodium_initialized() {
   static std::once_flag initialization_flag;
-  std::call_once(initialization_flag, [] {
-    if (sodium_init() < 0) {
-      const std::string message = "Libsodium could not be initialized!";
-      throw std::runtime_error(message);
-    }
-  });
+  std::call_once(initialization_flag, initialize_sodium);
 }
 
 nonce build_nonce(const std::span<const std::byte, FILE_ID_SIZE> file_id, const uint32_t chunk_index) {

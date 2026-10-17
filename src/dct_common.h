@@ -147,17 +147,19 @@ struct cosine_table {
   float data[BLOCK_SIZE][BLOCK_SIZE];
 };
 
-inline const cosine_table& get_cosine_table() {
-  static const cosine_table table = [] {
-    cosine_table cosine_table{};
-    for (int i = 0; i < BLOCK_SIZE; ++i) {
-      for (int j = 0; j < BLOCK_SIZE; ++j) {
-        cosine_table.data[i][j] = std::cos((HALF_STEPS_PER_SAMPLE * static_cast<float>(i) + 1.0f) *
-                                           static_cast<float>(j) * PI / HALF_STEPS_PER_BLOCK);
-      }
+inline cosine_table build_cosine_table() {
+  cosine_table cosine_table{};
+  for (int i = 0; i < BLOCK_SIZE; ++i) {
+    for (int j = 0; j < BLOCK_SIZE; ++j) {
+      cosine_table.data[i][j] = std::cos((HALF_STEPS_PER_SAMPLE * static_cast<float>(i) + 1.0f) *
+                                         static_cast<float>(j) * PI / HALF_STEPS_PER_BLOCK);
     }
-    return cosine_table;
-  }();
+  }
+  return cosine_table;
+}
+
+inline const cosine_table& get_cosine_table() {
+  static const cosine_table table = build_cosine_table();
   return table;
 }
 
@@ -170,47 +172,49 @@ struct precomputed_blocks {
   uint8_t patterns[PATTERN_COUNT][BLOCK_SIZE][BLOCK_SIZE];
 };
 
-inline const precomputed_blocks& get_precomputed_blocks() {
-  static const precomputed_blocks blocks = [] {
-    precomputed_blocks result{};
-    const auto& [data] = get_cosine_table();
+inline precomputed_blocks build_precomputed_blocks() {
+  precomputed_blocks result{};
+  const auto& [data] = get_cosine_table();
 
-    constexpr float dc_value = DCT_SCALE * alpha(0) * alpha(0) * BLOCK_AREA * MIDDLE_GRAY;
+  constexpr float dc_value = DCT_SCALE * alpha(0) * alpha(0) * BLOCK_AREA * MIDDLE_GRAY;
 
-    float dc_image[BLOCK_SIZE][BLOCK_SIZE];
+  float dc_image[BLOCK_SIZE][BLOCK_SIZE];
+  for (int x = 0; x < BLOCK_SIZE; ++x) {
+    for (int y = 0; y < BLOCK_SIZE; ++y) {
+      dc_image[x][y] = DCT_SCALE * alpha(0) * alpha(0) * dc_value * data[x][0] * data[y][0];
+    }
+  }
+
+  float embed_basis[std::size(EMBED_POSITIONS)][BLOCK_SIZE][BLOCK_SIZE]{};
+  for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
+    const auto [u, v] = EMBED_POSITIONS[bit_index];
+    const float scale = DCT_SCALE * alpha(u) * alpha(v) * static_cast<float>(COEFFICIENT_STRENGTH);
     for (int x = 0; x < BLOCK_SIZE; ++x) {
       for (int y = 0; y < BLOCK_SIZE; ++y) {
-        dc_image[x][y] = DCT_SCALE * alpha(0) * alpha(0) * dc_value * data[x][0] * data[y][0];
+        embed_basis[bit_index][x][y] = scale * data[x][u] * data[y][v];
       }
     }
+  }
 
-    float embed_basis[std::size(EMBED_POSITIONS)][BLOCK_SIZE][BLOCK_SIZE]{};
-    for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
-      const auto [u, v] = EMBED_POSITIONS[bit_index];
-      const float scale = DCT_SCALE * alpha(u) * alpha(v) * static_cast<float>(COEFFICIENT_STRENGTH);
+  for (int pattern = 0; pattern < precomputed_blocks::PATTERN_COUNT; ++pattern) {
+    for (int y = 0; y < BLOCK_SIZE; ++y) {
       for (int x = 0; x < BLOCK_SIZE; ++x) {
-        for (int y = 0; y < BLOCK_SIZE; ++y) {
-          embed_basis[bit_index][x][y] = scale * data[x][u] * data[y][v];
+        float value = dc_image[y][x];
+        for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
+          const int bit = (pattern >> (BITS_PER_BLOCK - 1 - bit_index)) & 1;
+          value += (bit ? 1.0f : -1.0f) * embed_basis[bit_index][y][x];
         }
+        value = std::clamp(value, 0.0f, MAXIMUM_GRAY);
+        result.patterns[pattern][y][x] = static_cast<uint8_t>(value);
       }
     }
+  }
 
-    for (int pattern = 0; pattern < precomputed_blocks::PATTERN_COUNT; ++pattern) {
-      for (int y = 0; y < BLOCK_SIZE; ++y) {
-        for (int x = 0; x < BLOCK_SIZE; ++x) {
-          float value = dc_image[y][x];
-          for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
-            const int bit = (pattern >> (BITS_PER_BLOCK - 1 - bit_index)) & 1;
-            value += (bit ? 1.0f : -1.0f) * embed_basis[bit_index][y][x];
-          }
-          value = std::clamp(value, 0.0f, MAXIMUM_GRAY);
-          result.patterns[pattern][y][x] = static_cast<uint8_t>(value);
-        }
-      }
-    }
+  return result;
+}
 
-    return result;
-  }();
+inline const precomputed_blocks& get_precomputed_blocks() {
+  static const precomputed_blocks blocks = build_precomputed_blocks();
   return blocks;
 }
 
@@ -218,20 +222,22 @@ struct decoder_projections {
   alignas(VECTOR_ALIGNMENT) float vectors[std::size(EMBED_POSITIONS)][BLOCK_AREA];
 };
 
-inline const decoder_projections& get_decoder_projections() {
-  static const decoder_projections projections = [] {
-    decoder_projections decoder_projections{};
-    const auto& [data] = get_cosine_table();
-    for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
-      const auto [u, v] = EMBED_POSITIONS[bit_index];
-      for (int x = 0; x < BLOCK_SIZE; ++x) {
-        for (int y = 0; y < BLOCK_SIZE; ++y) {
-          decoder_projections.vectors[bit_index][x * BLOCK_SIZE + y] = data[x][u] * data[y][v];
-        }
+inline decoder_projections build_decoder_projections() {
+  decoder_projections decoder_projections{};
+  const auto& [data] = get_cosine_table();
+  for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
+    const auto [u, v] = EMBED_POSITIONS[bit_index];
+    for (int x = 0; x < BLOCK_SIZE; ++x) {
+      for (int y = 0; y < BLOCK_SIZE; ++y) {
+        decoder_projections.vectors[bit_index][x * BLOCK_SIZE + y] = data[x][u] * data[y][v];
       }
     }
-    return decoder_projections;
-  }();
+  }
+  return decoder_projections;
+}
+
+inline const decoder_projections& get_decoder_projections() {
+  static const decoder_projections projections = build_decoder_projections();
   return projections;
 }
 

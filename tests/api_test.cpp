@@ -42,6 +42,11 @@ constexpr std::size_t HALF_INPUT_SIZE = INPUT_SIZE / 2;
 constexpr int CONTINUE_OPERATION = 0;
 constexpr int CANCEL_OPERATION = 1;
 
+int count_progress_call(uint64_t, uint64_t, void* user) {
+  static_cast<std::atomic<int>*>(user)->fetch_add(1);
+  return CONTINUE_OPERATION;
+}
+
 }
 
 TEST(api_test, should_report_a_version) {
@@ -375,10 +380,7 @@ TEST(api_test, should_report_encoding_progress) {
   ms_encode_options_t encode_options{};
   encode_options.input_path = input_path.c_str();
   encode_options.output_path = encoded_path.c_str();
-  encode_options.progress = [](uint64_t, uint64_t, void* user) -> int {
-    static_cast<std::atomic<int>*>(user)->fetch_add(1);
-    return CONTINUE_OPERATION;
-  };
+  encode_options.progress = count_progress_call;
   encode_options.progress_user = &call_count;
 
   const ms_status_t encode_status = ms_encode(&encode_options, nullptr);

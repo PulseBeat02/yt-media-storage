@@ -267,6 +267,24 @@ void write_resizing_stream(const std::string& path) {
   write_frames_of_size(output, CALIBRATED_FRAME_SIZE, RESIZED_FRAME_SIZE);
 }
 
+void overflow_video_output(const std::string& path) {
+  video_encoder encoder(path);
+  add_framed_packets(encoder, video_encoder::packets_per_frame() * FRAMES_TO_OVERFLOW_THE_OUTPUT_BUFFER);
+  encoder.finalize();
+}
+
+void open_stream_with_odd_width(const std::string& path) {
+  const stream_encoder encoder(path, STREAM_BITRATE_KILOBITS_PER_SECOND, ODD_FRAME_WIDTH, ONE_PACKET_FRAME_HEIGHT,
+                               FRAMES_PER_SECOND);
+}
+
+void overflow_stream_output() {
+  stream_encoder encoder(fixtures::FULL_DEVICE, HIGH_STREAM_BITRATE_KILOBITS_PER_SECOND, FRAME_WIDTH_STREAM,
+                         FRAME_HEIGHT_STREAM, FRAMES_PER_SECOND);
+  add_framed_packets(encoder, stream_packets_per_frame() * FRAMES_TO_OVERFLOW_THE_OUTPUT_BUFFER);
+  encoder.finalize();
+}
+
 }
 
 TEST(av_utils_test, should_give_a_shared_frame_its_own_buffer_of_the_same_shape) {
@@ -371,11 +389,7 @@ TEST(video_encoder_test, should_report_a_failed_frame_write_when_the_disk_is_ful
   const fixtures::temporary_file output(AVI_EXTENSION);
   std::filesystem::create_symlink(fixtures::FULL_DEVICE, output.path());
 
-  const std::string message = fixtures::find_error_message([&output] {
-    video_encoder encoder(output.string());
-    add_framed_packets(encoder, video_encoder::packets_per_frame() * FRAMES_TO_OVERFLOW_THE_OUTPUT_BUFFER);
-    encoder.finalize();
-  });
+  const std::string message = fixtures::find_error_message([&output] { overflow_video_output(output.string()); });
 
   const bool reports_frame_failure = message.ends_with("occurred while trying to write a frame!");
   EXPECT_TRUE(reports_frame_failure) << message;
@@ -540,10 +554,7 @@ TEST(stream_encoder_test, should_reject_a_packet_after_finalizing) {
 TEST(stream_encoder_test, should_report_a_frame_width_that_libx264_cannot_encode) {
   const fixtures::temporary_file output(FLV_EXTENSION);
 
-  const std::string message = fixtures::find_error_message([&output] {
-    const stream_encoder encoder(output.string(), STREAM_BITRATE_KILOBITS_PER_SECOND, ODD_FRAME_WIDTH,
-                                 ONE_PACKET_FRAME_HEIGHT, FRAMES_PER_SECOND);
-  });
+  const std::string message = fixtures::find_error_message([&output] { open_stream_with_odd_width(output.string()); });
 
   const bool reports_codec_failure = message.ends_with("occurred while trying to open the libx264 codec!");
   EXPECT_TRUE(reports_codec_failure) << message;
@@ -554,12 +565,7 @@ TEST(stream_encoder_test, should_report_a_failed_frame_write_when_the_disk_is_fu
     GTEST_SKIP() << fixtures::NO_FULL_DEVICE_MESSAGE;
   }
 
-  const std::string message = fixtures::find_error_message([] {
-    stream_encoder encoder(fixtures::FULL_DEVICE, HIGH_STREAM_BITRATE_KILOBITS_PER_SECOND, FRAME_WIDTH_STREAM,
-                           FRAME_HEIGHT_STREAM, FRAMES_PER_SECOND);
-    add_framed_packets(encoder, stream_packets_per_frame() * FRAMES_TO_OVERFLOW_THE_OUTPUT_BUFFER);
-    encoder.finalize();
-  });
+  const std::string message = fixtures::find_error_message(overflow_stream_output);
 
   const bool reports_frame_failure = message.ends_with("occurred while trying to write a frame to the stream!");
   EXPECT_TRUE(reports_frame_failure) << message;

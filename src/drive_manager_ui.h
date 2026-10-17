@@ -135,6 +135,8 @@ private slots:
 
   void clear_logs() const;
 
+  void show_about();
+
   void on_operation_completed(bool success, const QString& message);
 
   void on_progress_updated(int percentage) const;

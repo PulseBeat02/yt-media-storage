@@ -70,6 +70,11 @@ bool feed_all_packets_to_decoder(decoder& decoder, const std::vector<packet>& pa
   }
   return any_decoded;
 }
+
+bool carries_a_partial_symbol(const packet& packet) {
+  const std::optional<parsed_packet> parsed = parse_packet(fixtures::packet_span(packet));
+  return parsed && parsed->header.payload_length < parsed->header.symbol_size;
+}
 }
 
 TEST(codec_test, should_encode_a_chunk_into_its_packet_count) {
@@ -450,10 +455,7 @@ TEST(codec_test, should_accept_the_legacy_checksum_of_a_partial_symbol) {
   const encoder encoder(fixtures::make_test_file_id());
   auto [packets, manifest] = encode_test_data(encoder, input_data);
 
-  const auto partial = std::ranges::find_if(packets, [](const packet& packet) {
-    const std::optional<parsed_packet> parsed = parse_packet(fixtures::packet_span(packet));
-    return parsed && parsed->header.payload_length < parsed->header.symbol_size;
-  });
+  const auto partial = std::ranges::find_if(packets, carries_a_partial_symbol);
   const auto packets_end = packets.end();
   ASSERT_NE(partial, packets_end);
 

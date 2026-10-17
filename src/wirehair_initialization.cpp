@@ -22,12 +22,16 @@
 #include <stdexcept>
 #include <string>
 
+namespace {
+void initialize_wirehair() {
+  if (wirehair_init() != Wirehair_Success) {
+    const std::string message = "Wirehair could not be initialized!";
+    throw std::runtime_error(message);
+  }
+}
+}
+
 void ensure_wirehair_initialized() {
   static std::once_flag initialization_flag;
-  std::call_once(initialization_flag, [] {
-    if (wirehair_init() != Wirehair_Success) {
-      const std::string message = "Wirehair could not be initialized!";
-      throw std::runtime_error(message);
-    }
-  });
+  std::call_once(initialization_flag, initialize_wirehair);
 }

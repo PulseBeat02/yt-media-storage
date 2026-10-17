@@ -512,13 +512,15 @@ void drive_manager_ui::setup_menu_bar() {
   tools_menu->addAction("&Clear Logs", this, &drive_manager_ui::clear_logs);
 
   QMenu* help_menu = menuBar()->addMenu("&Help");
-  help_menu->addAction("&About", this, [this] {
-    QMessageBox::about(this, "About",
-                       QString("YouTube Media Storage Drive Manager\n\n"
-                               "Encode and decode files using video storage technology\n"
-                               "Version %1")
-                           .arg(ms_version()));
-  });
+  help_menu->addAction("&About", this, &drive_manager_ui::show_about);
+}
+
+void drive_manager_ui::show_about() {
+  QMessageBox::about(this, "About",
+                     QString("YouTube Media Storage Drive Manager\n\n"
+                             "Encode and decode files using video storage technology\n"
+                             "Version %1")
+                         .arg(ms_version()));
 }
 
 void drive_manager_ui::setup_status_bar() {
