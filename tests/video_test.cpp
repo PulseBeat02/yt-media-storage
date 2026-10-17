@@ -52,11 +52,16 @@ constexpr const char* MATROSKA_EXTENSION = ".mkv";
 constexpr const char* AVI_EXTENSION = ".avi";
 constexpr const char* MXF_EXTENSION = ".mxf";
 constexpr const char* ASF_EXTENSION = ".asf";
+constexpr const char* Y4M_EXTENSION = ".y4m";
 constexpr const char* FLV_EXTENSION = ".flv";
 constexpr const char* SUBTITLE_EXTENSION = ".srt";
 constexpr const char* UNKNOWN_EXTENSION = ".unknown";
 
 constexpr const char* SUBTITLE_CONTENTS = "1\n00:00:00,000 --> 00:00:01,000\ncaption\n";
+
+constexpr const char* Y4M_SIGNATURE = "YUV4MPEG2";
+constexpr const char* Y4M_FRAME_MARKER = "FRAME\n";
+constexpr int Y4M_FRAMES_PER_SECOND = 15;
 
 constexpr int SMALL_FRAME_WIDTH = 64;
 constexpr int SMALL_FRAME_HEIGHT = 32;
@@ -69,7 +74,6 @@ constexpr int STREAM_BITRATE_KILOBITS_PER_SECOND = 4000;
 constexpr int HIGH_STREAM_BITRATE_KILOBITS_PER_SECOND = 50000;
 
 constexpr int FRAMES_TO_WRITE = 2;
-constexpr int FRAMES_TO_MEASURE_THE_FRAME_RATE = 5;
 constexpr int FRAMES_TO_OVERFLOW_THE_OUTPUT_BUFFER = 30;
 
 constexpr uint8_t UNKNOWN_VERSION = 0xEE;
@@ -178,6 +182,18 @@ void write_undecodable_video(const std::string& path) {
   avformat_free_context(context);
 
   ASSERT_TRUE(written);
+}
+
+void write_gray_y4m_video(const std::string& path, const int frame_count) {
+  std::ofstream output(path, std::ios::binary);
+  output << Y4M_SIGNATURE << " W" << SMALL_FRAME_WIDTH << " H" << SMALL_FRAME_HEIGHT << " F" << Y4M_FRAMES_PER_SECOND
+         << ":1 Cmono\n";
+
+  const std::string pixels(static_cast<std::size_t>(SMALL_FRAME_WIDTH) * SMALL_FRAME_HEIGHT,
+                           static_cast<char>(MIDDLE_GRAY));
+  for (int frame = 0; frame < frame_count; ++frame) {
+    output << Y4M_FRAME_MARKER << pixels;
+  }
 }
 
 std::vector<std::byte> read_last_frame_data(const std::string& path) {
@@ -561,14 +577,24 @@ TEST(video_decoder_test, should_estimate_frames_from_the_duration_of_the_stream)
   EXPECT_EQ(total_frames, FRAMES_TO_WRITE);
 }
 
-TEST(video_decoder_test, should_estimate_frames_from_the_duration_and_frame_rate_of_the_stream) {
+TEST(video_decoder_test, should_round_the_frame_count_estimated_from_a_duration_in_milliseconds) {
   const fixtures::temporary_file video(ASF_EXTENSION);
-  write_video(video.string(), FRAMES_TO_MEASURE_THE_FRAME_RATE);
+  write_video(video.string(), FRAMES_TO_WRITE);
   const video_decoder decoder(video.string());
 
   const int64_t total_frames = decoder.total_frames();
 
-  EXPECT_EQ(total_frames, FRAMES_TO_MEASURE_THE_FRAME_RATE);
+  EXPECT_EQ(total_frames, FRAMES_TO_WRITE);
+}
+
+TEST(video_decoder_test, should_estimate_frames_from_the_duration_and_the_frame_rate_that_the_container_declares) {
+  const fixtures::temporary_file video(Y4M_EXTENSION);
+  write_gray_y4m_video(video.string(), FRAMES_TO_WRITE);
+  const video_decoder decoder(video.string());
+
+  const int64_t total_frames = decoder.total_frames();
+
+  EXPECT_EQ(total_frames, FRAMES_TO_WRITE);
 }
 
 TEST(video_decoder_test, should_hold_back_a_magic_number_that_ends_the_last_frame) {
