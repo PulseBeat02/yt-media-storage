@@ -163,7 +163,8 @@ TEST(api_decode_test, should_report_how_many_chunks_an_incomplete_video_holds) {
   const fixtures::temporary_file output(BINARY_EXTENSION);
   const encoder encoder(file_id_type{});
   const std::vector<std::byte> chunk = fixtures::make_pattern(INPUT_SIZE);
-  const std::vector<packet> last_chunk_packets = encoder.encode_chunk(LAST_CHUNK_INDEX, chunk, true).first;
+  const std::vector<packet> last_chunk_packets =
+      encoder.encode_chunk(LAST_CHUNK_INDEX, chunk, chunk_position::LAST).first;
   write_video(video.string(), last_chunk_packets);
 
   const ms_status_t status = decode_file(video, output);

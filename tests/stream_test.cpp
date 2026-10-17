@@ -68,16 +68,17 @@ encoder::file_id_type make_test_file_id() {
 
 void stream_encode_file(const std::string& input_path, const std::string& output_flv,
                         const int bitrate_kilobits_per_second, const int width, const int height,
-                        const bool encrypt = false, const std::string& password = {},
-                        const int frames_per_second = FRAMES_PER_SECOND) {
+                        const payload_encryption encryption = payload_encryption::PLAIN,
+                        const std::string& password = {}, const int frames_per_second = FRAMES_PER_SECOND) {
+  const bool encrypted = encryption == payload_encryption::ENCRYPTED;
   const file_chunk_reader reader(input_path.c_str(),
-                                 encrypt ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : AUTOMATIC_CHUNK_SIZE);
+                                 encrypted ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : AUTOMATIC_CHUNK_SIZE);
   const std::size_t chunk_count = reader.chunk_count();
   const file_id_type file_id = make_test_file_id();
   const encoder encoder(file_id);
 
   std::array<std::byte, CRYPTO_KEY_BYTES> key{};
-  if (encrypt) {
+  if (encrypted) {
     const std::span password_bytes(reinterpret_cast<const std::byte*>(password.data()), password.size());
     key = derive_key(password_bytes, file_id);
   }
@@ -88,17 +89,17 @@ void stream_encode_file(const std::string& input_path, const std::string& output
     std::vector<std::byte> chunk_data = reader.read_chunk(i);
     std::span<const std::byte> data_to_encode(chunk_data);
     std::vector<std::byte> encrypted_buffer;
-    if (encrypt) {
+    if (encrypted) {
       encrypted_buffer = encrypt_chunk(data_to_encode, key, file_id, static_cast<uint32_t>(i));
       data_to_encode = encrypted_buffer;
     }
-    const bool is_last = (i == chunk_count - 1);
-    auto [packets, manifest] = encoder.encode_chunk(static_cast<uint32_t>(i), data_to_encode, is_last, encrypt);
+    const chunk_position position = position_of_chunk(i, chunk_count);
+    auto [packets, manifest] = encoder.encode_chunk(static_cast<uint32_t>(i), data_to_encode, position, encryption);
     stream_encoder.encode_packets(packets);
   }
 
   stream_encoder.finalize();
-  if (encrypt) {
+  if (encrypted) {
     secure_zero(std::span<std::byte>(key));
   }
 }
@@ -129,7 +130,7 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
         }
       }
       const std::span<const std::byte> data(packet_data.data(), packet_data.size());
-      if (std::optional<chunk_decode_result> chunk_result = decoder.process_packet(data, false);
+      if (std::optional<chunk_decode_result> chunk_result = decoder.process_packet(data, sha256_computation::SKIP);
           chunk_result && chunk_result->success) {
         ++decoded_chunks;
       }
@@ -221,7 +222,7 @@ TEST(stream_test, should_restore_an_encrypted_file_from_frames) {
   const std::string password = "test_password_123";
 
   ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P,
-                                     HEIGHT_1080P, true, password));
+                                     HEIGHT_1080P, payload_encryption::ENCRYPTED, password));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -288,8 +289,8 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
 
     for (std::size_t i = 0; i < reader.chunk_count(); ++i) {
       std::vector<std::byte> chunk_data = reader.read_chunk(i);
-      const bool is_last = (i == reader.chunk_count() - 1);
-      auto [packets, manifest] = encoder.encode_chunk(static_cast<uint32_t>(i), chunk_data, is_last);
+      const chunk_position position = position_of_chunk(i, reader.chunk_count());
+      auto [packets, manifest] = encoder.encode_chunk(static_cast<uint32_t>(i), chunk_data, position);
       video_encoder.encode_packets(packets);
     }
     video_encoder.finalize();
@@ -318,7 +319,7 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
           }
         }
         if (std::optional<chunk_decode_result> chunk_result =
-                decoder.process_packet(std::span(packet_data.data(), packet_data.size()), false);
+                decoder.process_packet(std::span(packet_data.data(), packet_data.size()), sha256_computation::SKIP);
             chunk_result && chunk_result->success) {
           ++decoded_chunks;
         }
@@ -351,8 +352,8 @@ TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
 
     for (std::size_t i = 0; i < reader.chunk_count(); ++i) {
       std::vector<std::byte> chunk_data = reader.read_chunk(i);
-      const bool is_last = (i == reader.chunk_count() - 1);
-      auto [packets, manifest] = encoder.encode_chunk(static_cast<uint32_t>(i), chunk_data, is_last);
+      const chunk_position position = position_of_chunk(i, reader.chunk_count());
+      auto [packets, manifest] = encoder.encode_chunk(static_cast<uint32_t>(i), chunk_data, position);
       stream_encoder.encode_packets(packets);
     }
     stream_encoder.finalize();
@@ -388,7 +389,7 @@ TEST(stream_test, should_restore_a_file_from_sixty_frames_per_second) {
   fixtures::write_bytes(input.path(), original);
 
   ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_720P, HEIGHT_720P,
-                                     false, {}, 60));
+                                     payload_encryption::PLAIN, {}, 60));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -404,7 +405,7 @@ TEST(stream_test, should_restore_a_file_from_one_frame_per_second) {
   fixtures::write_bytes(input.path(), original);
 
   ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), LOW_BITRATE_KILOBITS_PER_SECOND, WIDTH_720P,
-                                     HEIGHT_720P, false, {}, 1));
+                                     HEIGHT_720P, payload_encryption::PLAIN, {}, 1));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -469,7 +470,7 @@ TEST(stream_test, should_restore_a_file_from_every_frame_of_a_video) {
 
   decoder decoder;
   for (const std::vector<std::byte>& packet_data : all_packets) {
-    (void)decoder.process_packet(std::span(packet_data.data(), packet_data.size()), false);
+    (void)decoder.process_packet(std::span(packet_data.data(), packet_data.size()), sha256_computation::SKIP);
   }
 
   const std::size_t chunks_completed = decoder.chunks_completed();

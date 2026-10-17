@@ -98,7 +98,12 @@ private:
 
   void release();
 
-  void write_pending_packets(AVCodecContext* codec_context, const AVStream* stream, bool ignore_errors);
+  enum class failure_handling {
+    THROW,
+    TOLERATE,
+  };
+
+  void write_pending_packets(AVCodecContext* codec_context, const AVStream* stream, failure_handling handling);
 
   void write_audio_up_to(int64_t video_pts);
 

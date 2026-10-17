@@ -304,14 +304,14 @@ void stream_encoder::initialize_audio_encoder() {
 }
 
 void stream_encoder::write_pending_packets(AVCodecContext* codec_context, const AVStream* stream,
-                                           const bool ignore_errors) {
+                                           const failure_handling handling) {
   while (true) {
     const int status = avcodec_receive_packet(codec_context, av_packet_);
     if (status == AVERROR(EAGAIN) || status == AVERROR_EOF) {
       return;
     }
     if (status < 0) {
-      if (ignore_errors) {
+      if (handling == failure_handling::TOLERATE) {
         return;
       }
       const std::string message = ffmpeg_failure_message(status, "receive a packet");
@@ -323,7 +323,7 @@ void stream_encoder::write_pending_packets(AVCodecContext* codec_context, const 
 
     const int write_status = av_interleaved_write_frame(format_context_, av_packet_);
     av_packet_unref(av_packet_);
-    if (write_status < 0 && !ignore_errors) {
+    if (write_status < 0 && handling == failure_handling::THROW) {
       const std::string message = ffmpeg_failure_message(write_status, "write a frame to the stream");
       throw std::runtime_error(message);
     }
@@ -348,7 +348,7 @@ void stream_encoder::write_audio_up_to(const int64_t video_pts) {
     if (avcodec_send_frame(audio_codec_context_, audio_frame_) < 0) {
       break;
     }
-    write_pending_packets(audio_codec_context_, audio_stream_, true);
+    write_pending_packets(audio_codec_context_, audio_stream_, failure_handling::TOLERATE);
   }
 }
 
@@ -369,7 +369,7 @@ void stream_encoder::encode_frame() {
     const std::string message = ffmpeg_failure_message(status, "send a frame");
     throw std::runtime_error(message);
   }
-  write_pending_packets(video_codec_context_, video_stream_, false);
+  write_pending_packets(video_codec_context_, video_stream_, failure_handling::THROW);
   write_audio_up_to(frame_->pts);
 }
 
@@ -401,10 +401,10 @@ void stream_encoder::flush_frame_buffer() {
 
 void stream_encoder::flush_encoders() {
   avcodec_send_frame(video_codec_context_, nullptr);
-  write_pending_packets(video_codec_context_, video_stream_, false);
+  write_pending_packets(video_codec_context_, video_stream_, failure_handling::THROW);
 
   avcodec_send_frame(audio_codec_context_, nullptr);
-  write_pending_packets(audio_codec_context_, audio_stream_, true);
+  write_pending_packets(audio_codec_context_, audio_stream_, failure_handling::TOLERATE);
 }
 
 void stream_encoder::finalize() {

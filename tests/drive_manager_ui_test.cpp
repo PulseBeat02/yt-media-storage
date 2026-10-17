@@ -392,10 +392,10 @@ protected:
     return wait_until([&] { return driver_.has_message(title, text); });
   }
 
-  void encode_input_to_video(const bool encrypt) {
+  void encode_input_to_encrypted_video() {
     select_files(to_qstring(input_), to_qstring(video_));
-    encrypt_box()->setChecked(encrypt);
-    password_edit()->setText(encrypt ? PASSWORD : "");
+    encrypt_box()->setChecked(true);
+    password_edit()->setText(PASSWORD);
     button(FILE_OPERATIONS_GROUP, ENCODE_BUTTON)->click();
 
     const bool encode_succeeded = wait_for_message(SUCCESS_TITLE, ENCODE_SUCCEEDED_MESSAGE);
@@ -670,7 +670,7 @@ TEST_F(drive_manager_ui_test, should_validate_files_before_decoding) {
 }
 
 TEST_F(drive_manager_ui_test, should_encode_and_decode_an_encrypted_file) {
-  encode_input_to_video(true);
+  encode_input_to_encrypted_video();
 
   const bool mentions_encrypting_chunks_with_password = log_text().contains(ENCRYPTING_LOG);
   const bool mentions_input_size = log_text().contains(QString("Input size: %1 bytes").arg(SMALL_INPUT_SIZE));
@@ -701,7 +701,7 @@ TEST_F(drive_manager_ui_test, should_encode_and_decode_an_encrypted_file) {
 }
 
 TEST_F(drive_manager_ui_test, should_report_a_failed_decode) {
-  encode_input_to_video(true);
+  encode_input_to_encrypted_video();
 
   select_files(to_qstring(video_), to_qstring(output_));
   password_edit()->setText(WRONG_PASSWORD);

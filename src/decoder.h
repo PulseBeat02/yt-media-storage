@@ -84,17 +84,22 @@ private:
   std::vector<std::byte> decoded_data_;
 };
 
+enum class sha256_computation {
+  COMPUTE,
+  SKIP,
+};
+
 class decoder {
 public:
   using file_id_type = ::file_id_type;
 
   decoder() = default;
 
-  [[nodiscard]] std::optional<chunk_decode_result> process_packet(std::span<const std::byte> packet_data,
-                                                                  bool compute_sha256 = true);
+  [[nodiscard]] std::optional<chunk_decode_result>
+  process_packet(std::span<const std::byte> packet_data, sha256_computation computation = sha256_computation::COMPUTE);
 
-  [[nodiscard]] std::optional<chunk_decode_result> process_verified_packet(const parsed_packet& packet,
-                                                                           bool compute_sha256 = true);
+  [[nodiscard]] std::optional<chunk_decode_result>
+  process_verified_packet(const parsed_packet& packet, sha256_computation computation = sha256_computation::COMPUTE);
 
   [[nodiscard]] bool is_chunk_complete(uint32_t chunk_index) const;
 

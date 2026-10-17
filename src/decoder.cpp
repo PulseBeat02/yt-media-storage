@@ -91,17 +91,17 @@ std::vector<std::byte> chunk_decoder::consume_decoded_data() {
 }
 
 std::optional<chunk_decode_result> decoder::process_packet(const std::span<const std::byte> packet_data,
-                                                           const bool compute_sha256) {
+                                                           const sha256_computation computation) {
   const std::optional<parsed_packet> parsed = parse_and_verify_packet(packet_data);
   if (!parsed) {
     ++total_packets_;
     return std::nullopt;
   }
-  return process_verified_packet(*parsed, compute_sha256);
+  return process_verified_packet(*parsed, computation);
 }
 
 std::optional<chunk_decode_result> decoder::process_verified_packet(const parsed_packet& packet,
-                                                                    const bool compute_sha256) {
+                                                                    const sha256_computation computation) {
   ++total_packets_;
 
   const packet_header& header = packet.header;
@@ -135,7 +135,7 @@ std::optional<chunk_decode_result> decoder::process_verified_packet(const parsed
   result.chunk_index = header.chunk_index;
   result.data = slot->consume_decoded_data();
   result.data.resize(std::min(static_cast<uint32_t>(result.data.size()), header.original_size));
-  if (compute_sha256) {
+  if (computation == sha256_computation::COMPUTE) {
     result.sha256 = sha256(result.data);
   }
   result.success = true;

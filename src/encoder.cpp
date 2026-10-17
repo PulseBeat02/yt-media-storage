@@ -44,16 +44,16 @@ uint32_t compute_repair_count(const uint32_t source_symbol_count, const double o
   return static_cast<uint32_t>(std::ceil(static_cast<double>(source_symbol_count) * overhead));
 }
 
-uint8_t build_flags(const uint32_t block_id, const uint32_t source_symbol_count, const bool is_last_chunk,
-                    const bool encrypted, const hash_algorithm_type algorithm) {
+uint8_t build_flags(const uint32_t block_id, const uint32_t source_symbol_count, const chunk_position position,
+                    const payload_encryption encryption, const hash_algorithm_type algorithm) {
   uint8_t flags = 0;
   if (block_id > source_symbol_count) {
     flags |= FLAG_REPAIR_SYMBOL;
   }
-  if (is_last_chunk) {
+  if (position == chunk_position::LAST) {
     flags |= FLAG_LAST_CHUNK;
   }
-  if (encrypted) {
+  if (encryption == payload_encryption::ENCRYPTED) {
     flags |= FLAG_ENCRYPTED;
   }
   if (algorithm == hash_algorithm_type::XXHASH32) {
@@ -63,14 +63,18 @@ uint8_t build_flags(const uint32_t block_id, const uint32_t source_symbol_count,
 }
 }
 
+chunk_position position_of_chunk(const std::size_t chunk_index, const std::size_t chunk_count) {
+  return chunk_index == chunk_count - 1 ? chunk_position::LAST : chunk_position::BEFORE_LAST;
+}
+
 encoder::encoder(const file_id_type file_id, const hash_algorithm_type hash_algorithm)
     : file_id_(file_id), hash_algorithm_(hash_algorithm) {
 }
 
 std::pair<std::vector<packet>, chunk_manifest_entry> encoder::encode_chunk(const uint32_t chunk_index,
                                                                            const std::span<const std::byte> chunk_data,
-                                                                           const bool is_last_chunk,
-                                                                           const bool encrypted) const {
+                                                                           const chunk_position position,
+                                                                           const payload_encryption encryption) const {
   ensure_wirehair_initialized();
 
   if (chunk_data.size() > CHUNK_SIZE_BYTES) {
@@ -133,7 +137,7 @@ std::pair<std::vector<packet>, chunk_manifest_entry> encoder::encode_chunk(const
       throw std::runtime_error(message);
     }
 
-    header.flags = build_flags(block_id, source_symbol_count, is_last_chunk, encrypted, hash_algorithm_);
+    header.flags = build_flags(block_id, source_symbol_count, position, encryption, hash_algorithm_);
     header.esi = block_id;
     header.payload_length = static_cast<uint16_t>(write_length);
 

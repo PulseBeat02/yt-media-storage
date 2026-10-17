@@ -72,6 +72,10 @@ hash_algorithm_type to_internal_hash(const ms_hash_algorithm_t algorithm) {
   return algorithm == MS_HASH_XXHASH32 ? hash_algorithm_type::XXHASH32 : hash_algorithm_type::CRC32;
 }
 
+payload_encryption to_payload_encryption(const int encrypt) {
+  return encrypt != 0 ? payload_encryption::ENCRYPTED : payload_encryption::PLAIN;
+}
+
 std::span<const std::byte> password_span(const char* password, const std::size_t length) {
   return {reinterpret_cast<const std::byte*>(password), length};
 }
@@ -109,7 +113,7 @@ struct encode_statistics {
 struct encode_job {
   const file_chunk_reader& reader;
   const ::encoder& encoder;
-  bool encrypt;
+  payload_encryption encryption;
   const crypto_key& key;
   ms_progress_fn progress;
   void* progress_user;
@@ -131,11 +135,12 @@ struct encode_job {
         const std::size_t i = batch_start + j;
         std::span<const std::byte> data = reader.chunk_view(i);
         std::vector<std::byte> encrypted;
-        if (encrypt) {
+        if (encryption == payload_encryption::ENCRYPTED) {
           encrypted = encrypt_chunk(data, key, file_id, static_cast<uint32_t>(i));
           data = encrypted;
         }
-        results[j] = encoder.encode_chunk(static_cast<uint32_t>(i), data, i == chunk_count - 1, encrypt).first;
+        results[j] =
+            encoder.encode_chunk(static_cast<uint32_t>(i), data, position_of_chunk(i, chunk_count), encryption).first;
       } catch (...) {
         batch_error = true;
       }
@@ -208,7 +213,8 @@ ms_status_t consume_video(video_decoder& video, decoder& decoder, const ms_progr
 
     for (const std::vector<std::byte>& packet_bytes : video.decode_next_frame()) {
       ++statistics.total_packets;
-      if (const std::optional<chunk_decode_result> chunk_result = decoder.process_packet(packet_bytes, false);
+      if (const std::optional<chunk_decode_result> chunk_result =
+              decoder.process_packet(packet_bytes, sha256_computation::SKIP);
           chunk_result && chunk_result->success) {
         ++statistics.decoded_chunks;
       }
@@ -268,11 +274,12 @@ uint64_t file_size_or_zero(const std::string& path) {
 }
 
 template <typename MakeSink>
-ms_status_t encode_file(const char* input_path_c_string, const bool encrypt, const char* password,
+ms_status_t encode_file(const char* input_path_c_string, const payload_encryption encryption, const char* password,
                         const std::size_t password_length, const ms_hash_algorithm_t hash_algorithm,
                         const ms_progress_fn progress, void* progress_user, MakeSink&& make_sink,
                         encode_statistics& statistics, uint64_t& input_size) {
-  if (encrypt && (!password || password_length == 0)) {
+  const bool encrypted = encryption == payload_encryption::ENCRYPTED;
+  if (encrypted && (!password || password_length == 0)) {
     return fail(MS_ERR_INVALID_ARGS, "encryption requires a password");
   }
 
@@ -287,18 +294,18 @@ ms_status_t encode_file(const char* input_path_c_string, const bool encrypt, con
 
   try {
     const file_chunk_reader reader(input_path.c_str(),
-                                   encrypt ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : AUTOMATIC_CHUNK_SIZE);
+                                   encrypted ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : AUTOMATIC_CHUNK_SIZE);
     if (reader.file_size() > 0 && !reader.is_mapped()) {
       return fail(MS_ERR_IO, "failed to memory-map input file: " + input_path);
     }
 
     const encoder encoder(generate_file_id(), to_internal_hash(hash_algorithm));
     scoped_key key;
-    if (encrypt) {
+    if (encrypted) {
       key.derive(password_span(password, password_length), encoder.file_id());
     }
 
-    const encode_job job{reader, encoder, encrypt, key.get(), progress, progress_user};
+    const encode_job job{reader, encoder, encryption, key.get(), progress, progress_user};
     auto sink = make_sink();
     return job.run(*sink, statistics);
   } catch (...) {
@@ -317,9 +324,9 @@ ms_status_t ms_encode(const ms_encode_options_t* options, ms_result_t* result) {
   encode_statistics statistics;
   uint64_t input_size = 0;
   const ms_status_t status = encode_file(
-      options->input_path, options->encrypt != 0, options->password, options->password_len, options->hash_algorithm,
-      options->progress, options->progress_user, [&] { return std::make_unique<video_encoder>(output_path); },
-      statistics, input_size);
+      options->input_path, to_payload_encryption(options->encrypt), options->password, options->password_len,
+      options->hash_algorithm, options->progress, options->progress_user,
+      [&] { return std::make_unique<video_encoder>(output_path); }, statistics, input_size);
   if (status != MS_OK) {
     return status;
   }
@@ -344,8 +351,8 @@ ms_status_t ms_stream_encode(const ms_stream_encode_options_t* options, ms_resul
   encode_statistics statistics;
   uint64_t input_size = 0;
   const ms_status_t status = encode_file(
-      options->input_path, options->encrypt != 0, options->password, options->password_len, options->hash_algorithm,
-      options->progress, options->progress_user,
+      options->input_path, to_payload_encryption(options->encrypt), options->password, options->password_len,
+      options->hash_algorithm, options->progress, options->progress_user,
       [&] { return std::make_unique<stream_encoder>(stream_url, bitrate, width, height, frames_per_second); },
       statistics, input_size);
   if (status != MS_OK) {

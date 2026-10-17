@@ -38,16 +38,27 @@ struct chunk_manifest_entry {
   uint16_t symbol_size = 0;
 };
 
+enum class chunk_position {
+  BEFORE_LAST,
+  LAST,
+};
+
+enum class payload_encryption {
+  PLAIN,
+  ENCRYPTED,
+};
+
+[[nodiscard]] chunk_position position_of_chunk(std::size_t chunk_index, std::size_t chunk_count);
+
 class encoder {
 public:
   using file_id_type = ::file_id_type;
 
   explicit encoder(file_id_type file_id, hash_algorithm_type hash_algorithm = hash_algorithm_type::CRC32);
 
-  [[nodiscard]] std::pair<std::vector<packet>, chunk_manifest_entry> encode_chunk(uint32_t chunk_index,
-                                                                                  std::span<const std::byte> chunk_data,
-                                                                                  bool is_last_chunk,
-                                                                                  bool encrypted = false) const;
+  [[nodiscard]] std::pair<std::vector<packet>, chunk_manifest_entry>
+  encode_chunk(uint32_t chunk_index, std::span<const std::byte> chunk_data, chunk_position position,
+               payload_encryption encryption = payload_encryption::PLAIN) const;
 
   [[nodiscard]] const file_id_type& file_id() const {
     return file_id_;
