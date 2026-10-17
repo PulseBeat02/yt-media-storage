@@ -589,6 +589,17 @@ TEST_F(drive_manager_ui_test, should_warn_when_an_operation_is_already_running) 
   ASSERT_TRUE(wait_for_message("Success", "Encoding completed successfully"));
 }
 
+TEST_F(drive_manager_ui_test, should_warn_when_a_batch_starts_while_an_operation_is_running) {
+  select_files(to_qstring(input_), to_qstring(video_));
+  QPushButton* const encode = button("File Operations", "Encode to Video");
+
+  encode->click();
+  QMetaObject::invokeMethod(window_.get(), "startBatchEncode");
+
+  EXPECT_TRUE(driver_.has_message("Warning", "An operation is already in progress"));
+  ASSERT_TRUE(wait_for_message("Success", "Encoding completed successfully"));
+}
+
 TEST_F(drive_manager_ui_test, should_report_progress_while_running) {
   select_files(to_qstring(input_), to_qstring(video_));
   QProgressBar* const progress = group("Status")->findChild<QProgressBar*>();
