@@ -39,9 +39,6 @@ constexpr std::string_view DECODE_COMMAND = "decode";
 constexpr std::string_view STREAM_ENCODE_COMMAND = "stream-encode";
 constexpr std::string_view STREAM_DECODE_COMMAND = "stream-decode";
 
-constexpr const char* INPUT_AND_OUTPUT_REQUIRED_MESSAGE = "both --input and --output must be specified";
-constexpr const char* PASSWORD_REQUIRED_MESSAGE = "--encrypt requires --password";
-
 constexpr const char* INPUT_LABEL = "Input: ";
 constexpr const char* OUTPUT_LABEL = "Output: ";
 constexpr const char* STREAM_URL_LABEL = "Stream URL: ";
@@ -329,13 +326,25 @@ std::optional<cli_options> parse_arguments(const int argc, char* argv[]) {
   return cli;
 }
 
-bool require(const bool condition, const char* message, const char* program) {
-  if (!condition) {
-    std::cerr << ERROR_LABEL << message << "\n";
-    print_usage(program);
+std::optional<std::string_view> find_missing_option(const std::string_view command, const cli_options& cli) {
+  if ((command == ENCODE_COMMAND || command == DECODE_COMMAND) && (cli.input_path.empty() || cli.output_path.empty())) {
+    return "both --input and --output must be specified";
   }
 
-  return condition;
+  if (command == STREAM_ENCODE_COMMAND && (cli.input_path.empty() || cli.stream_url.empty())) {
+    return "--input and --url must be specified for stream-encode";
+  }
+
+  if (command == STREAM_DECODE_COMMAND && (cli.stream_url.empty() || cli.output_path.empty())) {
+    return "--url and --output must be specified for stream-decode";
+  }
+
+  const bool encoding = command == ENCODE_COMMAND || command == STREAM_ENCODE_COMMAND;
+  if (encoding && cli.encrypt && cli.password.empty()) {
+    return "--encrypt requires --password";
+  }
+
+  return std::nullopt;
 }
 }
 
@@ -358,35 +367,23 @@ int main(const int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  const bool encrypt_ok = !cli->encrypt || !cli->password.empty();
+  const std::optional<std::string_view> missing_option = find_missing_option(command, *cli);
+  if (missing_option) {
+    std::cerr << ERROR_LABEL << *missing_option << "\n";
+    print_usage(argv[0]);
+    return EXIT_FAILURE;
+  }
 
   if (command == ENCODE_COMMAND) {
-    if (!require(!cli->input_path.empty() && !cli->output_path.empty(), INPUT_AND_OUTPUT_REQUIRED_MESSAGE, argv[0]) ||
-        !require(encrypt_ok, PASSWORD_REQUIRED_MESSAGE, argv[0])) {
-      return EXIT_FAILURE;
-    }
     return do_encode(*cli);
   }
 
   if (command == DECODE_COMMAND) {
-    if (!require(!cli->input_path.empty() && !cli->output_path.empty(), INPUT_AND_OUTPUT_REQUIRED_MESSAGE, argv[0])) {
-      return EXIT_FAILURE;
-    }
     return do_decode(*cli);
   }
 
   if (command == STREAM_ENCODE_COMMAND) {
-    if (!require(!cli->input_path.empty() && !cli->stream_url.empty(),
-                 "--input and --url must be specified for stream-encode", argv[0]) ||
-        !require(encrypt_ok, PASSWORD_REQUIRED_MESSAGE, argv[0])) {
-      return EXIT_FAILURE;
-    }
     return do_stream_encode(*cli);
-  }
-
-  if (!require(!cli->stream_url.empty() && !cli->output_path.empty(),
-               "--url and --output must be specified for stream-decode", argv[0])) {
-    return EXIT_FAILURE;
   }
 
   return do_stream_decode(*cli);
