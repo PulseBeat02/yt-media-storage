@@ -143,6 +143,25 @@ TEST(api_test, should_reject_encrypting_without_a_password) {
   EXPECT_EQ(encode_status, MS_ERR_INVALID_ARGS);
 }
 
+TEST(api_test, should_reject_encrypting_with_an_empty_password) {
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const std::vector<std::byte> data = fixtures::make_pattern(SMALL_INPUT_SIZE);
+  fixtures::write_bytes(input.path(), data);
+
+  const fixtures::temporary_file output(MATROSKA_EXTENSION);
+  const std::string input_path = input.string();
+  const std::string output_path = output.string();
+  ms_encode_options_t options{};
+  options.input_path = input_path.c_str();
+  options.output_path = output_path.c_str();
+  options.encrypt = 1;
+  options.password = "";
+  options.password_len = 0;
+
+  const ms_status_t encode_status = ms_encode(&options, nullptr);
+  EXPECT_EQ(encode_status, MS_ERR_INVALID_ARGS);
+}
+
 TEST(api_test, should_reject_decoding_without_options) {
   const ms_status_t decode_status = ms_decode(nullptr, nullptr);
   EXPECT_EQ(decode_status, MS_ERR_INVALID_ARGS);
@@ -226,6 +245,23 @@ TEST(api_test, should_reject_encrypted_stream_encoding_without_a_password) {
   options.stream_url = STREAM_URL;
   options.encrypt = 1;
   options.password = nullptr;
+  options.password_len = 0;
+
+  const ms_status_t stream_encode_status = ms_stream_encode(&options, nullptr);
+  EXPECT_EQ(stream_encode_status, MS_ERR_INVALID_ARGS);
+}
+
+TEST(api_test, should_reject_encrypted_stream_encoding_with_an_empty_password) {
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const std::string input_path = input.string();
+  const std::vector<std::byte> data = fixtures::make_pattern(SMALL_INPUT_SIZE);
+  fixtures::write_bytes(input.path(), data);
+
+  ms_stream_encode_options_t options{};
+  options.input_path = input_path.c_str();
+  options.stream_url = STREAM_URL;
+  options.encrypt = 1;
+  options.password = "";
   options.password_len = 0;
 
   const ms_status_t stream_encode_status = ms_stream_encode(&options, nullptr);

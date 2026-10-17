@@ -34,6 +34,10 @@ namespace {
 constexpr const char* BINARY_EXTENSION = ".bin";
 constexpr const char* MATROSKA_EXTENSION = ".mkv";
 constexpr const char* FLV_EXTENSION = ".flv";
+constexpr const char* NO_EXTENSION = "";
+
+constexpr const char* MISSING_DIRECTORY = "missing-directory";
+constexpr const char* OUTPUT_NAME = "out.bin";
 
 constexpr std::size_t INPUT_SIZE = 1024;
 
@@ -194,4 +198,23 @@ TEST(api_decode_test, should_report_how_many_chunks_an_incomplete_video_holds) {
   EXPECT_EQ(status, MS_ERR_INCOMPLETE);
   EXPECT_STREQ(last_error, "decoded 1 of 2 chunks");
   EXPECT_FALSE(output_exists);
+}
+
+TEST(api_decode_test, should_report_an_output_that_cannot_be_written) {
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file video(MATROSKA_EXTENSION);
+  const fixtures::temporary_file directory(NO_EXTENSION);
+  write_encoded_pattern(input, video);
+  const std::string video_path = video.string();
+  const std::filesystem::path output = directory.path() / MISSING_DIRECTORY / OUTPUT_NAME;
+  const std::string output_path = output.string();
+  ms_decode_options_t options{};
+  options.input_path = video_path.c_str();
+  options.output_path = output_path.c_str();
+
+  const ms_status_t status = ms_decode(&options, nullptr);
+
+  const char* const last_error = ms_last_error();
+  EXPECT_EQ(status, MS_ERR_IO);
+  EXPECT_STREQ(last_error, "failed to write output file");
 }
