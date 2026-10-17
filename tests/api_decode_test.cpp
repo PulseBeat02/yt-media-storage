@@ -39,6 +39,8 @@ constexpr std::size_t INPUT_SIZE = 1024;
 
 constexpr int CANCEL_OPERATION = 1;
 
+constexpr int THROWN_VALUE = 1;
+
 constexpr int STREAM_CONNECT_ATTEMPTS = 2;
 constexpr std::chrono::seconds STREAM_RETRY_DELAY{1};
 
@@ -46,6 +48,10 @@ constexpr uint32_t LAST_CHUNK_INDEX = 1;
 
 int request_cancellation(uint64_t, uint64_t, void*) {
   return CANCEL_OPERATION;
+}
+
+int throw_a_value_that_is_not_an_exception(uint64_t, uint64_t, void*) {
+  throw THROWN_VALUE;
 }
 
 void write_encoded_pattern(const fixtures::temporary_file& input, const fixtures::temporary_file& video) {
@@ -106,6 +112,27 @@ TEST(api_decode_test, should_stop_decoding_a_stream_when_the_progress_callback_c
 
   const bool output_exists = std::filesystem::exists(output.path());
   EXPECT_EQ(status, MS_ERR_DECODE_FAILED);
+  EXPECT_FALSE(output_exists);
+}
+
+TEST(api_decode_test, should_report_an_unknown_exception_when_the_progress_callback_throws_a_value) {
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file video(MATROSKA_EXTENSION);
+  const fixtures::temporary_file output(BINARY_EXTENSION);
+  write_encoded_pattern(input, video);
+  const std::string video_path = video.string();
+  const std::string output_path = output.string();
+  ms_decode_options_t options{};
+  options.input_path = video_path.c_str();
+  options.output_path = output_path.c_str();
+  options.progress = throw_a_value_that_is_not_an_exception;
+
+  const ms_status_t status = ms_decode(&options, nullptr);
+
+  const std::string error = ms_last_error();
+  const bool output_exists = std::filesystem::exists(output.path());
+  EXPECT_EQ(status, MS_ERR_DECODE_FAILED);
+  EXPECT_EQ(error, "unknown exception");
   EXPECT_FALSE(output_exists);
 }
 
