@@ -20,8 +20,10 @@
 #include "wirehair_init.h"
 
 #include <cmath>
+#include <format>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 
 namespace {
@@ -70,7 +72,9 @@ std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const u
   ensure_wirehair_initialized();
 
   if (chunk_data.size() > CHUNK_SIZE_BYTES) {
-    throw std::runtime_error("chunk_data larger than CHUNK_SIZE_BYTES");
+    const std::string message =
+        std::format("Chunk of {} bytes must not be larger than {} bytes!", chunk_data.size(), CHUNK_SIZE_BYTES);
+    throw std::runtime_error(message);
   }
 
   constexpr std::size_t min_size = SYMBOL_SIZE_BYTES * 2;
@@ -98,7 +102,8 @@ std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const u
   const WirehairCodec codec = wirehair_encoder_create(
       reusable_codec.release(), reinterpret_cast<const uint8_t*>(data_to_encode.data()), chunk_size, symbol_size);
   if (!codec) {
-    throw std::runtime_error("wirehair_encoder_create() failed");
+    const std::string message = "Wirehair encoder could not be created!";
+    throw std::runtime_error(message);
   }
   reusable_codec.reset(codec);
 
@@ -122,7 +127,8 @@ std::pair<std::vector<Packet>, ChunkManifestEntry> Encoder::encode_chunk(const u
     auto* payload_dest = reinterpret_cast<uint8_t*>(packet.bytes.data() + HEADER_SIZE_V2);
     uint32_t write_len = 0;
     if (wirehair_encode(codec, block_id, payload_dest, SYMBOL_SIZE_BYTES, &write_len) != Wirehair_Success) {
-      throw std::runtime_error("wirehair_encode() failed");
+      const std::string message = std::format("Wirehair could not encode block {}!", block_id);
+      throw std::runtime_error(message);
     }
 
     header.flags = build_flags(block_id, num_source, is_last_chunk, encrypted, hash_algo_);

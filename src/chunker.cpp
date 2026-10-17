@@ -18,7 +18,9 @@
 #include "configuration.h"
 
 #include <algorithm>
+#include <format>
 #include <stdexcept>
+#include <string>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -29,6 +31,10 @@
 #endif
 
 namespace {
+constexpr const char* FILE_OPEN_FAILURE_MESSAGE = "File could not be opened!";
+constexpr const char* FILE_SIZE_FAILURE_MESSAGE = "Size of the file could not be determined!";
+constexpr const char* FILE_READ_FAILURE_MESSAGE = "File could not be read!";
+
 std::vector<ChunkSlice> slice_into_chunks(const std::size_t size, const std::size_t chunk_size) {
   std::vector<ChunkSlice> chunks;
   if (size == 0) {
@@ -57,12 +63,12 @@ ChunkedStorageData chunk_byte_data(const std::span<const std::byte> data) {
 ChunkedStorageData chunk_file(const char* path, const std::size_t chunk_size) {
   std::ifstream file(path, std::ios::binary | std::ios::ate);
   if (!file) {
-    throw std::runtime_error("open failed");
+    throw std::runtime_error(FILE_OPEN_FAILURE_MESSAGE);
   }
 
   const std::streamoff end = file.tellg();
   if (end < 0) {
-    throw std::runtime_error("failed to determine file size");
+    throw std::runtime_error(FILE_SIZE_FAILURE_MESSAGE);
   }
   const auto size = static_cast<std::size_t>(end);
   file.seekg(0);
@@ -70,7 +76,7 @@ ChunkedStorageData chunk_file(const char* path, const std::size_t chunk_size) {
   ChunkedStorageData result;
   result.storage.resize(size);
   if (size > 0 && !file.read(reinterpret_cast<char*>(result.storage.data()), static_cast<std::streamsize>(size))) {
-    throw std::runtime_error("read failed");
+    throw std::runtime_error(FILE_READ_FAILURE_MESSAGE);
   }
   result.chunks = slice_into_chunks(size, effective_chunk_size(chunk_size));
   return result;
@@ -79,12 +85,12 @@ ChunkedStorageData chunk_file(const char* path, const std::size_t chunk_size) {
 FileChunkReader::FileChunkReader(const char* path, const std::size_t chunk_size)
     : chunk_size_(effective_chunk_size(chunk_size)), file_(path, std::ios::binary) {
   if (!file_) {
-    throw std::runtime_error("open failed");
+    throw std::runtime_error(FILE_OPEN_FAILURE_MESSAGE);
   }
   file_.seekg(0, std::ios::end);
   const std::streamoff end = file_.tellg();
   if (end < 0) {
-    throw std::runtime_error("failed to determine file size");
+    throw std::runtime_error(FILE_SIZE_FAILURE_MESSAGE);
   }
   file_size_ = static_cast<std::size_t>(end);
   file_.seekg(0);
@@ -147,7 +153,8 @@ FileChunkReader::~FileChunkReader() {
 
 ChunkSlice FileChunkReader::chunk_slice(const std::size_t index) const {
   if (index >= num_chunks_) {
-    throw std::runtime_error("chunk index out of range");
+    const std::string message = std::format("Chunk index {} must be below the chunk count {}!", index, num_chunks_);
+    throw std::runtime_error(message);
   }
   const std::size_t offset = index * chunk_size_;
   if (offset >= file_size_) {
@@ -162,7 +169,8 @@ std::span<const std::byte> FileChunkReader::chunk_view(const std::size_t index) 
     return {};
   }
   if (!mapped_) {
-    throw std::runtime_error("chunk_view called without active mapping");
+    const std::string message = "Chunk views need a memory-mapped file!";
+    throw std::runtime_error(message);
   }
   return {mapped_ + offset, length};
 }
@@ -181,7 +189,7 @@ std::vector<std::byte> FileChunkReader::read_chunk(const std::size_t index) cons
   }
   std::vector<std::byte> data(length);
   if (!file_.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(length))) {
-    throw std::runtime_error("read failed");
+    throw std::runtime_error(FILE_READ_FAILURE_MESSAGE);
   }
   file_pos_ = offset + length;
   return data;

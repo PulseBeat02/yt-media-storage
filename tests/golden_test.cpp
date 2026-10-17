@@ -143,12 +143,14 @@ void receive_luma_planes(AVCodecContext* context, AVFrame* frame, luma_planes& p
 format_pointer open_video(const std::string& path) {
   AVFormatContext* context = nullptr;
   if (avformat_open_input(&context, path.c_str(), nullptr, nullptr) < 0) {
-    throw std::runtime_error("Video could not be opened!");
+    const std::string message = "Video could not be opened!";
+    throw std::runtime_error(message);
   }
 
   format_pointer format(context);
   if (avformat_find_stream_info(format.get(), nullptr) < 0) {
-    throw std::runtime_error("Video stream info could not be read!");
+    const std::string message = "Video stream information could not be read!";
+    throw std::runtime_error(message);
   }
   return format;
 }
@@ -158,7 +160,8 @@ codec_pointer open_decoder(const AVCodecParameters& parameters) {
   codec_pointer context(avcodec_alloc_context3(codec));
   if (avcodec_parameters_to_context(context.get(), &parameters) < 0 ||
       avcodec_open2(context.get(), codec, nullptr) < 0) {
-    throw std::runtime_error("Video decoder could not be opened!");
+    const std::string message = "Video decoder could not be opened!";
+    throw std::runtime_error(message);
   }
   return context;
 }

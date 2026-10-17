@@ -51,7 +51,8 @@ struct TempFile {
   explicit TempFile(const std::vector<std::byte>& contents) : path(make_unique_temp_path()) {
     std::ofstream stream(path, std::ios::binary);
     if (!stream) {
-      throw std::runtime_error("open failed");
+      const std::string message = "Temporary file could not be opened!";
+      throw std::runtime_error(message);
     }
     const auto byte_count = static_cast<std::streamsize>(contents.size());
     stream.write(reinterpret_cast<const char*>(contents.data()), byte_count);

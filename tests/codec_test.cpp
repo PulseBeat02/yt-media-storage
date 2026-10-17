@@ -613,7 +613,7 @@ TEST(codec_test, should_refuse_a_chunk_decoder_for_fewer_than_two_symbols) {
   const std::string message =
       find_runtime_error_message([] { const ChunkDecoder decoder(0, one_byte, one_symbol, SYMBOL_SIZE_BYTES); });
 
-  EXPECT_EQ(message, "wirehair_decoder_create failed");
+  EXPECT_EQ(message, "Wirehair decoder could not be created!");
 }
 
 TEST(codec_test, should_return_decoded_data_and_ignore_packets_after_decoding) {
@@ -647,8 +647,8 @@ TEST(codec_test, should_refuse_decoded_data_before_the_chunk_is_decoded) {
   const std::string move_message =
       find_runtime_error_message([&] { static_cast<void>(decoder.consume_decoded_data()); });
 
-  EXPECT_EQ(copy_message, "data not yet decoded");
-  EXPECT_EQ(move_message, "data not yet decoded");
+  EXPECT_EQ(copy_message, "Chunk data is not decoded yet!");
+  EXPECT_EQ(move_message, "Chunk data is not decoded yet!");
 }
 
 TEST(codec_test, should_reject_packets_on_a_moved_from_chunk_decoder) {
@@ -662,7 +662,7 @@ TEST(codec_test, should_reject_packets_on_a_moved_from_chunk_decoder) {
       [&] { static_cast<void>(original.add_packet(parsed[0].header.esi, parsed[0].payload)); });
 
   const uint32_t source_symbol_count = moved.num_source_symbols();
-  EXPECT_EQ(message, "codec is null");
+  EXPECT_EQ(message, "Codec must not be null!");
   EXPECT_EQ(source_symbol_count, parsed[0].header.k);
 }
 
@@ -676,7 +676,7 @@ TEST(codec_test, should_reject_a_payload_of_the_wrong_size) {
   const std::string message =
       find_runtime_error_message([&] { static_cast<void>(decoder.add_packet(parsed[0].header.esi, short_payload)); });
 
-  EXPECT_EQ(message, "wirehair_decode failed with error");
+  EXPECT_EQ(message, "Wirehair could not decode a packet!");
 }
 
 TEST(codec_test, should_not_assemble_before_any_packet_arrives) {

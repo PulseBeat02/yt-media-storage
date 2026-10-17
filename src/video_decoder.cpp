@@ -16,6 +16,7 @@
 
 #include "video_decoder.h"
 
+#include "av_utils.h"
 #include "configuration.h"
 #include "dct_common.h"
 #include "packet_format.h"
@@ -24,6 +25,7 @@
 #include <functional>
 #include <span>
 #include <stdexcept>
+#include <string>
 
 namespace {
 std::size_t packet_size_at(const std::span<const std::byte> data) {
@@ -164,33 +166,37 @@ void VideoDecoder::release() {
 void VideoDecoder::init_decoder(const std::string& input_path) {
   int ret = avformat_open_input(&format_ctx_, input_path.c_str(), nullptr, nullptr);
   if (ret < 0) {
-    throw std::runtime_error("Failed to open input file");
+    const std::string message = "Input file could not be opened!";
+    throw std::runtime_error(message);
   }
 
   ret = avformat_find_stream_info(format_ctx_, nullptr);
   if (ret < 0) {
-    throw std::runtime_error("Failed to find stream info");
+    const std::string message = "Stream information could not be found!";
+    throw std::runtime_error(message);
   }
 
   video_stream_index_ = av_find_best_stream(format_ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
   if (video_stream_index_ < 0) {
-    throw std::runtime_error("No video stream found");
+    const std::string message = "Input has no video stream!";
+    throw std::runtime_error(message);
   }
 
   const AVStream* stream = format_ctx_->streams[video_stream_index_];
   const AVCodec* codec = avcodec_find_decoder(stream->codecpar->codec_id);
   if (!codec) {
-    throw std::runtime_error("Failed to find decoder");
+    const std::string message = "Decoder could not be found!";
+    throw std::runtime_error(message);
   }
 
   codec_ctx_ = avcodec_alloc_context3(codec);
   if (!codec_ctx_) {
-    throw std::runtime_error("Failed to allocate codec context");
+    throw std::runtime_error(CODEC_CONTEXT_ALLOCATION_MESSAGE);
   }
 
   ret = avcodec_parameters_to_context(codec_ctx_, stream->codecpar);
   if (ret < 0) {
-    throw std::runtime_error("Failed to copy codec parameters");
+    throw std::runtime_error(CODEC_PARAMETERS_COPY_MESSAGE);
   }
 
   codec_ctx_->thread_count = 0;
@@ -198,32 +204,37 @@ void VideoDecoder::init_decoder(const std::string& input_path) {
 
   ret = avcodec_open2(codec_ctx_, codec, nullptr);
   if (ret < 0) {
-    throw std::runtime_error("Failed to open codec");
+    const std::string message = "Codec could not be opened!";
+    throw std::runtime_error(message);
   }
 
   frame_ = av_frame_alloc();
   av_packet_ = av_packet_alloc();
   if (!frame_ || !av_packet_) {
-    throw std::runtime_error("Failed to allocate frame/packet");
+    const std::string message = "Frame or packet could not be allocated!";
+    throw std::runtime_error(message);
   }
 
   is_gray8_ = (codec_ctx_->pix_fmt == AV_PIX_FMT_GRAY8);
   if (!is_gray8_) {
     gray_frame_ = av_frame_alloc();
     if (!gray_frame_) {
-      throw std::runtime_error("Failed to allocate gray frame");
+      const std::string message = "Gray frame could not be allocated!";
+      throw std::runtime_error(message);
     }
     gray_frame_->format = AV_PIX_FMT_GRAY8;
     gray_frame_->width = codec_ctx_->width;
     gray_frame_->height = codec_ctx_->height;
     if (av_frame_get_buffer(gray_frame_, 0) < 0) {
-      throw std::runtime_error("Failed to allocate gray frame buffer");
+      const std::string message = "Gray frame buffer could not be allocated!";
+      throw std::runtime_error(message);
     }
 
     sws_ctx_ = sws_getContext(codec_ctx_->width, codec_ctx_->height, codec_ctx_->pix_fmt, codec_ctx_->width,
                               codec_ctx_->height, AV_PIX_FMT_GRAY8, SWS_POINT, nullptr, nullptr, nullptr);
     if (!sws_ctx_) {
-      throw std::runtime_error("Failed to create swscale context");
+      const std::string message = "Swscale context could not be created!";
+      throw std::runtime_error(message);
     }
 #if !defined(DCT_USE_NEON)
     // arm keeps sws_scale and the neon projection: the lookup is only measured on x86

@@ -70,7 +70,7 @@ TEST(dct_test, should_extract_every_embedded_bit_pattern) {
       recovered = (recovered << 1) | (sum > 0.0f ? 1 : 0);
     }
 
-    EXPECT_EQ(recovered, pattern) << "Pattern " << pattern << " failed roundtrip";
+    EXPECT_EQ(recovered, pattern) << "Pattern " << pattern << " failed the round trip!";
   }
 }
 
@@ -134,7 +134,7 @@ TEST(dct_test, should_store_one_bit_per_block_in_the_frame_layout) {
 
 TEST(dct_test, should_produce_a_different_block_for_each_pattern) {
   if constexpr (PrecomputedBlocks::NUM_PATTERNS < 2) {
-    GTEST_SKIP() << "Need at least 2 patterns";
+    GTEST_SKIP() << "At least 2 patterns are needed!";
   }
 
   const auto& [patterns] = get_precomputed_blocks();

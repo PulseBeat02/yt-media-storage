@@ -20,12 +20,14 @@
 
 #include <mutex>
 #include <stdexcept>
+#include <string>
 
 void ensure_wirehair_initialized() {
   static std::once_flag init_flag;
   std::call_once(init_flag, [] {
     if (wirehair_init() != Wirehair_Success) {
-      throw std::runtime_error("wirehair_init failed");
+      const std::string message = "Wirehair could not be initialized!";
+      throw std::runtime_error(message);
     }
   });
 }

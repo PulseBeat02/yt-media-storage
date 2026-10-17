@@ -293,7 +293,7 @@ TEST(crypto_test, should_reject_a_chunk_without_a_size_header_when_decrypting_in
 
   const std::string message = find_runtime_error_message([&] { decrypt_chunk_into(out, chunk, key, file_id, 0u); });
 
-  EXPECT_EQ(message, "Decryption failed (chunk too small)");
+  EXPECT_EQ(message, "Chunk is too small to decrypt!");
 }
 
 TEST(crypto_test, should_reject_a_size_header_larger_than_a_chunk) {
@@ -306,5 +306,5 @@ TEST(crypto_test, should_reject_a_size_header_larger_than_a_chunk) {
   const std::string message =
       find_runtime_error_message([&] { static_cast<void>(decrypt_chunk(ciphertext, key, file_id, 0u)); });
 
-  EXPECT_EQ(message, "Decryption failed (wrong password or corrupted data)");
+  EXPECT_EQ(message, "Chunk could not be decrypted, because the password is wrong or the data is corrupted!");
 }

@@ -25,6 +25,7 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -315,13 +316,18 @@ TEST(av_utils_test, should_keep_the_buffer_of_a_frame_that_is_already_writable) 
   EXPECT_EQ(kept_plane, plane);
 }
 
+TEST(av_utils_test, should_name_the_error_and_the_action_in_an_ffmpeg_failure_message) {
+  const std::string message = ffmpeg_failure_message(AVERROR(EINVAL), "open the codec");
+  EXPECT_EQ(message, "FFmpeg error -22 (Invalid argument) occurred while trying to open the codec!");
+}
+
 TEST(video_encoder_test, should_reject_an_output_path_without_a_known_container) {
   const fixtures::temporary_file output(UNKNOWN_EXTENSION);
 
   const std::string message = fixtures::find_error_message([&output] { VideoEncoder encoder(output.string()); });
 
   const bool output_exists = std::filesystem::exists(output.path());
-  EXPECT_EQ(message, "Failed to create output context");
+  EXPECT_EQ(message, "Output context could not be created!");
   EXPECT_FALSE(output_exists);
 }
 
@@ -331,7 +337,7 @@ TEST(video_encoder_test, should_fail_to_open_an_output_file_in_a_missing_directo
 
   const std::string message = fixtures::find_error_message([&output] { VideoEncoder encoder(output.string()); });
 
-  const bool reports_open_failure = message.starts_with("Failed to open output file: ");
+  const bool reports_open_failure = message.ends_with("occurred while trying to open the output file!");
   EXPECT_TRUE(reports_open_failure) << message;
 }
 
@@ -340,7 +346,7 @@ TEST(video_encoder_test, should_fail_to_write_the_header_of_a_container_that_can
 
   const std::string message = fixtures::find_error_message([&output] { VideoEncoder encoder(output.string()); });
 
-  const bool reports_header_failure = message.starts_with("Failed to write header: ");
+  const bool reports_header_failure = message.ends_with("occurred while trying to write the header!");
   EXPECT_TRUE(reports_header_failure) << message;
 }
 
@@ -352,7 +358,7 @@ TEST(video_encoder_test, should_reject_a_packet_after_finalizing) {
   const std::string message = fixtures::find_error_message([&encoder] { encoder.add_packet(make_framed_packet(0)); });
 
   const int64_t frames_written = encoder.frames_written();
-  EXPECT_EQ(message, "Encoder already finalized");
+  EXPECT_EQ(message, "Encoder is already finalized!");
   EXPECT_EQ(frames_written, 0);
 }
 
@@ -370,7 +376,7 @@ TEST(video_encoder_test, should_report_a_failed_frame_write_when_the_disk_is_ful
     encoder.finalize();
   });
 
-  const bool reports_frame_failure = message.starts_with("Error writing frame: ");
+  const bool reports_frame_failure = message.ends_with("occurred while trying to write a frame!");
   EXPECT_TRUE(reports_frame_failure) << message;
 }
 
@@ -386,7 +392,7 @@ TEST(video_encoder_test, should_report_a_failed_trailer_when_the_disk_is_full) {
 
   const std::string message = fixtures::find_error_message([&encoder] { encoder.finalize(); });
 
-  const bool reports_trailer_failure = message.starts_with("Error writing trailer: ");
+  const bool reports_trailer_failure = message.ends_with("occurred while trying to write the trailer!");
   EXPECT_TRUE(reports_trailer_failure) << message;
 }
 
@@ -409,7 +415,7 @@ TEST(video_decoder_test, should_fail_to_open_a_missing_input) {
 
   const std::string message = fixtures::find_error_message([&input] { VideoDecoder decoder(input.string()); });
 
-  EXPECT_EQ(message, "Failed to open input file");
+  EXPECT_EQ(message, "Input file could not be opened!");
 }
 
 TEST(video_decoder_test, should_reject_an_input_without_a_video_stream) {
@@ -418,7 +424,7 @@ TEST(video_decoder_test, should_reject_an_input_without_a_video_stream) {
 
   const std::string message = fixtures::find_error_message([&input] { VideoDecoder decoder(input.string()); });
 
-  EXPECT_EQ(message, "No video stream found");
+  EXPECT_EQ(message, "Input has no video stream!");
 }
 
 TEST(video_decoder_test, should_reject_a_video_whose_codec_has_no_decoder) {
@@ -427,7 +433,7 @@ TEST(video_decoder_test, should_reject_a_video_whose_codec_has_no_decoder) {
 
   const std::string message = fixtures::find_error_message([&input] { VideoDecoder decoder(input.string()); });
 
-  EXPECT_EQ(message, "Failed to find decoder");
+  EXPECT_EQ(message, "Decoder could not be found!");
 }
 
 TEST(video_decoder_test, should_count_frames_from_the_frame_count_of_the_container) {
@@ -527,7 +533,7 @@ TEST(stream_encoder_test, should_reject_a_packet_after_finalizing) {
 
   const std::string message = fixtures::find_error_message([&encoder] { encoder.add_packet(make_framed_packet(0)); });
 
-  EXPECT_EQ(message, "Stream encoder already finalized");
+  EXPECT_EQ(message, "Stream encoder is already finalized!");
 }
 
 TEST(stream_encoder_test, should_report_a_frame_width_that_libx264_cannot_encode) {
@@ -537,7 +543,7 @@ TEST(stream_encoder_test, should_report_a_frame_width_that_libx264_cannot_encode
     StreamEncoder encoder(output.string(), STREAM_BITRATE_KBPS, ODD_FRAME_WIDTH, ONE_PACKET_FRAME_HEIGHT, FRAME_FPS);
   });
 
-  const bool reports_codec_failure = message.starts_with("Failed to open libx264 codec: ");
+  const bool reports_codec_failure = message.ends_with("occurred while trying to open the libx264 codec!");
   EXPECT_TRUE(reports_codec_failure) << message;
 }
 
@@ -553,7 +559,7 @@ TEST(stream_encoder_test, should_report_a_failed_frame_write_when_the_disk_is_fu
     encoder.finalize();
   });
 
-  const bool reports_frame_failure = message.starts_with("Error writing frame to stream: ");
+  const bool reports_frame_failure = message.ends_with("occurred while trying to write a frame to the stream!");
   EXPECT_TRUE(reports_frame_failure) << message;
 }
 
@@ -568,7 +574,7 @@ TEST(stream_encoder_test, should_report_a_failed_trailer_when_the_disk_is_full) 
 
   const std::string message = fixtures::find_error_message([&encoder] { encoder.finalize(); });
 
-  const bool reports_trailer_failure = message.starts_with("Error writing stream trailer: ");
+  const bool reports_trailer_failure = message.ends_with("occurred while trying to write the stream trailer!");
   EXPECT_TRUE(reports_trailer_failure) << message;
 }
 

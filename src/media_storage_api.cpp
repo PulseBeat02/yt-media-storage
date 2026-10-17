@@ -139,7 +139,8 @@ struct EncodeJob {
     }
 
     if (batch_error) {
-      throw std::runtime_error("batch FEC encoding failed");
+      const std::string message = "Batch could not be FEC encoded!";
+      throw std::runtime_error(message);
     }
     return results;
   }

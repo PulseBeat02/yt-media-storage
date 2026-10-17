@@ -19,18 +19,34 @@
 #ifndef MEDIA_STORAGE_AV_UTILS_H
 #define MEDIA_STORAGE_AV_UTILS_H
 
+#include <format>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 extern "C" {
 #include <libavutil/error.h>
 #include <libavutil/frame.h>
 }
 
+inline constexpr const char* FRAME_ALLOCATION_MESSAGE = "Frame could not be allocated!";
+inline constexpr const char* FRAME_BUFFER_ALLOCATION_MESSAGE = "Frame buffer could not be allocated!";
+inline constexpr const char* PACKET_ALLOCATION_MESSAGE = "Packet could not be allocated!";
+inline constexpr const char* CODEC_CONTEXT_ALLOCATION_MESSAGE = "Codec context could not be allocated!";
+inline constexpr const char* CODEC_PARAMETERS_COPY_MESSAGE = "Codec parameters could not be copied!";
+inline constexpr const char* VIDEO_STREAM_CREATION_MESSAGE = "Video stream could not be created!";
+
+inline constexpr std::string_view FFMPEG_FAILURE_MESSAGE = "FFmpeg error {} ({}) occurred while trying to {}!";
+
 inline std::string ffmpeg_error_string(const int error_code) {
   char buffer[AV_ERROR_MAX_STRING_SIZE] = {};
   av_strerror(error_code, buffer, sizeof(buffer));
   return buffer;
+}
+
+inline std::string ffmpeg_failure_message(const int error_code, const std::string_view action) {
+  const std::string error_text = ffmpeg_error_string(error_code);
+  return std::format(FFMPEG_FAILURE_MESSAGE, error_code, error_text, action);
 }
 
 inline void ensure_fresh_writable_frame(AVFrame* frame) {
@@ -45,7 +61,7 @@ inline void ensure_fresh_writable_frame(AVFrame* frame) {
   frame->width = width;
   frame->height = height;
   if (av_frame_get_buffer(frame, 0) < 0) {
-    throw std::runtime_error("Failed to allocate frame buffer");
+    throw std::runtime_error(FRAME_BUFFER_ALLOCATION_MESSAGE);
   }
 }
 

@@ -24,6 +24,11 @@
 #include <cstring>
 #include <fstream>
 #include <stdexcept>
+#include <string>
+
+namespace {
+constexpr const char* DATA_NOT_DECODED_MESSAGE = "Chunk data is not decoded yet!";
+}
 
 void ChunkDecoder::CodecDeleter::operator()(void* codec) const {
   wirehair_free(static_cast<WirehairCodec>(codec));
@@ -35,7 +40,8 @@ ChunkDecoder::ChunkDecoder(const uint32_t chunk_index, const uint32_t chunk_size
   ensure_wirehair_initialized();
   codec_.reset(wirehair_decoder_create(nullptr, chunk_size_, symbol_size_));
   if (!codec_) {
-    throw std::runtime_error("wirehair_decoder_create failed");
+    const std::string message = "Wirehair decoder could not be created!";
+    throw std::runtime_error(message);
   }
 }
 
@@ -44,7 +50,8 @@ bool ChunkDecoder::add_packet(const uint32_t esi, const std::span<const std::byt
     return true;
   }
   if (!codec_) {
-    throw std::runtime_error("codec is null");
+    const std::string message = "Codec must not be null!";
+    throw std::runtime_error(message);
   }
 
   ++packets_received_;
@@ -55,12 +62,14 @@ bool ChunkDecoder::add_packet(const uint32_t esi, const std::span<const std::byt
     return false;
   }
   if (result != Wirehair_Success) {
-    throw std::runtime_error("wirehair_decode failed with error");
+    const std::string message = "Wirehair could not decode a packet!";
+    throw std::runtime_error(message);
   }
 
   decoded_data_.resize(chunk_size_);
   if (wirehair_recover(codec, decoded_data_.data(), chunk_size_) != Wirehair_Success) {
-    throw std::runtime_error("wirehair_recover failed");
+    const std::string message = "Wirehair could not recover the chunk!";
+    throw std::runtime_error(message);
   }
   decoded_ = true;
   return true;
@@ -68,14 +77,14 @@ bool ChunkDecoder::add_packet(const uint32_t esi, const std::span<const std::byt
 
 std::vector<std::byte> ChunkDecoder::get_decoded_data() const {
   if (!decoded_) {
-    throw std::runtime_error("data not yet decoded");
+    throw std::runtime_error(DATA_NOT_DECODED_MESSAGE);
   }
   return decoded_data_;
 }
 
 std::vector<std::byte> ChunkDecoder::consume_decoded_data() {
   if (!decoded_) {
-    throw std::runtime_error("data not yet decoded");
+    throw std::runtime_error(DATA_NOT_DECODED_MESSAGE);
   }
   return std::move(decoded_data_);
 }

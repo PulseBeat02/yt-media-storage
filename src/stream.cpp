@@ -24,6 +24,7 @@ extern "C" {
 
 #include <cstring>
 #include <stdexcept>
+#include <string>
 
 #if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(57, 28, 100)
 #define MS_HAS_CH_LAYOUT 1
@@ -65,11 +66,13 @@ StreamEncoder::StreamEncoder(const std::string& rtmp_url, const int bitrate_kbps
                              const int fps)
     : width_(width), height_(height), fps_(fps) {
   if (width <= 0 || height <= 0 || fps <= 0 || bitrate_kbps <= 0) {
-    throw std::invalid_argument("Stream resolution, fps and bitrate must be positive");
+    const std::string message = "Stream resolution, frame rate and bitrate must be positive!";
+    throw std::invalid_argument(message);
   }
   layout_ = compute_frame_layout(width, height);
   if (::packets_per_frame(layout_) < 1) {
-    throw std::invalid_argument("Stream resolution is too small to hold a single packet");
+    const std::string message = "Stream resolution is too small to hold a single packet!";
+    throw std::invalid_argument(message);
   }
   try {
     init_stream(rtmp_url, bitrate_kbps);
@@ -111,7 +114,8 @@ void StreamEncoder::release() {
 void StreamEncoder::init_stream(const std::string& rtmp_url, const int bitrate_kbps) {
   int ret = avformat_alloc_output_context2(&format_ctx_, nullptr, "flv", rtmp_url.c_str());
   if (ret < 0 || !format_ctx_) {
-    throw std::runtime_error("Failed to create output context for RTMP stream");
+    const std::string message = "Output context of the RTMP stream could not be created!";
+    throw std::runtime_error(message);
   }
 
   init_video_encoder(bitrate_kbps);
@@ -119,36 +123,39 @@ void StreamEncoder::init_stream(const std::string& rtmp_url, const int bitrate_k
 
   av_packet_ = av_packet_alloc();
   if (!av_packet_) {
-    throw std::runtime_error("Failed to allocate packet");
+    throw std::runtime_error(PACKET_ALLOCATION_MESSAGE);
   }
 
   frame_data_buffer_.reserve(layout_.bytes_per_frame);
 
   ret = avio_open(&format_ctx_->pb, rtmp_url.c_str(), AVIO_FLAG_WRITE);
   if (ret < 0) {
-    throw std::runtime_error("Failed to open RTMP stream: " + ffmpeg_error_string(ret));
+    const std::string message = ffmpeg_failure_message(ret, "open the RTMP stream");
+    throw std::runtime_error(message);
   }
 
   ret = avformat_write_header(format_ctx_, nullptr);
   if (ret < 0) {
-    throw std::runtime_error("Failed to write stream header: " + ffmpeg_error_string(ret));
+    const std::string message = ffmpeg_failure_message(ret, "write the stream header");
+    throw std::runtime_error(message);
   }
 }
 
 void StreamEncoder::init_video_encoder(const int bitrate_kbps) {
   const AVCodec* codec = avcodec_find_encoder_by_name("libx264");
   if (!codec) {
-    throw std::runtime_error("Failed to find libx264 encoder (is FFmpeg built with x264?)");
+    const std::string message = "Encoder libx264 could not be found, so FFmpeg may lack x264 support!";
+    throw std::runtime_error(message);
   }
 
   video_stream_ = avformat_new_stream(format_ctx_, nullptr);
   if (!video_stream_) {
-    throw std::runtime_error("Failed to create video stream");
+    throw std::runtime_error(VIDEO_STREAM_CREATION_MESSAGE);
   }
 
   video_codec_ctx_ = avcodec_alloc_context3(codec);
   if (!video_codec_ctx_) {
-    throw std::runtime_error("Failed to allocate codec context");
+    throw std::runtime_error(CODEC_CONTEXT_ALLOCATION_MESSAGE);
   }
 
   video_codec_ctx_->width = width_;
@@ -173,42 +180,46 @@ void StreamEncoder::init_video_encoder(const int bitrate_kbps) {
 
   int ret = avcodec_open2(video_codec_ctx_, codec, nullptr);
   if (ret < 0) {
-    throw std::runtime_error("Failed to open libx264 codec: " + ffmpeg_error_string(ret));
+    const std::string message = ffmpeg_failure_message(ret, "open the libx264 codec");
+    throw std::runtime_error(message);
   }
 
   ret = avcodec_parameters_from_context(video_stream_->codecpar, video_codec_ctx_);
   if (ret < 0) {
-    throw std::runtime_error("Failed to copy codec parameters");
+    throw std::runtime_error(CODEC_PARAMETERS_COPY_MESSAGE);
   }
   video_stream_->time_base = video_codec_ctx_->time_base;
   video_stream_->avg_frame_rate = video_codec_ctx_->framerate;
 
   frame_ = av_frame_alloc();
   if (!frame_) {
-    throw std::runtime_error("Failed to allocate frame");
+    throw std::runtime_error(FRAME_ALLOCATION_MESSAGE);
   }
   frame_->format = AV_PIX_FMT_YUV420P;
   frame_->width = width_;
   frame_->height = height_;
   if (av_frame_get_buffer(frame_, 0) < 0) {
-    throw std::runtime_error("Failed to allocate frame buffer");
+    throw std::runtime_error(FRAME_BUFFER_ALLOCATION_MESSAGE);
   }
 }
 
 void StreamEncoder::init_audio_encoder() {
   const AVCodec* codec = avcodec_find_encoder(AV_CODEC_ID_AAC);
   if (!codec) {
-    throw std::runtime_error("Failed to find AAC encoder");
+    const std::string message = "AAC encoder could not be found!";
+    throw std::runtime_error(message);
   }
 
   audio_stream_ = avformat_new_stream(format_ctx_, nullptr);
   if (!audio_stream_) {
-    throw std::runtime_error("Failed to create audio stream");
+    const std::string message = "Audio stream could not be created!";
+    throw std::runtime_error(message);
   }
 
   audio_codec_ctx_ = avcodec_alloc_context3(codec);
   if (!audio_codec_ctx_) {
-    throw std::runtime_error("Failed to allocate audio codec context");
+    const std::string message = "Audio codec context could not be allocated!";
+    throw std::runtime_error(message);
   }
 
   audio_codec_ctx_->sample_fmt = preferred_sample_format(codec);
@@ -227,18 +238,21 @@ void StreamEncoder::init_audio_encoder() {
 
   int ret = avcodec_open2(audio_codec_ctx_, codec, nullptr);
   if (ret < 0) {
-    throw std::runtime_error("Failed to open AAC codec: " + ffmpeg_error_string(ret));
+    const std::string message = ffmpeg_failure_message(ret, "open the AAC codec");
+    throw std::runtime_error(message);
   }
 
   ret = avcodec_parameters_from_context(audio_stream_->codecpar, audio_codec_ctx_);
   if (ret < 0) {
-    throw std::runtime_error("Failed to copy audio codec parameters");
+    const std::string message = "Audio codec parameters could not be copied!";
+    throw std::runtime_error(message);
   }
   audio_stream_->time_base = {1, audio_codec_ctx_->sample_rate};
 
   audio_frame_ = av_frame_alloc();
   if (!audio_frame_) {
-    throw std::runtime_error("Failed to allocate audio frame");
+    const std::string message = "Audio frame could not be allocated!";
+    throw std::runtime_error(message);
   }
   audio_frame_->format = audio_codec_ctx_->sample_fmt;
 #if MS_HAS_CH_LAYOUT
@@ -251,10 +265,12 @@ void StreamEncoder::init_audio_encoder() {
   audio_frame_->nb_samples = audio_codec_ctx_->frame_size;
 
   if (av_frame_get_buffer(audio_frame_, 0) < 0) {
-    throw std::runtime_error("Failed to allocate audio frame buffer");
+    const std::string message = "Audio frame buffer could not be allocated!";
+    throw std::runtime_error(message);
   }
   if (av_frame_make_writable(audio_frame_) < 0) {
-    throw std::runtime_error("Audio frame not writable");
+    const std::string message = "Audio frame is not writable!";
+    throw std::runtime_error(message);
   }
 
   const std::size_t plane_bytes =
@@ -275,7 +291,8 @@ void StreamEncoder::write_pending_packets(AVCodecContext* codec_ctx, const AVStr
     if (ret < 0) {
       if (ignore_errors)
         return;
-      throw std::runtime_error("Error receiving packet: " + ffmpeg_error_string(ret));
+      const std::string message = ffmpeg_failure_message(ret, "receive a packet");
+      throw std::runtime_error(message);
     }
 
     av_packet_rescale_ts(av_packet_, codec_ctx->time_base, stream->time_base);
@@ -284,7 +301,8 @@ void StreamEncoder::write_pending_packets(AVCodecContext* codec_ctx, const AVStr
     const int write_ret = av_interleaved_write_frame(format_ctx_, av_packet_);
     av_packet_unref(av_packet_);
     if (write_ret < 0 && !ignore_errors) {
-      throw std::runtime_error("Error writing frame to stream: " + ffmpeg_error_string(write_ret));
+      const std::string message = ffmpeg_failure_message(write_ret, "write a frame to the stream");
+      throw std::runtime_error(message);
     }
   }
 }
@@ -325,7 +343,8 @@ void StreamEncoder::encode_frame() {
   frame_->pts = frame_index_++;
 
   if (const int ret = avcodec_send_frame(video_codec_ctx_, frame_); ret < 0) {
-    throw std::runtime_error("Error sending frame: " + ffmpeg_error_string(ret));
+    const std::string message = ffmpeg_failure_message(ret, "send a frame");
+    throw std::runtime_error(message);
   }
   write_pending_packets(video_codec_ctx_, video_stream_, false);
   write_audio_up_to(frame_->pts);
@@ -333,7 +352,8 @@ void StreamEncoder::encode_frame() {
 
 void StreamEncoder::add_packet(const Packet& packet) {
   if (finalized_) {
-    throw std::runtime_error("Stream encoder already finalized");
+    const std::string message = "Stream encoder is already finalized!";
+    throw std::runtime_error(message);
   }
 
   if (frame_data_buffer_.size() + packet.bytes.size() > static_cast<std::size_t>(layout_.bytes_per_frame)) {
@@ -370,6 +390,7 @@ void StreamEncoder::finalize() {
   flush_frame_buffer();
   flush_encoders();
   if (const int ret = av_write_trailer(format_ctx_); ret < 0) {
-    throw std::runtime_error("Error writing stream trailer: " + ffmpeg_error_string(ret));
+    const std::string message = ffmpeg_failure_message(ret, "write the stream trailer");
+    throw std::runtime_error(message);
   }
 }
