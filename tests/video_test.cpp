@@ -69,6 +69,7 @@ constexpr int STREAM_BITRATE_KILOBITS_PER_SECOND = 4000;
 constexpr int HIGH_STREAM_BITRATE_KILOBITS_PER_SECOND = 50000;
 
 constexpr int FRAMES_TO_WRITE = 2;
+constexpr int FRAMES_TO_MEASURE_THE_FRAME_RATE = 5;
 constexpr int FRAMES_TO_OVERFLOW_THE_OUTPUT_BUFFER = 30;
 
 constexpr uint8_t UNKNOWN_VERSION = 0xEE;
@@ -562,12 +563,12 @@ TEST(video_decoder_test, should_estimate_frames_from_the_duration_of_the_stream)
 
 TEST(video_decoder_test, should_estimate_frames_from_the_duration_and_frame_rate_of_the_stream) {
   const fixtures::temporary_file video(ASF_EXTENSION);
-  write_video(video.string(), FRAMES_TO_WRITE);
+  write_video(video.string(), FRAMES_TO_MEASURE_THE_FRAME_RATE);
   const video_decoder decoder(video.string());
 
   const int64_t total_frames = decoder.total_frames();
 
-  EXPECT_EQ(total_frames, FRAMES_TO_WRITE);
+  EXPECT_EQ(total_frames, FRAMES_TO_MEASURE_THE_FRAME_RATE);
 }
 
 TEST(video_decoder_test, should_hold_back_a_magic_number_that_ends_the_last_frame) {
