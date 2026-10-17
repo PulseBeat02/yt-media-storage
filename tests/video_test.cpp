@@ -682,6 +682,22 @@ TEST(video_decoder_test, should_read_every_frame_of_a_stream_whose_resolution_ch
   EXPECT_EQ(frames_read, FRAME_SIZES * FRAMES_PER_SIZE);
 }
 
+TEST(video_decoder_test, should_return_no_packets_after_the_end_of_the_video) {
+  const fixtures::temporary_file video(MATROSKA_EXTENSION);
+  write_video(video.string(), FRAMES_TO_WRITE);
+  video_decoder decoder(video.string());
+  const video_decoder::packet_list decoded_packets = decoder.decode_all_frames();
+
+  const video_decoder::packet_list packets_after_the_end = decoder.decode_next_frame();
+
+  const bool decoded_packets_empty = decoded_packets.empty();
+  const bool packets_after_the_end_empty = packets_after_the_end.empty();
+  const int64_t frames_read = decoder.frames_read();
+  EXPECT_FALSE(decoded_packets_empty);
+  EXPECT_TRUE(packets_after_the_end_empty);
+  EXPECT_EQ(frames_read, FRAMES_TO_WRITE);
+}
+
 TEST(stream_encoder_test, should_reject_a_packet_after_finalizing) {
   const fixtures::temporary_file output(FLV_EXTENSION);
   stream_encoder encoder(output.string(), STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH,

@@ -29,6 +29,11 @@
 
 namespace {
 
+constexpr uint8_t UNTOUCHED_SAMPLE = 0xFF;
+constexpr uint8_t NEUTRAL_SAMPLE = 128;
+
+constexpr std::byte DATA_BYTE{0xA5};
+
 void expect_block_in_pixel_range(const uint8_t (&block)[BLOCK_SIZE][BLOCK_SIZE]) {
   for (int y = 0; y < BLOCK_SIZE; ++y) {
     for (int x = 0; x < BLOCK_SIZE; ++x) {
@@ -165,11 +170,9 @@ TEST(dct_test, should_fill_the_margins_a_frame_width_leaves_beside_whole_blocks)
   constexpr int frame_height = 40;
   constexpr int block_width = 16;
   constexpr int data_rows = 32;
-  constexpr uint8_t untouched = 0xFF;
-  constexpr uint8_t neutral = 128;
   const frame_layout layout = compute_frame_layout(frame_width, frame_height);
-  std::vector<uint8_t> plane(static_cast<std::size_t>(frame_width) * frame_height, untouched);
-  const std::vector<std::byte> data = {std::byte{0xA5}};
+  std::vector<uint8_t> plane(static_cast<std::size_t>(frame_width) * frame_height, UNTOUCHED_SAMPLE);
+  const std::vector<std::byte> data = {DATA_BYTE};
 
   embed_data_into_plane(plane.data(), frame_width, layout, data);
 
@@ -177,7 +180,20 @@ TEST(dct_test, should_fill_the_margins_a_frame_width_leaves_beside_whole_blocks)
     const int first_neutral = y < data_rows ? block_width : 0;
     for (int x = first_neutral; x < frame_width; ++x) {
       const uint8_t sample = plane[static_cast<std::size_t>(y) * frame_width + x];
-      EXPECT_EQ(sample, neutral);
+      EXPECT_EQ(sample, NEUTRAL_SAMPLE);
     }
   }
+}
+
+TEST(dct_test, should_fill_a_plane_narrower_than_a_block_with_neutral_gray) {
+  constexpr int frame_width = 4;
+  constexpr int frame_height = 8;
+  const frame_layout layout = compute_frame_layout(frame_width, frame_height);
+  std::vector<uint8_t> plane(static_cast<std::size_t>(frame_width) * frame_height, UNTOUCHED_SAMPLE);
+  const std::vector<std::byte> data = {DATA_BYTE};
+
+  embed_data_into_plane(plane.data(), frame_width, layout, data);
+
+  const std::vector<uint8_t> expected_plane(plane.size(), NEUTRAL_SAMPLE);
+  EXPECT_EQ(plane, expected_plane);
 }
