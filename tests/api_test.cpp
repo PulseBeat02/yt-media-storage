@@ -17,56 +17,21 @@
 #include <gtest/gtest.h>
 
 #include "../include/media_storage.h"
+#include "fixtures.h"
 
 #include <atomic>
+#include <cstddef>
 #include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <string>
 #include <vector>
 
 namespace {
-struct temporary_file {
-  std::string path_string;
 
-  explicit temporary_file(const std::string& name)
-      : path_string((std::filesystem::temp_directory_path() / name).string()) {
-  }
+constexpr const char* BINARY_EXTENSION = ".bin";
+constexpr const char* MATROSKA_EXTENSION = ".mkv";
 
-  ~temporary_file() {
-    std::error_code error_code;
-    std::filesystem::remove(path_string, error_code);
-  }
-
-  [[nodiscard]] const char* c_string() const {
-    return path_string.c_str();
-  }
-
-  temporary_file(const temporary_file&) = delete;
-
-  temporary_file& operator=(const temporary_file&) = delete;
-};
-
-void write_test_file(const std::string& path, const std::size_t size) {
-  std::ofstream output(path, std::ios::binary);
-  std::vector<char> data(size);
-  for (std::size_t i = 0; i < size; ++i) {
-    data[i] = static_cast<char>((i * 131 + 17) & 0xFF);
-  }
-  output.write(data.data(), static_cast<std::streamsize>(size));
 }
-
-std::vector<char> read_test_file(const std::string& path) {
-  std::ifstream input(path, std::ios::binary | std::ios::ate);
-  if (!input.is_open())
-    return {};
-  const auto size = input.tellg();
-  input.seekg(0);
-  std::vector<char> data(size);
-  input.read(data.data(), size);
-  return data;
-}
-} // namespace
 
 TEST(api_test, should_report_a_version) {
   const char* version = ms_version();
@@ -119,35 +84,40 @@ TEST(api_test, should_reject_encoding_without_paths) {
 }
 
 TEST(api_test, should_reject_encoding_without_an_input_path) {
-  const temporary_file output("api_enc_missing_input.mkv");
+  const fixtures::temporary_file output(MATROSKA_EXTENSION);
+  const std::string output_path = output.string();
   ms_encode_options_t options{};
   options.input_path = nullptr;
-  options.output_path = output.c_string();
+  options.output_path = output_path.c_str();
 
   const ms_status_t encode_status = ms_encode(&options, nullptr);
   EXPECT_EQ(encode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_report_a_missing_input_file_when_encoding) {
-  const std::string missing_input =
-      (std::filesystem::temp_directory_path() / "nonexistent_ms_api_test_12345.bin").string();
-  const temporary_file output("api_encode_fnf_out.mkv");
+  const fixtures::temporary_file missing_input(BINARY_EXTENSION);
+  const fixtures::temporary_file output(MATROSKA_EXTENSION);
+  const std::string missing_input_path = missing_input.string();
+  const std::string output_path = output.string();
   ms_encode_options_t options{};
-  options.input_path = missing_input.c_str();
-  options.output_path = output.c_string();
+  options.input_path = missing_input_path.c_str();
+  options.output_path = output_path.c_str();
 
   const ms_status_t encode_status = ms_encode(&options, nullptr);
   EXPECT_EQ(encode_status, MS_ERR_FILE_NOT_FOUND);
 }
 
 TEST(api_test, should_reject_encrypting_without_a_password) {
-  const temporary_file input("api_test_enc_nopw.bin");
-  write_test_file(input.path_string, 1024);
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const std::vector<std::byte> data = fixtures::make_pattern(1024);
+  fixtures::write_bytes(input.path(), data);
 
-  const temporary_file output("api_test_enc_nopw.mkv");
+  const fixtures::temporary_file output(MATROSKA_EXTENSION);
+  const std::string input_path = input.string();
+  const std::string output_path = output.string();
   ms_encode_options_t options{};
-  options.input_path = input.c_string();
-  options.output_path = output.c_string();
+  options.input_path = input_path.c_str();
+  options.output_path = output_path.c_str();
   options.encrypt = 1;
   options.password = nullptr;
   options.password_len = 0;
@@ -169,10 +139,11 @@ TEST(api_test, should_reject_decoding_without_paths) {
 }
 
 TEST(api_test, should_reject_decoding_without_an_input_path) {
-  const temporary_file output("api_dec_missing_in.bin");
+  const fixtures::temporary_file output(BINARY_EXTENSION);
+  const std::string output_path = output.string();
   ms_decode_options_t options{};
   options.input_path = nullptr;
-  options.output_path = output.c_string();
+  options.output_path = output_path.c_str();
 
   const ms_status_t decode_status = ms_decode(&options, nullptr);
   EXPECT_EQ(decode_status, MS_ERR_INVALID_ARGS);
@@ -188,12 +159,13 @@ TEST(api_test, should_reject_decoding_without_an_output_path) {
 }
 
 TEST(api_test, should_report_a_missing_input_file_when_decoding) {
-  const std::string missing_input =
-      (std::filesystem::temp_directory_path() / "nonexistent_ms_api_test_12345.mkv").string();
-  const temporary_file output("api_decode_fnf_out.bin");
+  const fixtures::temporary_file missing_input(MATROSKA_EXTENSION);
+  const fixtures::temporary_file output(BINARY_EXTENSION);
+  const std::string missing_input_path = missing_input.string();
+  const std::string output_path = output.string();
   ms_decode_options_t options{};
-  options.input_path = missing_input.c_str();
-  options.output_path = output.c_string();
+  options.input_path = missing_input_path.c_str();
+  options.output_path = output_path.c_str();
 
   const ms_status_t decode_status = ms_decode(&options, nullptr);
   EXPECT_EQ(decode_status, MS_ERR_FILE_NOT_FOUND);
@@ -227,11 +199,13 @@ TEST(api_test, should_reject_stream_encoding_without_an_input_path) {
 }
 
 TEST(api_test, should_reject_encrypted_stream_encoding_without_a_password) {
-  const temporary_file input("api_stream_enc_nopw.bin");
-  write_test_file(input.path_string, 1024);
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const std::string input_path = input.string();
+  const std::vector<std::byte> data = fixtures::make_pattern(1024);
+  fixtures::write_bytes(input.path(), data);
 
   ms_stream_encode_options_t options{};
-  options.input_path = input.c_string();
+  options.input_path = input_path.c_str();
   options.stream_url = "rtmp://example/live";
   options.encrypt = 1;
   options.password = nullptr;
@@ -254,10 +228,11 @@ TEST(api_test, should_reject_stream_decoding_without_fields) {
 }
 
 TEST(api_test, should_reject_stream_decoding_without_a_stream_url) {
-  const temporary_file output("api_stream_dec_out.bin");
+  const fixtures::temporary_file output(BINARY_EXTENSION);
+  const std::string output_path = output.string();
   ms_stream_decode_options_t options{};
   options.stream_url = nullptr;
-  options.output_path = output.c_string();
+  options.output_path = output_path.c_str();
 
   const ms_status_t stream_decode_status = ms_stream_decode(&options, nullptr);
   EXPECT_EQ(stream_decode_status, MS_ERR_INVALID_ARGS);
@@ -273,15 +248,19 @@ TEST(api_test, should_reject_stream_decoding_without_an_output_path) {
 }
 
 TEST(api_test, should_decode_what_it_encoded) {
-  const temporary_file input("api_rt_input.bin");
-  const temporary_file encoded("api_rt.mkv");
-  const temporary_file decoded("api_rt_output.bin");
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file encoded(MATROSKA_EXTENSION);
+  const fixtures::temporary_file decoded(BINARY_EXTENSION);
+  const std::string input_path = input.string();
+  const std::string encoded_path = encoded.string();
+  const std::string decoded_path = decoded.string();
 
-  write_test_file(input.path_string, 65536);
+  const std::vector<std::byte> data = fixtures::make_pattern(65536);
+  fixtures::write_bytes(input.path(), data);
 
   ms_encode_options_t encode_options{};
-  encode_options.input_path = input.c_string();
-  encode_options.output_path = encoded.c_string();
+  encode_options.input_path = input_path.c_str();
+  encode_options.output_path = encoded_path.c_str();
 
   ms_result_t encode_result{};
 
@@ -294,30 +273,33 @@ TEST(api_test, should_decode_what_it_encoded) {
   EXPECT_GT(encode_result.total_frames, 0u);
 
   ms_decode_options_t decode_options{};
-  decode_options.input_path = encoded.c_string();
-  decode_options.output_path = decoded.c_string();
+  decode_options.input_path = encoded_path.c_str();
+  decode_options.output_path = decoded_path.c_str();
 
   ms_result_t decode_result{};
 
   const ms_status_t decode_status = ms_decode(&decode_options, &decode_result);
   ASSERT_EQ(decode_status, MS_OK);
 
-  const std::vector<char> input_bytes = read_test_file(input.path_string);
-  const std::vector<char> decoded_bytes = read_test_file(decoded.path_string);
-  EXPECT_EQ(input_bytes, decoded_bytes);
+  const std::vector<std::byte> decoded_bytes = fixtures::read_bytes(decoded.path());
+  EXPECT_EQ(decoded_bytes, data);
 }
 
 TEST(api_test, should_decode_what_it_encrypted) {
-  const temporary_file input("api_enc_input.bin");
-  const temporary_file encoded("api_enc.mkv");
-  const temporary_file decoded("api_enc_output.bin");
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file encoded(MATROSKA_EXTENSION);
+  const fixtures::temporary_file decoded(BINARY_EXTENSION);
+  const std::string input_path = input.string();
+  const std::string encoded_path = encoded.string();
+  const std::string decoded_path = decoded.string();
 
-  write_test_file(input.path_string, 32768);
+  const std::vector<std::byte> data = fixtures::make_pattern(32768);
+  fixtures::write_bytes(input.path(), data);
   const std::string password = "test_api_password";
 
   ms_encode_options_t encode_options{};
-  encode_options.input_path = input.c_string();
-  encode_options.output_path = encoded.c_string();
+  encode_options.input_path = input_path.c_str();
+  encode_options.output_path = encoded_path.c_str();
   encode_options.encrypt = 1;
   encode_options.password = password.c_str();
   encode_options.password_len = password.size();
@@ -326,57 +308,62 @@ TEST(api_test, should_decode_what_it_encrypted) {
   ASSERT_EQ(encode_status, MS_OK);
 
   ms_decode_options_t decode_options{};
-  decode_options.input_path = encoded.c_string();
-  decode_options.output_path = decoded.c_string();
+  decode_options.input_path = encoded_path.c_str();
+  decode_options.output_path = decoded_path.c_str();
   decode_options.password = password.c_str();
   decode_options.password_len = password.size();
 
   const ms_status_t decode_status = ms_decode(&decode_options, nullptr);
   ASSERT_EQ(decode_status, MS_OK);
 
-  const std::vector<char> input_bytes = read_test_file(input.path_string);
-  const std::vector<char> decoded_bytes = read_test_file(decoded.path_string);
-  EXPECT_EQ(input_bytes, decoded_bytes);
+  const std::vector<std::byte> decoded_bytes = fixtures::read_bytes(decoded.path());
+  EXPECT_EQ(decoded_bytes, data);
 }
 
 TEST(api_test, should_decode_what_it_encoded_with_xxhash_checksums) {
-  const temporary_file input("api_xxh_input.bin");
-  const temporary_file encoded("api_xxh.mkv");
-  const temporary_file decoded("api_xxh_output.bin");
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file encoded(MATROSKA_EXTENSION);
+  const fixtures::temporary_file decoded(BINARY_EXTENSION);
+  const std::string input_path = input.string();
+  const std::string encoded_path = encoded.string();
+  const std::string decoded_path = decoded.string();
 
-  write_test_file(input.path_string, 32768);
+  const std::vector<std::byte> data = fixtures::make_pattern(32768);
+  fixtures::write_bytes(input.path(), data);
 
   ms_encode_options_t encode_options{};
-  encode_options.input_path = input.c_string();
-  encode_options.output_path = encoded.c_string();
+  encode_options.input_path = input_path.c_str();
+  encode_options.output_path = encoded_path.c_str();
   encode_options.hash_algorithm = MS_HASH_XXHASH32;
 
   const ms_status_t encode_status = ms_encode(&encode_options, nullptr);
   ASSERT_EQ(encode_status, MS_OK);
 
   ms_decode_options_t decode_options{};
-  decode_options.input_path = encoded.c_string();
-  decode_options.output_path = decoded.c_string();
+  decode_options.input_path = encoded_path.c_str();
+  decode_options.output_path = decoded_path.c_str();
 
   const ms_status_t decode_status = ms_decode(&decode_options, nullptr);
   ASSERT_EQ(decode_status, MS_OK);
 
-  const std::vector<char> input_bytes = read_test_file(input.path_string);
-  const std::vector<char> decoded_bytes = read_test_file(decoded.path_string);
-  EXPECT_EQ(input_bytes, decoded_bytes);
+  const std::vector<std::byte> decoded_bytes = fixtures::read_bytes(decoded.path());
+  EXPECT_EQ(decoded_bytes, data);
 }
 
 TEST(api_test, should_report_encoding_progress) {
-  const temporary_file input("api_prog_input.bin");
-  const temporary_file encoded("api_prog.mkv");
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file encoded(MATROSKA_EXTENSION);
+  const std::string input_path = input.string();
+  const std::string encoded_path = encoded.string();
 
-  write_test_file(input.path_string, 65536);
+  const std::vector<std::byte> data = fixtures::make_pattern(65536);
+  fixtures::write_bytes(input.path(), data);
 
   std::atomic<int> call_count{0};
 
   ms_encode_options_t encode_options{};
-  encode_options.input_path = input.c_string();
-  encode_options.output_path = encoded.c_string();
+  encode_options.input_path = input_path.c_str();
+  encode_options.output_path = encoded_path.c_str();
   encode_options.progress = [](uint64_t, uint64_t, void* user) -> int {
     static_cast<std::atomic<int>*>(user)->fetch_add(1);
     return 0;
@@ -391,14 +378,17 @@ TEST(api_test, should_report_encoding_progress) {
 }
 
 TEST(api_test, should_cancel_encoding_from_the_progress_callback) {
-  const temporary_file input("api_cancel_input.bin");
-  const temporary_file encoded("api_cancel.mkv");
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file encoded(MATROSKA_EXTENSION);
+  const std::string input_path = input.string();
+  const std::string encoded_path = encoded.string();
 
-  write_test_file(input.path_string, 65536);
+  const std::vector<std::byte> data = fixtures::make_pattern(65536);
+  fixtures::write_bytes(input.path(), data);
 
   ms_encode_options_t encode_options{};
-  encode_options.input_path = input.c_string();
-  encode_options.output_path = encoded.c_string();
+  encode_options.input_path = input_path.c_str();
+  encode_options.output_path = encoded_path.c_str();
   encode_options.progress = [](uint64_t, uint64_t, void*) -> int { return 1; };
 
   const ms_status_t encode_status = ms_encode(&encode_options, nullptr);
@@ -411,13 +401,16 @@ TEST(api_test, should_describe_the_last_failure_and_clear_it_on_success) {
   EXPECT_EQ(rejected_status, MS_ERR_INVALID_ARGS);
   EXPECT_GT(last_error_length, 0u);
 
-  const temporary_file input("api_last_error_input.bin");
-  const temporary_file encoded("api_last_error.mkv");
-  write_test_file(input.path_string, 1024);
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file encoded(MATROSKA_EXTENSION);
+  const std::string input_path = input.string();
+  const std::string encoded_path = encoded.string();
+  const std::vector<std::byte> data = fixtures::make_pattern(1024);
+  fixtures::write_bytes(input.path(), data);
 
   ms_encode_options_t options{};
-  options.input_path = input.c_string();
-  options.output_path = encoded.c_string();
+  options.input_path = input_path.c_str();
+  options.output_path = encoded_path.c_str();
 
   const ms_status_t encode_status = ms_encode(&options, nullptr);
   ASSERT_EQ(encode_status, MS_OK);
@@ -427,17 +420,21 @@ TEST(api_test, should_describe_the_last_failure_and_clear_it_on_success) {
 }
 
 TEST(api_test, should_report_a_crypto_error_for_the_wrong_password) {
-  const temporary_file input("api_wrongpw_input.bin");
-  const temporary_file encoded("api_wrongpw.mkv");
-  const temporary_file decoded("api_wrongpw_output.bin");
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file encoded(MATROSKA_EXTENSION);
+  const fixtures::temporary_file decoded(BINARY_EXTENSION);
+  const std::string input_path = input.string();
+  const std::string encoded_path = encoded.string();
+  const std::string decoded_path = decoded.string();
 
-  write_test_file(input.path_string, 16384);
+  const std::vector<std::byte> data = fixtures::make_pattern(16384);
+  fixtures::write_bytes(input.path(), data);
   const std::string password = "correct horse";
   const std::string wrong_password = "battery staple";
 
   ms_encode_options_t encode_options{};
-  encode_options.input_path = input.c_string();
-  encode_options.output_path = encoded.c_string();
+  encode_options.input_path = input_path.c_str();
+  encode_options.output_path = encoded_path.c_str();
   encode_options.encrypt = 1;
   encode_options.password = password.c_str();
   encode_options.password_len = password.size();
@@ -446,28 +443,32 @@ TEST(api_test, should_report_a_crypto_error_for_the_wrong_password) {
   ASSERT_EQ(encode_status, MS_OK);
 
   ms_decode_options_t decode_options{};
-  decode_options.input_path = encoded.c_string();
-  decode_options.output_path = decoded.c_string();
+  decode_options.input_path = encoded_path.c_str();
+  decode_options.output_path = decoded_path.c_str();
   decode_options.password = wrong_password.c_str();
   decode_options.password_len = wrong_password.size();
 
   const ms_status_t decode_status = ms_decode(&decode_options, nullptr);
-  const bool decoded_exists = std::filesystem::exists(decoded.path_string);
+  const bool decoded_exists = std::filesystem::exists(decoded.path());
   EXPECT_EQ(decode_status, MS_ERR_CRYPTO);
   EXPECT_FALSE(decoded_exists);
 }
 
 TEST(api_test, should_report_a_crypto_error_without_a_password) {
-  const temporary_file input("api_nopw_dec_input.bin");
-  const temporary_file encoded("api_nopw_dec.mkv");
-  const temporary_file decoded("api_nopw_dec_output.bin");
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file encoded(MATROSKA_EXTENSION);
+  const fixtures::temporary_file decoded(BINARY_EXTENSION);
+  const std::string input_path = input.string();
+  const std::string encoded_path = encoded.string();
+  const std::string decoded_path = decoded.string();
 
-  write_test_file(input.path_string, 4096);
+  const std::vector<std::byte> data = fixtures::make_pattern(4096);
+  fixtures::write_bytes(input.path(), data);
   const std::string password = "secret";
 
   ms_encode_options_t encode_options{};
-  encode_options.input_path = input.c_string();
-  encode_options.output_path = encoded.c_string();
+  encode_options.input_path = input_path.c_str();
+  encode_options.output_path = encoded_path.c_str();
   encode_options.encrypt = 1;
   encode_options.password = password.c_str();
   encode_options.password_len = password.size();
@@ -476,8 +477,8 @@ TEST(api_test, should_report_a_crypto_error_without_a_password) {
   ASSERT_EQ(encode_status, MS_OK);
 
   ms_decode_options_t decode_options{};
-  decode_options.input_path = encoded.c_string();
-  decode_options.output_path = decoded.c_string();
+  decode_options.input_path = encoded_path.c_str();
+  decode_options.output_path = decoded_path.c_str();
 
   const ms_status_t decode_status = ms_decode(&decode_options, nullptr);
   EXPECT_EQ(decode_status, MS_ERR_CRYPTO);
@@ -485,11 +486,12 @@ TEST(api_test, should_report_a_crypto_error_without_a_password) {
 
 TEST(api_test, should_report_a_directory_as_input_without_throwing) {
   const std::string directory = std::filesystem::temp_directory_path().string();
-  const temporary_file output("api_dir_input.mkv");
+  const fixtures::temporary_file output(MATROSKA_EXTENSION);
+  const std::string output_path = output.string();
 
   ms_encode_options_t options{};
   options.input_path = directory.c_str();
-  options.output_path = output.c_string();
+  options.output_path = output_path.c_str();
 
   const ms_status_t encode_status = ms_encode(&options, nullptr);
   EXPECT_NE(encode_status, MS_OK);

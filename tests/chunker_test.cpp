@@ -20,11 +20,7 @@
 #include "configuration.h"
 #include "fixtures.h"
 
-#include <atomic>
-#include <cstdint>
 #include <filesystem>
-#include <fstream>
-#include <random>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -37,43 +33,7 @@ constexpr const char* NO_UNSEEKABLE_FILE_MESSAGE = "This platform has no file wi
 
 constexpr std::size_t SINGLE_BYTE_CHUNK_SIZE = 1;
 
-std::filesystem::path make_unique_temporary_path() {
-  static std::atomic<std::uint64_t> counter{0};
-  static const auto process_token = std::random_device{}();
-  const std::string filename =
-      "chunker_test_" + std::to_string(process_token) + "_" + std::to_string(counter.fetch_add(1)) + ".bin";
-  return std::filesystem::temp_directory_path() / filename;
-}
-
-struct temporary_file {
-  std::filesystem::path path;
-
-  explicit temporary_file(const std::vector<std::byte>& contents) : path(make_unique_temporary_path()) {
-    std::ofstream stream(path, std::ios::binary);
-    if (!stream) {
-      const std::string message = "Temporary file could not be opened!";
-      throw std::runtime_error(message);
-    }
-    const auto byte_count = static_cast<std::streamsize>(contents.size());
-    stream.write(reinterpret_cast<const char*>(contents.data()), byte_count);
-  }
-
-  ~temporary_file() {
-    std::error_code error;
-    std::filesystem::remove(path, error);
-  }
-
-  [[nodiscard]] const char* path_c_string() const {
-    static thread_local std::string path_string;
-    path_string = path.string();
-    return path_string.c_str();
-  }
-
-  temporary_file(const temporary_file&) = delete;
-  temporary_file& operator=(const temporary_file&) = delete;
-  temporary_file(temporary_file&&) = delete;
-  temporary_file& operator=(temporary_file&&) = delete;
-};
+constexpr const char* BINARY_EXTENSION = ".bin";
 
 std::vector<std::byte> make_patterned_data(const std::size_t size, const unsigned char multiplier = 1) {
   std::vector<std::byte> data(size);
@@ -173,11 +133,13 @@ TEST(chunker_test, should_return_the_slice_of_a_chunk) {
 TEST(chunker_test, should_chunk_a_file_like_its_bytes) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES + 99;
   const std::vector<std::byte> original_data = make_patterned_data(total_size, 3);
-  const temporary_file temporary_file(original_data);
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), original_data);
 
   const std::span data_span(original_data.data(), original_data.size());
   const auto [storage, chunks] = chunk_byte_data(data_span);
-  const auto [from_storage, from_chunks] = chunk_file(temporary_file.path_c_string());
+  const std::string input_path = input.string();
+  const auto [from_storage, from_chunks] = chunk_file(input_path.c_str());
 
   const std::size_t chunk_count = chunks.size();
   const std::size_t expected_chunk_count = from_chunks.size();
@@ -191,8 +153,11 @@ TEST(chunker_test, should_chunk_a_file_like_its_bytes) {
 }
 
 TEST(chunker_test, should_read_no_chunks_from_an_empty_file) {
-  const temporary_file temporary_file({});
-  const file_chunk_reader reader(temporary_file.path_c_string());
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), {});
+
+  const std::string input_path = input.string();
+  const file_chunk_reader reader(input_path.c_str());
 
   const std::size_t chunk_count = reader.chunk_count();
   const std::size_t file_size = reader.file_size();
@@ -204,8 +169,11 @@ TEST(chunker_test, should_read_no_chunks_from_an_empty_file) {
 
 TEST(chunker_test, should_read_one_chunk_from_a_single_byte_file) {
   const std::vector<std::byte> one_byte = {std::byte{0xAB}};
-  const temporary_file temporary_file(one_byte);
-  const file_chunk_reader reader(temporary_file.path_c_string());
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), one_byte);
+
+  const std::string input_path = input.string();
+  const file_chunk_reader reader(input_path.c_str());
 
   const std::size_t chunk_count = reader.chunk_count();
   const std::size_t file_size = reader.file_size();
@@ -215,8 +183,11 @@ TEST(chunker_test, should_read_one_chunk_from_a_single_byte_file) {
 
 TEST(chunker_test, should_read_one_chunk_from_a_file_of_one_chunk_size) {
   const std::vector<std::byte> exact_data(CHUNK_SIZE_BYTES);
-  const temporary_file temporary_file(exact_data);
-  const file_chunk_reader reader(temporary_file.path_c_string());
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), exact_data);
+
+  const std::string input_path = input.string();
+  const file_chunk_reader reader(input_path.c_str());
 
   const std::size_t chunk_count = reader.chunk_count();
   const std::size_t file_size = reader.file_size();
@@ -226,8 +197,11 @@ TEST(chunker_test, should_read_one_chunk_from_a_file_of_one_chunk_size) {
 
 TEST(chunker_test, should_read_two_chunks_from_a_file_just_over_one_chunk) {
   const std::vector<std::byte> over_data(CHUNK_SIZE_BYTES + 1);
-  const temporary_file temporary_file(over_data);
-  const file_chunk_reader reader(temporary_file.path_c_string());
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), over_data);
+
+  const std::string input_path = input.string();
+  const file_chunk_reader reader(input_path.c_str());
 
   const std::size_t chunk_count = reader.chunk_count();
   const std::size_t file_size = reader.file_size();
@@ -238,8 +212,11 @@ TEST(chunker_test, should_read_two_chunks_from_a_file_just_over_one_chunk) {
 TEST(chunker_test, should_read_the_contents_of_each_chunk) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES + 50;
   const std::vector<std::byte> original_data = make_patterned_data(total_size, 11);
-  const temporary_file temporary_file(original_data);
-  const file_chunk_reader reader(temporary_file.path_c_string());
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), original_data);
+
+  const std::string input_path = input.string();
+  const file_chunk_reader reader(input_path.c_str());
 
   const std::size_t chunk_count = reader.chunk_count();
   ASSERT_EQ(chunk_count, 2u);
@@ -264,8 +241,11 @@ TEST(chunker_test, should_read_chunks_of_a_custom_size) {
   constexpr std::size_t custom_chunk_size = 100;
   constexpr std::size_t total_size = 250;
   const std::vector<std::byte> original_data = make_patterned_data(total_size);
-  const temporary_file temporary_file(original_data);
-  const file_chunk_reader reader(temporary_file.path_c_string(), custom_chunk_size);
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), original_data);
+
+  const std::string input_path = input.string();
+  const file_chunk_reader reader(input_path.c_str(), custom_chunk_size);
 
   const std::size_t chunk_size = reader.chunk_size();
   const std::size_t chunk_count = reader.chunk_count();
@@ -294,8 +274,11 @@ TEST(chunker_test, should_read_chunks_of_a_custom_size) {
 
 TEST(chunker_test, should_fail_to_read_a_chunk_past_the_end) {
   const std::vector<std::byte> small_data(10);
-  const temporary_file temporary_file(small_data);
-  const file_chunk_reader reader(temporary_file.path_c_string());
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), small_data);
+
+  const std::string input_path = input.string();
+  const file_chunk_reader reader(input_path.c_str());
 
   const std::size_t invalid_index = reader.chunk_count();
   EXPECT_THROW(static_cast<void>(reader.read_chunk(invalid_index)), std::runtime_error);
@@ -305,8 +288,11 @@ TEST(chunker_test, should_read_chunks_in_any_order) {
   constexpr std::size_t custom_chunk = 100;
   constexpr std::size_t total_size = 300;
   const std::vector<std::byte> original_data = make_patterned_data(total_size, 7);
-  const temporary_file temporary_file(original_data);
-  const file_chunk_reader reader(temporary_file.path_c_string(), custom_chunk);
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), original_data);
+
+  const std::string input_path = input.string();
+  const file_chunk_reader reader(input_path.c_str(), custom_chunk);
 
   const std::size_t chunk_count = reader.chunk_count();
   ASSERT_EQ(chunk_count, 3u);
@@ -324,8 +310,11 @@ TEST(chunker_test, should_read_chunks_in_any_order) {
 
 TEST(chunker_test, should_read_the_same_chunk_twice) {
   const std::vector<std::byte> original_data = make_patterned_data(200, 13);
-  const temporary_file temporary_file(original_data);
-  const file_chunk_reader reader(temporary_file.path_c_string(), 100);
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), original_data);
+
+  const std::string input_path = input.string();
+  const file_chunk_reader reader(input_path.c_str(), 100);
 
   const auto first_read = reader.read_chunk(0);
   const auto second_read = reader.read_chunk(0);
@@ -344,9 +333,11 @@ TEST(chunker_test, should_fail_to_chunk_a_missing_file) {
 TEST(chunker_test, should_chunk_a_file_into_chunks_of_a_custom_size) {
   constexpr std::size_t custom_chunk = 50;
   const std::vector<std::byte> original_data = make_patterned_data(120, 5);
-  const temporary_file temporary_file(original_data);
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), original_data);
 
-  const auto [storage, chunks] = chunk_file(temporary_file.path_c_string(), custom_chunk);
+  const std::string input_path = input.string();
+  const auto [storage, chunks] = chunk_file(input_path.c_str(), custom_chunk);
 
   const std::size_t chunk_count = chunks.size();
   ASSERT_EQ(chunk_count, 3u);
@@ -368,8 +359,11 @@ TEST(chunker_test, should_chunk_data_of_two_chunk_sizes_into_two_chunks) {
 }
 
 TEST(chunker_test, should_chunk_an_empty_file_into_no_chunks) {
-  const temporary_file temporary_file({});
-  const auto [storage, chunks] = chunk_file(temporary_file.path_c_string());
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), {});
+
+  const std::string input_path = input.string();
+  const auto [storage, chunks] = chunk_file(input_path.c_str());
   const std::size_t chunk_count = chunks.size();
   const bool storage_empty = storage.empty();
   ASSERT_EQ(chunk_count, 1u);
@@ -378,8 +372,11 @@ TEST(chunker_test, should_chunk_an_empty_file_into_no_chunks) {
 }
 
 TEST(chunker_test, should_return_an_empty_view_of_an_empty_file) {
-  const temporary_file temporary_file({});
-  const file_chunk_reader reader(temporary_file.path_c_string());
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  fixtures::write_bytes(input.path(), {});
+
+  const std::string input_path = input.string();
+  const file_chunk_reader reader(input_path.c_str());
 
   const std::span<const std::byte> view = reader.chunk_view(0);
   const bool view_empty = view.empty();

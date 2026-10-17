@@ -21,19 +21,21 @@
 #include "crypto.h"
 #include "decoder.h"
 #include "encoder.h"
+#include "fixtures.h"
 #include "integrity.h"
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
-#include <fstream>
 #include <optional>
 #include <span>
 #include <vector>
 
 namespace {
+
+constexpr const char* BINARY_EXTENSION = ".bin";
+
 encoder::file_id_type make_test_file_id() {
   encoder::file_id_type file_id{};
   for (std::size_t i = 0; i < file_id.size(); ++i) {
@@ -343,21 +345,10 @@ TEST(roundtrip_test, should_write_the_assembled_file) {
 
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
-  const auto output_path = std::filesystem::temp_directory_path() / "test_write_assembled.bin";
-  const bool success = decoder.write_assembled_file(output_path.string(), 1);
+  const fixtures::temporary_file output(BINARY_EXTENSION);
+  const bool success = decoder.write_assembled_file(output.string(), 1);
   EXPECT_TRUE(success);
 
-  std::ifstream input(output_path, std::ios::binary | std::ios::ate);
-  const bool file_open = input.is_open();
-  ASSERT_TRUE(file_open);
-
-  const auto file_size = input.tellg();
-  input.seekg(0);
-  std::vector<std::byte> file_data(file_size);
-  input.read(reinterpret_cast<char*>(file_data.data()), file_size);
-
+  const std::vector<std::byte> file_data = fixtures::read_bytes(output.path());
   EXPECT_EQ(file_data, original_data);
-
-  input.close();
-  std::filesystem::remove(output_path);
 }

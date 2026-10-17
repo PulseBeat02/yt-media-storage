@@ -85,6 +85,9 @@ inline std::vector<std::byte> make_pattern(const std::size_t size) {
 
 inline void write_bytes(const std::filesystem::path& path, const std::vector<std::byte>& data) {
   std::ofstream stream(path, std::ios::binary);
+  const bool stream_open = stream.is_open();
+  ASSERT_TRUE(stream_open);
+
   stream.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
 }
 
