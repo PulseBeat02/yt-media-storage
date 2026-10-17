@@ -15,21 +15,49 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Fails if any tracked, non-empty text file does not end with a newline.
 set -euo pipefail
 
-cd "$(git rev-parse --show-toplevel)"
+readonly DEFAULT_PATHSPEC="."
+readonly EVERY_LINE_PATTERN=""
 
-missing=0
-while IFS= read -r -d '' file; do
-    if [ -s "$file" ] && [ -n "$(tail -c 1 "$file")" ]; then
-        echo "missing final newline: $file"
-        missing=1
+readonly FINAL_BYTE_COUNT=1
+
+readonly FAILURE_EXIT_CODE=1
+
+main() {
+  local repository_root
+  repository_root="$(git rev-parse --show-toplevel)"
+  cd "${repository_root}"
+
+  local offenders
+  offenders="$(find_files_without_final_newline "${@:-${DEFAULT_PATHSPEC}}")"
+  if [[ -n "${offenders}" ]]; then
+    echo "These files must end with a newline!" >&2
+    echo "${offenders}" >&2
+    exit "${FAILURE_EXIT_CODE}"
+  fi
+
+  echo "All text files end with a newline."
+}
+
+find_files_without_final_newline() {
+  local file
+  while IFS= read -r -d '' file; do
+    if is_missing_final_newline "${file}"; then
+      echo "${file}"
     fi
-done < <(git grep -I --name-only -z -e '' -- "${@:-.}")
+  done < <(git grep -I --name-only -z -e "${EVERY_LINE_PATTERN}" -- "${@}")
+}
 
-if [ "$missing" -ne 0 ]; then
-    echo "Add a trailing newline to the files above." >&2
-    exit 1
-fi
-echo "All text files end with a newline."
+is_missing_final_newline() {
+  local -r file="${1}"
+  if [[ ! -s "${file}" ]]; then
+    return 1
+  fi
+
+  local final_byte
+  final_byte="$(tail -c "${FINAL_BYTE_COUNT}" "${file}")"
+  [[ -n "${final_byte}" ]]
+}
+
+main "${@}"
