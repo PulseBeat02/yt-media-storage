@@ -72,6 +72,34 @@ constexpr int RESOLUTION_1080P_INDEX = 0;
 constexpr int RESOLUTION_1440P_INDEX = 1;
 constexpr int RESOLUTION_4K_INDEX = 2;
 
+constexpr int INPUT_BROWSE_OCCURRENCE = 0;
+constexpr int OUTPUT_BROWSE_OCCURRENCE = 1;
+
+constexpr int INPUT_EDIT_INDEX = 0;
+constexpr int OUTPUT_EDIT_INDEX = 1;
+constexpr int PASSWORD_EDIT_INDEX = 2;
+
+constexpr int BATCH_DIRECTORY_EDIT_INDEX = 0;
+
+constexpr int STREAM_URL_EDIT_INDEX = 0;
+constexpr int STREAM_KEY_EDIT_INDEX = 1;
+
+constexpr int PLATFORM_COMBO_BOX_INDEX = 0;
+constexpr int RESOLUTION_COMBO_BOX_INDEX = 1;
+
+constexpr int BITRATE_BOX_INDEX = 0;
+constexpr int FRAMES_PER_SECOND_BOX_INDEX = 1;
+
+constexpr int STATUS_LABEL_INDEX = 1;
+
+constexpr int FILE_MENU_INDEX = 0;
+constexpr int TOOLS_MENU_INDEX = 1;
+constexpr int HELP_MENU_INDEX = 2;
+
+constexpr int EXIT_ACTION_INDEX = 0;
+constexpr int CLEAR_LOGS_ACTION_INDEX = 0;
+constexpr int ABOUT_ACTION_INDEX = 0;
+
 constexpr int BITRATE_1080P = 8000;
 constexpr int BITRATE_1440P = 16000;
 constexpr int BITRATE_4K = 35000;
@@ -82,10 +110,60 @@ constexpr int STREAM_FRAMES_PER_SECOND = 30;
 constexpr int STREAM_BITRATE = 8000;
 
 constexpr const char* PASSWORD = "gui-password";
+constexpr const char* WRONG_PASSWORD = "wrong";
 
 constexpr const char* PLATFORM_VARIABLE = "QT_QPA_PLATFORM";
 constexpr const char* HEADLESS_PLATFORM = "offscreen";
 constexpr const char* TEST_ORGANIZATION = "yt-media-storage-tests";
+
+constexpr const char* BINARY_EXTENSION = ".bin";
+constexpr const char* MATROSKA_EXTENSION = ".mkv";
+constexpr const char* FLV_EXTENSION = ".flv";
+constexpr const char* OUTPUT_EXTENSION = ".out";
+constexpr const char* NO_EXTENSION = "";
+
+constexpr const char* MISSING_DIRECTORY_SUFFIX = ".missing-directory/";
+constexpr const char* STREAM_FILE_NAME = "stream.flv";
+
+constexpr const char* FILE_NAME_SEPARATOR = " ";
+
+constexpr const char* TWITCH_URL = "rtmp://live.twitch.tv/app/";
+constexpr const char* YOUTUBE_URL = "rtmp://a.rtmp.youtube.com/live2/";
+
+constexpr const char* FILE_OPERATIONS_GROUP = "File Operations";
+constexpr const char* BATCH_OPERATIONS_GROUP = "Batch Operations";
+constexpr const char* STREAMING_GROUP = "Streaming (Twitch / YouTube)";
+constexpr const char* STATUS_GROUP = "Status";
+constexpr const char* LOGS_GROUP = "Logs";
+
+constexpr const char* ENCODE_BUTTON = "Encode to Video";
+constexpr const char* DECODE_BUTTON = "Decode from Video";
+constexpr const char* BROWSE_BUTTON = "Browse...";
+constexpr const char* SHOW_BUTTON = "Show";
+constexpr const char* HIDE_BUTTON = "Hide";
+constexpr const char* ADD_FILES_BUTTON = "Add Files";
+constexpr const char* REMOVE_SELECTED_BUTTON = "Remove Selected";
+constexpr const char* CLEAR_ALL_BUTTON = "Clear All";
+constexpr const char* BATCH_ENCODE_BUTTON = "Batch Encode All";
+constexpr const char* STREAM_ENCODE_BUTTON = "Stream Encode";
+constexpr const char* STREAM_DECODE_BUTTON = "Stream Decode";
+constexpr const char* CLEAR_LOGS_BUTTON = "Clear Logs";
+
+constexpr const char* WARNING_TITLE = "Warning";
+constexpr const char* SUCCESS_TITLE = "Success";
+constexpr const char* ERROR_TITLE = "Error";
+constexpr const char* ABOUT_TITLE = "About";
+constexpr const char* BATCH_FINISHED_TITLE = "Batch Finished";
+
+constexpr const char* MISSING_INPUT_WARNING = "Please select an input file";
+constexpr const char* MISSING_OUTPUT_WARNING = "Please select an output file";
+constexpr const char* MISSING_PASSWORD_WARNING = "Password required when encrypting";
+constexpr const char* BUSY_WARNING = "An operation is already in progress";
+constexpr const char* ENCODE_SUCCEEDED_MESSAGE = "Encoding completed successfully";
+
+constexpr const char* INITIALIZED_LOG = "Drive Manager initialized";
+constexpr const char* LOGS_CLEARED_LOG = "Logs cleared";
+constexpr const char* ENCRYPTING_LOG = "Encrypting chunks with password";
 
 constexpr int STARTING_PERCENTAGE = 5;
 constexpr int COMPLETE_PERCENTAGE = 100;
@@ -166,7 +244,7 @@ private:
     for (const QString& file : files) {
       quoted.append("\"" + QFileInfo(file).fileName() + "\"");
     }
-    return quoted.join(" ");
+    return quoted.join(FILE_NAME_SEPARATOR);
   }
 
   QTimer timer_;
@@ -211,7 +289,8 @@ QString to_qstring(const fixtures::temporary_file& file) {
 class drive_manager_ui_test : public testing::Test {
 protected:
   drive_manager_ui_test()
-      : input_(".bin"), video_(".mkv"), output_(".out"), input_data_(fixtures::make_pattern(SMALL_INPUT_SIZE)) {
+      : input_(BINARY_EXTENSION), video_(MATROSKA_EXTENSION), output_(OUTPUT_EXTENSION),
+        input_data_(fixtures::make_pattern(SMALL_INPUT_SIZE)) {
     fixtures::write_bytes(input_.path(), input_data_);
     window_ = std::make_unique<drive_manager_ui>();
     window_->show();
@@ -245,55 +324,55 @@ protected:
   }
 
   QLineEdit* input_edit() const {
-    return line_edit("File Operations", 0);
+    return line_edit(FILE_OPERATIONS_GROUP, INPUT_EDIT_INDEX);
   }
 
   QLineEdit* output_edit() const {
-    return line_edit("File Operations", 1);
+    return line_edit(FILE_OPERATIONS_GROUP, OUTPUT_EDIT_INDEX);
   }
 
   QLineEdit* password_edit() const {
-    return line_edit("File Operations", 2);
+    return line_edit(FILE_OPERATIONS_GROUP, PASSWORD_EDIT_INDEX);
   }
 
   QCheckBox* encrypt_box() const {
-    return group("File Operations")->findChild<QCheckBox*>();
+    return group(FILE_OPERATIONS_GROUP)->findChild<QCheckBox*>();
   }
 
   QListWidget* batch_list() const {
-    return group("Batch Operations")->findChild<QListWidget*>();
+    return group(BATCH_OPERATIONS_GROUP)->findChild<QListWidget*>();
   }
 
   QLineEdit* batch_directory_edit() const {
-    return line_edit("Batch Operations", 0);
+    return line_edit(BATCH_OPERATIONS_GROUP, BATCH_DIRECTORY_EDIT_INDEX);
   }
 
   QComboBox* platform_combo_box() const {
-    return group("Streaming (Twitch / YouTube)")->findChildren<QComboBox*>().at(0);
+    return group(STREAMING_GROUP)->findChildren<QComboBox*>().at(PLATFORM_COMBO_BOX_INDEX);
   }
 
   QComboBox* resolution_combo_box() const {
-    return group("Streaming (Twitch / YouTube)")->findChildren<QComboBox*>().at(1);
+    return group(STREAMING_GROUP)->findChildren<QComboBox*>().at(RESOLUTION_COMBO_BOX_INDEX);
   }
 
   QLineEdit* stream_url_edit() const {
-    return line_edit("Streaming (Twitch / YouTube)", 0);
+    return line_edit(STREAMING_GROUP, STREAM_URL_EDIT_INDEX);
   }
 
   QLineEdit* stream_key_edit() const {
-    return line_edit("Streaming (Twitch / YouTube)", 1);
+    return line_edit(STREAMING_GROUP, STREAM_KEY_EDIT_INDEX);
   }
 
   QSpinBox* bitrate_box() const {
-    return group("Streaming (Twitch / YouTube)")->findChildren<QSpinBox*>().at(0);
+    return group(STREAMING_GROUP)->findChildren<QSpinBox*>().at(BITRATE_BOX_INDEX);
   }
 
   QSpinBox* frames_per_second_box() const {
-    return group("Streaming (Twitch / YouTube)")->findChildren<QSpinBox*>().at(1);
+    return group(STREAMING_GROUP)->findChildren<QSpinBox*>().at(FRAMES_PER_SECOND_BOX_INDEX);
   }
 
   QString log_text() const {
-    return group("Logs")->findChild<QTextEdit*>()->toPlainText();
+    return group(LOGS_GROUP)->findChild<QTextEdit*>()->toPlainText();
   }
 
   QString permanent_status() const {
@@ -301,7 +380,7 @@ protected:
   }
 
   bool encode_button_enabled() const {
-    return button("File Operations", "Encode to Video")->isEnabled();
+    return button(FILE_OPERATIONS_GROUP, ENCODE_BUTTON)->isEnabled();
   }
 
   void select_files(const QString& input, const QString& output) const {
@@ -317,9 +396,9 @@ protected:
     select_files(to_qstring(input_), to_qstring(video_));
     encrypt_box()->setChecked(encrypt);
     password_edit()->setText(encrypt ? PASSWORD : "");
-    button("File Operations", "Encode to Video")->click();
+    button(FILE_OPERATIONS_GROUP, ENCODE_BUTTON)->click();
 
-    const bool encode_succeeded = wait_for_message("Success", "Encoding completed successfully");
+    const bool encode_succeeded = wait_for_message(SUCCESS_TITLE, ENCODE_SUCCEEDED_MESSAGE);
     ASSERT_TRUE(encode_succeeded);
 
     driver_.clear();
@@ -332,9 +411,9 @@ protected:
     stream_url_edit()->setText(path.left(split));
     stream_key_edit()->setText(path.mid(split));
     input_edit()->setText(to_qstring(input_));
-    button("Streaming (Twitch / YouTube)", "Stream Encode")->click();
+    button(STREAMING_GROUP, STREAM_ENCODE_BUTTON)->click();
 
-    const bool stream_encode_succeeded = wait_for_message("Success", "Stream encode completed successfully");
+    const bool stream_encode_succeeded = wait_for_message(SUCCESS_TITLE, "Stream encode completed successfully");
     ASSERT_TRUE(stream_encode_succeeded);
 
     driver_.clear();
@@ -352,44 +431,44 @@ protected:
 
 TEST_F(drive_manager_ui_test, should_start_idle) {
   const QString title = window_->windowTitle();
-  const QString status = group("Status")->findChildren<QLabel*>().at(1)->text();
+  const QString status = group(STATUS_GROUP)->findChildren<QLabel*>().at(STATUS_LABEL_INDEX)->text();
 
   const QString idle_status = permanent_status();
-  const bool mentions_drive_manager_initialized = log_text().contains("Drive Manager initialized");
+  const bool mentions_drive_manager_initialized = log_text().contains(INITIALIZED_LOG);
   const QString stream_url = stream_url_edit()->text();
   const int frames_per_second = frames_per_second_box()->value();
   EXPECT_EQ(title, "YouTube Media Storage - Drive Manager");
   EXPECT_EQ(status, "Status: Idle");
   EXPECT_EQ(idle_status, "Ready");
   EXPECT_TRUE(mentions_drive_manager_initialized);
-  EXPECT_EQ(stream_url, "rtmp://live.twitch.tv/app/");
+  EXPECT_EQ(stream_url, TWITCH_URL);
   EXPECT_EQ(frames_per_second, FRAMES_PER_SECOND);
 }
 
 TEST_F(drive_manager_ui_test, should_toggle_password_visibility) {
-  QPushButton* const toggle = button("File Operations", "Show");
+  QPushButton* const toggle = button(FILE_OPERATIONS_GROUP, SHOW_BUTTON);
 
   toggle->click();
 
   const QLineEdit::EchoMode shown_mode = password_edit()->echoMode();
   const QString shown_label = toggle->text();
   EXPECT_EQ(shown_mode, QLineEdit::Normal);
-  EXPECT_EQ(shown_label, "Hide");
+  EXPECT_EQ(shown_label, HIDE_BUTTON);
 
   toggle->click();
 
   const QLineEdit::EchoMode hidden_mode = password_edit()->echoMode();
   const QString hidden_label = toggle->text();
   EXPECT_EQ(hidden_mode, QLineEdit::Password);
-  EXPECT_EQ(hidden_label, "Show");
+  EXPECT_EQ(hidden_label, SHOW_BUTTON);
 }
 
 TEST_F(drive_manager_ui_test, should_select_input_and_output_files) {
   driver_.queue_file_answer(QStringList{to_qstring(input_)});
   driver_.queue_file_answer(QStringList{to_qstring(video_)});
 
-  button("File Operations", "Browse...", 0)->click();
-  button("File Operations", "Browse...", 1)->click();
+  button(FILE_OPERATIONS_GROUP, BROWSE_BUTTON, INPUT_BROWSE_OCCURRENCE)->click();
+  button(FILE_OPERATIONS_GROUP, BROWSE_BUTTON, OUTPUT_BROWSE_OCCURRENCE)->click();
 
   const std::string selected_input = input_edit()->text().toStdString();
   const std::string selected_output = output_edit()->text().toStdString();
@@ -409,10 +488,10 @@ TEST_F(drive_manager_ui_test, should_keep_paths_when_file_dialogs_are_cancelled)
   driver_.queue_file_answer(std::nullopt);
   driver_.queue_file_answer(std::nullopt);
 
-  button("File Operations", "Browse...", 0)->click();
-  button("File Operations", "Browse...", 1)->click();
-  button("Batch Operations", "Add Files")->click();
-  button("Batch Operations", "Browse...")->click();
+  button(FILE_OPERATIONS_GROUP, BROWSE_BUTTON, INPUT_BROWSE_OCCURRENCE)->click();
+  button(FILE_OPERATIONS_GROUP, BROWSE_BUTTON, OUTPUT_BROWSE_OCCURRENCE)->click();
+  button(BATCH_OPERATIONS_GROUP, ADD_FILES_BUTTON)->click();
+  button(BATCH_OPERATIONS_GROUP, BROWSE_BUTTON)->click();
 
   const bool input_empty = input_edit()->text().isEmpty();
   const bool output_empty = output_edit()->text().isEmpty();
@@ -425,13 +504,13 @@ TEST_F(drive_manager_ui_test, should_keep_paths_when_file_dialogs_are_cancelled)
 }
 
 TEST_F(drive_manager_ui_test, should_add_batch_files_once_and_remove_them) {
-  const fixtures::temporary_file second(".bin");
+  const fixtures::temporary_file second(BINARY_EXTENSION);
   fixtures::write_bytes(second.path(), input_data_);
   driver_.queue_file_answer(QStringList{to_qstring(input_), to_qstring(second)});
   driver_.queue_file_answer(QStringList{to_qstring(input_)});
 
-  button("Batch Operations", "Add Files")->click();
-  button("Batch Operations", "Add Files")->click();
+  button(BATCH_OPERATIONS_GROUP, ADD_FILES_BUTTON)->click();
+  button(BATCH_OPERATIONS_GROUP, ADD_FILES_BUTTON)->click();
 
   const int added_count = batch_list()->count();
   const QString added_status = permanent_status();
@@ -443,14 +522,14 @@ TEST_F(drive_manager_ui_test, should_add_batch_files_once_and_remove_them) {
   EXPECT_TRUE(mentions_one_added);
 
   batch_list()->item(0)->setSelected(true);
-  button("Batch Operations", "Remove Selected")->click();
+  button(BATCH_OPERATIONS_GROUP, REMOVE_SELECTED_BUTTON)->click();
 
   const int remaining_count = batch_list()->count();
   const QString remaining_status = permanent_status();
   EXPECT_EQ(remaining_count, 1);
   EXPECT_EQ(remaining_status, "Files in queue: 1");
 
-  button("Batch Operations", "Clear All")->click();
+  button(BATCH_OPERATIONS_GROUP, CLEAR_ALL_BUTTON)->click();
 
   const int cleared_count = batch_list()->count();
   const QString cleared_status = permanent_status();
@@ -459,11 +538,11 @@ TEST_F(drive_manager_ui_test, should_add_batch_files_once_and_remove_them) {
 }
 
 TEST_F(drive_manager_ui_test, should_select_a_batch_output_directory) {
-  const fixtures::temporary_file directory("");
+  const fixtures::temporary_file directory(NO_EXTENSION);
   std::filesystem::create_directories(directory.path());
   driver_.queue_file_answer(QStringList{to_qstring(directory)});
 
-  button("Batch Operations", "Browse...")->click();
+  button(BATCH_OPERATIONS_GROUP, BROWSE_BUTTON)->click();
 
   const bool batch_directory_empty = batch_directory_edit()->text().isEmpty();
   const bool mentions_selected_output_directory = log_text().contains("Selected output directory: ");
@@ -476,7 +555,7 @@ TEST_F(drive_manager_ui_test, should_switch_stream_platforms) {
 
   const QString youtube_url = stream_url_edit()->text();
   const bool youtube_read_only = stream_url_edit()->isReadOnly();
-  EXPECT_EQ(youtube_url, "rtmp://a.rtmp.youtube.com/live2/");
+  EXPECT_EQ(youtube_url, YOUTUBE_URL);
   EXPECT_TRUE(youtube_read_only);
 
   platform_combo_box()->setCurrentIndex(CUSTOM_INDEX);
@@ -490,7 +569,7 @@ TEST_F(drive_manager_ui_test, should_switch_stream_platforms) {
 
   const QString twitch_url = stream_url_edit()->text();
   const bool twitch_read_only = stream_url_edit()->isReadOnly();
-  EXPECT_EQ(twitch_url, "rtmp://live.twitch.tv/app/");
+  EXPECT_EQ(twitch_url, TWITCH_URL);
   EXPECT_TRUE(twitch_read_only);
 }
 
@@ -512,28 +591,29 @@ TEST_F(drive_manager_ui_test, should_pick_a_bitrate_for_each_resolution) {
 }
 
 TEST_F(drive_manager_ui_test, should_clear_logs_from_the_button_and_the_menu) {
-  button("Logs", "Clear Logs")->click();
+  button(LOGS_GROUP, CLEAR_LOGS_BUTTON)->click();
 
-  const bool mentions_drive_manager_initialized = log_text().contains("Drive Manager initialized");
-  const bool button_cleared_logs = log_text().contains("Logs cleared");
+  const bool mentions_drive_manager_initialized = log_text().contains(INITIALIZED_LOG);
+  const bool button_cleared_logs = log_text().contains(LOGS_CLEARED_LOG);
   EXPECT_FALSE(mentions_drive_manager_initialized);
   EXPECT_TRUE(button_cleared_logs);
 
-  QAction* const action = window_->menuBar()->actions().at(1)->menu()->actions().at(0);
-  group("Logs")->findChild<QTextEdit*>()->clear();
+  QAction* const action =
+      window_->menuBar()->actions().at(TOOLS_MENU_INDEX)->menu()->actions().at(CLEAR_LOGS_ACTION_INDEX);
+  group(LOGS_GROUP)->findChild<QTextEdit*>()->clear();
   action->trigger();
 
-  const bool menu_cleared_logs = log_text().contains("Logs cleared");
+  const bool menu_cleared_logs = log_text().contains(LOGS_CLEARED_LOG);
   EXPECT_TRUE(menu_cleared_logs);
 }
 
 TEST_F(drive_manager_ui_test, should_show_the_about_box_and_exit_from_the_menu) {
-  QAction* const about = window_->menuBar()->actions().at(2)->menu()->actions().at(0);
-  QAction* const exit = window_->menuBar()->actions().at(0)->menu()->actions().at(0);
+  QAction* const about = window_->menuBar()->actions().at(HELP_MENU_INDEX)->menu()->actions().at(ABOUT_ACTION_INDEX);
+  QAction* const exit = window_->menuBar()->actions().at(FILE_MENU_INDEX)->menu()->actions().at(EXIT_ACTION_INDEX);
 
   about->trigger();
 
-  const bool about_shown = driver_.has_message("About", QString("Version %1").arg(ms_version()));
+  const bool about_shown = driver_.has_message(ABOUT_TITLE, QString("Version %1").arg(ms_version()));
   EXPECT_TRUE(about_shown);
 
   exit->trigger();
@@ -543,55 +623,56 @@ TEST_F(drive_manager_ui_test, should_show_the_about_box_and_exit_from_the_menu) 
 }
 
 TEST_F(drive_manager_ui_test, should_validate_files_before_encoding) {
-  QPushButton* const encode = button("File Operations", "Encode to Video");
+  QPushButton* const encode = button(FILE_OPERATIONS_GROUP, ENCODE_BUTTON);
 
   encode->click();
 
-  const bool input_warning_shown = driver_.has_message("Warning", "Please select an input file");
+  const bool input_warning_shown = driver_.has_message(WARNING_TITLE, MISSING_INPUT_WARNING);
   EXPECT_TRUE(input_warning_shown);
 
-  input_edit()->setText(to_qstring(input_) + ".missing");
+  const fixtures::temporary_file missing_input(BINARY_EXTENSION);
+  input_edit()->setText(to_qstring(missing_input));
   encode->click();
 
-  const bool missing_file_warning_shown = driver_.has_message("Warning", "Input file does not exist");
+  const bool missing_file_warning_shown = driver_.has_message(WARNING_TITLE, "Input file does not exist");
   EXPECT_TRUE(missing_file_warning_shown);
 
   input_edit()->setText(to_qstring(input_));
   encode->click();
 
-  const bool output_warning_shown = driver_.has_message("Warning", "Please select an output file");
+  const bool output_warning_shown = driver_.has_message(WARNING_TITLE, MISSING_OUTPUT_WARNING);
   EXPECT_TRUE(output_warning_shown);
 
   output_edit()->setText(to_qstring(video_));
   encrypt_box()->setChecked(true);
   encode->click();
 
-  const bool password_warning_shown = driver_.has_message("Warning", "Password required when encrypting");
+  const bool password_warning_shown = driver_.has_message(WARNING_TITLE, MISSING_PASSWORD_WARNING);
   const bool encode_enabled = encode_button_enabled();
   EXPECT_TRUE(password_warning_shown);
   EXPECT_TRUE(encode_enabled);
 }
 
 TEST_F(drive_manager_ui_test, should_validate_files_before_decoding) {
-  QPushButton* const decode = button("File Operations", "Decode from Video");
+  QPushButton* const decode = button(FILE_OPERATIONS_GROUP, DECODE_BUTTON);
 
   decode->click();
 
-  const bool input_warning_shown = driver_.has_message("Warning", "Please select an input file");
+  const bool input_warning_shown = driver_.has_message(WARNING_TITLE, MISSING_INPUT_WARNING);
   EXPECT_TRUE(input_warning_shown);
 
   input_edit()->setText(to_qstring(video_));
   fixtures::write_bytes(video_.path(), input_data_);
   decode->click();
 
-  const bool output_warning_shown = driver_.has_message("Warning", "Please select an output file");
+  const bool output_warning_shown = driver_.has_message(WARNING_TITLE, MISSING_OUTPUT_WARNING);
   EXPECT_TRUE(output_warning_shown);
 }
 
 TEST_F(drive_manager_ui_test, should_encode_and_decode_an_encrypted_file) {
   encode_input_to_video(true);
 
-  const bool mentions_encrypting_chunks_with_password = log_text().contains("Encrypting chunks with password");
+  const bool mentions_encrypting_chunks_with_password = log_text().contains(ENCRYPTING_LOG);
   const bool mentions_input_size = log_text().contains(QString("Input size: %1 bytes").arg(SMALL_INPUT_SIZE));
   const bool mentions_chunk_count = log_text().contains("Chunks: 1");
   const bool password_empty = password_edit()->text().isEmpty();
@@ -604,9 +685,9 @@ TEST_F(drive_manager_ui_test, should_encode_and_decode_an_encrypted_file) {
 
   select_files(to_qstring(video_), to_qstring(output_));
   password_edit()->setText(PASSWORD);
-  button("File Operations", "Decode from Video")->click();
+  button(FILE_OPERATIONS_GROUP, DECODE_BUTTON)->click();
 
-  const bool decode_succeeded = wait_for_message("Success", "Decoding completed successfully");
+  const bool decode_succeeded = wait_for_message(SUCCESS_TITLE, "Decoding completed successfully");
   const bool mentions_packets_extracted = log_text().contains("Packets extracted: ");
   const bool mentions_chunks_decoded = log_text().contains("Chunks decoded: 1");
   ASSERT_TRUE(decode_succeeded);
@@ -614,7 +695,7 @@ TEST_F(drive_manager_ui_test, should_encode_and_decode_an_encrypted_file) {
   EXPECT_TRUE(mentions_chunks_decoded);
 
   const std::vector<std::byte> output_bytes = fixtures::read_bytes(output_.path());
-  const int progress = group("Status")->findChild<QProgressBar*>()->value();
+  const int progress = group(STATUS_GROUP)->findChild<QProgressBar*>()->value();
   EXPECT_EQ(output_bytes, input_data_);
   EXPECT_EQ(progress, 0);
 }
@@ -623,21 +704,21 @@ TEST_F(drive_manager_ui_test, should_report_a_failed_decode) {
   encode_input_to_video(true);
 
   select_files(to_qstring(video_), to_qstring(output_));
-  password_edit()->setText("wrong");
-  button("File Operations", "Decode from Video")->click();
+  password_edit()->setText(WRONG_PASSWORD);
+  button(FILE_OPERATIONS_GROUP, DECODE_BUTTON)->click();
 
-  const bool decode_failed = wait_for_message("Error", "Decode error: encryption/decryption error");
+  const bool decode_failed = wait_for_message(ERROR_TITLE, "Decode error: encryption/decryption error");
   const bool mentions_decode_error = log_text().contains("✗ Decode error");
   ASSERT_TRUE(decode_failed);
   EXPECT_TRUE(mentions_decode_error);
 
   const QString password = password_edit()->text();
-  EXPECT_EQ(password, "wrong");
+  EXPECT_EQ(password, WRONG_PASSWORD);
 }
 
 TEST_F(drive_manager_ui_test, should_warn_when_an_operation_is_already_running) {
   select_files(to_qstring(input_), to_qstring(video_));
-  QPushButton* const encode = button("File Operations", "Encode to Video");
+  QPushButton* const encode = button(FILE_OPERATIONS_GROUP, ENCODE_BUTTON);
 
   encode->click();
 
@@ -646,34 +727,34 @@ TEST_F(drive_manager_ui_test, should_warn_when_an_operation_is_already_running) 
 
   QMetaObject::invokeMethod(window_.get(), "start_decode");
 
-  const bool busy_warning_shown = driver_.has_message("Warning", "An operation is already in progress");
-  const bool encode_succeeded = wait_for_message("Success", "Encoding completed successfully");
+  const bool busy_warning_shown = driver_.has_message(WARNING_TITLE, BUSY_WARNING);
+  const bool encode_succeeded = wait_for_message(SUCCESS_TITLE, ENCODE_SUCCEEDED_MESSAGE);
   EXPECT_TRUE(busy_warning_shown);
   ASSERT_TRUE(encode_succeeded);
 }
 
 TEST_F(drive_manager_ui_test, should_warn_when_a_batch_starts_while_an_operation_is_running) {
   select_files(to_qstring(input_), to_qstring(video_));
-  QPushButton* const encode = button("File Operations", "Encode to Video");
+  QPushButton* const encode = button(FILE_OPERATIONS_GROUP, ENCODE_BUTTON);
 
   encode->click();
   QMetaObject::invokeMethod(window_.get(), "start_batch_encode");
 
-  const bool busy_warning_shown = driver_.has_message("Warning", "An operation is already in progress");
-  const bool encode_succeeded = wait_for_message("Success", "Encoding completed successfully");
+  const bool busy_warning_shown = driver_.has_message(WARNING_TITLE, BUSY_WARNING);
+  const bool encode_succeeded = wait_for_message(SUCCESS_TITLE, ENCODE_SUCCEEDED_MESSAGE);
   EXPECT_TRUE(busy_warning_shown);
   ASSERT_TRUE(encode_succeeded);
 }
 
 TEST_F(drive_manager_ui_test, should_report_progress_while_running) {
   select_files(to_qstring(input_), to_qstring(video_));
-  QProgressBar* const progress = group("Status")->findChild<QProgressBar*>();
+  QProgressBar* const progress = group(STATUS_GROUP)->findChild<QProgressBar*>();
   std::vector<int> values;
   QObject::connect(progress, &QProgressBar::valueChanged, [&](const int value) { values.push_back(value); });
 
-  button("File Operations", "Encode to Video")->click();
+  button(FILE_OPERATIONS_GROUP, ENCODE_BUTTON)->click();
 
-  const bool encode_succeeded = wait_for_message("Success", "Encoding completed successfully");
+  const bool encode_succeeded = wait_for_message(SUCCESS_TITLE, ENCODE_SUCCEEDED_MESSAGE);
   ASSERT_TRUE(encode_succeeded);
 
   const bool reached_complete = std::ranges::find(values, COMPLETE_PERCENTAGE) != values.end();
@@ -681,31 +762,31 @@ TEST_F(drive_manager_ui_test, should_report_progress_while_running) {
 }
 
 TEST_F(drive_manager_ui_test, should_validate_a_batch_before_encoding) {
-  QPushButton* const batch = button("Batch Operations", "Batch Encode All");
+  QPushButton* const batch = button(BATCH_OPERATIONS_GROUP, BATCH_ENCODE_BUTTON);
 
   batch->click();
 
-  const bool empty_batch_warning_shown = driver_.has_message("Warning", "No files in batch list");
+  const bool empty_batch_warning_shown = driver_.has_message(WARNING_TITLE, "No files in batch list");
   EXPECT_TRUE(empty_batch_warning_shown);
 
   batch_list()->addItem(to_qstring(input_));
   batch->click();
 
-  const bool directory_warning_shown = driver_.has_message("Warning", "Please select an output directory");
+  const bool directory_warning_shown = driver_.has_message(WARNING_TITLE, "Please select an output directory");
   EXPECT_TRUE(directory_warning_shown);
 
   batch_directory_edit()->setText(QString::fromStdString(std::filesystem::temp_directory_path().string()));
   encrypt_box()->setChecked(true);
   batch->click();
 
-  const bool password_warning_shown = driver_.has_message("Warning", "Password required when encrypting");
+  const bool password_warning_shown = driver_.has_message(WARNING_TITLE, MISSING_PASSWORD_WARNING);
   EXPECT_TRUE(password_warning_shown);
 }
 
 TEST_F(drive_manager_ui_test, should_encode_a_batch) {
-  const fixtures::temporary_file directory("");
+  const fixtures::temporary_file directory(NO_EXTENSION);
   std::filesystem::create_directories(directory.path());
-  const fixtures::temporary_file second(".bin");
+  const fixtures::temporary_file second(BINARY_EXTENSION);
   fixtures::write_bytes(second.path(), input_data_);
   batch_list()->addItem(to_qstring(input_));
   batch_list()->addItem(to_qstring(second));
@@ -713,14 +794,14 @@ TEST_F(drive_manager_ui_test, should_encode_a_batch) {
   encrypt_box()->setChecked(true);
   password_edit()->setText(PASSWORD);
 
-  button("Batch Operations", "Batch Encode All")->click();
+  button(BATCH_OPERATIONS_GROUP, BATCH_ENCODE_BUTTON)->click();
 
-  const bool batch_succeeded = wait_for_message("Success", "Batch encoding finished: 2 succeeded, 0 failed");
+  const bool batch_succeeded = wait_for_message(SUCCESS_TITLE, "Batch encoding finished: 2 succeeded, 0 failed");
   const bool mentions_two_files = log_text().contains("Batch encoding 2 files");
   const bool first_video_exists =
-      std::filesystem::exists(directory.path() / (input_.path().filename().string() + ".mkv"));
+      std::filesystem::exists(directory.path() / (input_.path().filename().string() + MATROSKA_EXTENSION));
   const bool second_video_exists =
-      std::filesystem::exists(directory.path() / (second.path().filename().string() + ".mkv"));
+      std::filesystem::exists(directory.path() / (second.path().filename().string() + MATROSKA_EXTENSION));
   ASSERT_TRUE(batch_succeeded);
   EXPECT_TRUE(mentions_two_files);
   EXPECT_TRUE(first_video_exists);
@@ -733,15 +814,16 @@ TEST_F(drive_manager_ui_test, should_encode_a_batch) {
 }
 
 TEST_F(drive_manager_ui_test, should_count_failures_in_a_batch) {
-  const fixtures::temporary_file directory("");
+  const fixtures::temporary_file directory(NO_EXTENSION);
+  const fixtures::temporary_file missing_input(BINARY_EXTENSION);
   std::filesystem::create_directories(directory.path());
-  batch_list()->addItem(to_qstring(input_) + ".missing");
+  batch_list()->addItem(to_qstring(missing_input));
   batch_list()->addItem(to_qstring(input_));
   batch_directory_edit()->setText(to_qstring(directory));
 
-  button("Batch Operations", "Batch Encode All")->click();
+  button(BATCH_OPERATIONS_GROUP, BATCH_ENCODE_BUTTON)->click();
 
-  const bool batch_finished = wait_for_message("Batch Finished", "Batch encoding finished: 1 succeeded, 1 failed");
+  const bool batch_finished = wait_for_message(BATCH_FINISHED_TITLE, "Batch encoding finished: 1 succeeded, 1 failed");
   const bool mentions_encode_file_not_found = log_text().contains("✗ Encode error: file not found");
   const bool mentions_encoding_completed_successfully = log_text().contains("✓ Encoding completed successfully");
   ASSERT_TRUE(batch_finished);
@@ -750,45 +832,45 @@ TEST_F(drive_manager_ui_test, should_count_failures_in_a_batch) {
 }
 
 TEST_F(drive_manager_ui_test, should_validate_a_stream_encode) {
-  QPushButton* const stream = button("Streaming (Twitch / YouTube)", "Stream Encode");
+  QPushButton* const stream = button(STREAMING_GROUP, STREAM_ENCODE_BUTTON);
 
   stream->click();
 
-  const bool input_warning_shown = driver_.has_message("Warning", "Please select an input file");
+  const bool input_warning_shown = driver_.has_message(WARNING_TITLE, MISSING_INPUT_WARNING);
   EXPECT_TRUE(input_warning_shown);
 
   input_edit()->setText(to_qstring(input_));
   stream->click();
 
-  const bool stream_key_warning_shown = driver_.has_message("Warning", "Please enter your stream key");
+  const bool stream_key_warning_shown = driver_.has_message(WARNING_TITLE, "Please enter your stream key");
   EXPECT_TRUE(stream_key_warning_shown);
 
   stream_key_edit()->setText("key");
   encrypt_box()->setChecked(true);
   stream->click();
 
-  const bool password_warning_shown = driver_.has_message("Warning", "Password required when encrypting");
+  const bool password_warning_shown = driver_.has_message(WARNING_TITLE, MISSING_PASSWORD_WARNING);
   EXPECT_TRUE(password_warning_shown);
 }
 
 TEST_F(drive_manager_ui_test, should_validate_a_stream_decode) {
-  QPushButton* const stream = button("Streaming (Twitch / YouTube)", "Stream Decode");
+  QPushButton* const stream = button(STREAMING_GROUP, STREAM_DECODE_BUTTON);
 
   stream->click();
 
-  const bool output_warning_shown = driver_.has_message("Warning", "Please select an output file");
+  const bool output_warning_shown = driver_.has_message(WARNING_TITLE, MISSING_OUTPUT_WARNING);
   EXPECT_TRUE(output_warning_shown);
 
   output_edit()->setText(to_qstring(output_));
   platform_combo_box()->setCurrentIndex(CUSTOM_INDEX);
   stream->click();
 
-  const bool url_warning_shown = driver_.has_message("Warning", "Please enter a stream URL to decode from");
+  const bool url_warning_shown = driver_.has_message(WARNING_TITLE, "Please enter a stream URL to decode from");
   EXPECT_TRUE(url_warning_shown);
 }
 
 TEST_F(drive_manager_ui_test, should_stream_encode_and_decode_a_file) {
-  const fixtures::temporary_file stream(".flv");
+  const fixtures::temporary_file stream(FLV_EXTENSION);
   resolution_combo_box()->setCurrentIndex(RESOLUTION_1080P_INDEX);
   encrypt_box()->setChecked(true);
   password_edit()->setText(PASSWORD);
@@ -797,7 +879,7 @@ TEST_F(drive_manager_ui_test, should_stream_encode_and_decode_a_file) {
 
   const bool mentions_resolution = log_text().contains("Resolution: 1920x1080 (30 fps)");
   const bool mentions_bitrate = log_text().contains(QString("Bitrate: %1 kbps").arg(BITRATE_1080P));
-  const bool mentions_encrypting_chunks_with_password = log_text().contains("Encrypting chunks with password");
+  const bool mentions_encrypting_chunks_with_password = log_text().contains(ENCRYPTING_LOG);
   const bool mentions_streamed = log_text().contains("Streamed ");
   EXPECT_TRUE(mentions_resolution);
   EXPECT_TRUE(mentions_bitrate);
@@ -806,9 +888,9 @@ TEST_F(drive_manager_ui_test, should_stream_encode_and_decode_a_file) {
 
   output_edit()->setText(to_qstring(output_));
   password_edit()->setText(PASSWORD);
-  button("Streaming (Twitch / YouTube)", "Stream Decode")->click();
+  button(STREAMING_GROUP, STREAM_DECODE_BUTTON)->click();
 
-  const bool stream_decode_succeeded = wait_for_message("Success", "Stream decode completed successfully");
+  const bool stream_decode_succeeded = wait_for_message(SUCCESS_TITLE, "Stream decode completed successfully");
   const bool mentions_output_size = log_text().contains(QString("Output size: %1 bytes").arg(SMALL_INPUT_SIZE));
   ASSERT_TRUE(stream_decode_succeeded);
   EXPECT_TRUE(mentions_output_size);
@@ -818,24 +900,24 @@ TEST_F(drive_manager_ui_test, should_stream_encode_and_decode_a_file) {
 }
 
 TEST_F(drive_manager_ui_test, should_report_a_failed_stream_encode_and_decode) {
-  const fixtures::temporary_file stream(".flv");
+  const fixtures::temporary_file stream(FLV_EXTENSION);
   input_edit()->setText(to_qstring(input_));
   platform_combo_box()->setCurrentIndex(CUSTOM_INDEX);
-  stream_url_edit()->setText(to_qstring(stream) + ".missing-directory/");
-  stream_key_edit()->setText("stream.flv");
+  stream_url_edit()->setText(to_qstring(stream) + MISSING_DIRECTORY_SUFFIX);
+  stream_key_edit()->setText(STREAM_FILE_NAME);
 
-  button("Streaming (Twitch / YouTube)", "Stream Encode")->click();
+  button(STREAMING_GROUP, STREAM_ENCODE_BUTTON)->click();
 
-  const bool stream_encode_failed = wait_for_message("Error", "Stream encode error: encoding failed");
+  const bool stream_encode_failed = wait_for_message(ERROR_TITLE, "Stream encode error: encoding failed");
   ASSERT_TRUE(stream_encode_failed);
 
   encrypt_box()->setChecked(true);
   password_edit()->setText(PASSWORD);
   stream_input_to(stream);
   output_edit()->setText(to_qstring(output_));
-  button("Streaming (Twitch / YouTube)", "Stream Decode")->click();
+  button(STREAMING_GROUP, STREAM_DECODE_BUTTON)->click();
 
-  const bool stream_decode_failed = wait_for_message("Error", "Stream decode error: encryption/decryption error");
+  const bool stream_decode_failed = wait_for_message(ERROR_TITLE, "Stream decode error: encryption/decryption error");
   const bool output_exists = std::filesystem::exists(output_.path());
   ASSERT_TRUE(stream_decode_failed);
   EXPECT_FALSE(output_exists);
@@ -845,7 +927,7 @@ TEST_F(drive_manager_ui_test, should_cancel_a_running_operation_when_closed) {
   fixtures::write_bytes(input_.path(), fixtures::make_pattern(MULTI_CHUNK_INPUT_SIZE));
   select_files(to_qstring(input_), to_qstring(video_));
 
-  button("File Operations", "Encode to Video")->click();
+  button(FILE_OPERATIONS_GROUP, ENCODE_BUTTON)->click();
   window_.reset();
 
   const bool messages_empty = driver_.messages().empty();
@@ -853,8 +935,8 @@ TEST_F(drive_manager_ui_test, should_cancel_a_running_operation_when_closed) {
 }
 
 TEST(worker_thread_test, should_report_progress_and_completion_for_an_encode) {
-  const fixtures::temporary_file input(".bin");
-  const fixtures::temporary_file video(".mkv");
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file video(MATROSKA_EXTENSION);
   fixtures::write_bytes(input.path(), fixtures::make_pattern(SMALL_INPUT_SIZE));
   worker_request request;
   request.operation = worker_request::operation_type::ENCODE;
@@ -879,8 +961,8 @@ TEST(worker_thread_test, should_report_progress_and_completion_for_an_encode) {
 }
 
 TEST(worker_thread_test, should_stream_with_the_requested_settings) {
-  const fixtures::temporary_file input(".bin");
-  const fixtures::temporary_file stream(".flv");
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file stream(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), fixtures::make_pattern(SMALL_INPUT_SIZE));
   worker_request request;
   request.operation = worker_request::operation_type::STREAM_ENCODE;
