@@ -20,17 +20,26 @@
 #include "drive_manager_ui.h"
 #include "media_storage.h"
 
+namespace {
+constexpr const char* APPLICATION_NAME = "YouTube Media Storage";
+constexpr const char* APPLICATION_DISPLAY_NAME = "Drive Manager";
+constexpr const char* ORGANIZATION_NAME = "Media Storage";
+constexpr const char* ORGANIZATION_DOMAIN = "brandonli.me";
+
+constexpr const char* STYLE_NAME = "Fusion";
+}
+
 int main(int argc, char* argv[]) {
   QApplication application(argc, argv);
 
-  QApplication::setApplicationName("YouTube Media Storage");
-  QApplication::setApplicationDisplayName("Drive Manager");
+  QApplication::setApplicationName(APPLICATION_NAME);
+  QApplication::setApplicationDisplayName(APPLICATION_DISPLAY_NAME);
   QApplication::setApplicationVersion(ms_version());
-  QApplication::setOrganizationName("Media Storage");
-  QApplication::setOrganizationDomain("brandonli.me");
+  QApplication::setOrganizationName(ORGANIZATION_NAME);
+  QApplication::setOrganizationDomain(ORGANIZATION_DOMAIN);
 
-  if (QStyleFactory::keys().contains("Fusion")) {
-    QApplication::setStyle("Fusion");
+  if (QStyleFactory::keys().contains(STYLE_NAME)) {
+    QApplication::setStyle(STYLE_NAME);
   }
 
   drive_manager_ui window;

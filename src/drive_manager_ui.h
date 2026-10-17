@@ -40,6 +40,8 @@
 #include "configuration.h"
 #include "media_storage.h"
 
+inline constexpr int MAXIMUM_PROGRESS = 100;
+
 struct worker_request {
   enum class operation_type { ENCODE, DECODE, STREAM_ENCODE, STREAM_DECODE };
 
@@ -85,7 +87,7 @@ private:
 
   worker_request request_;
   std::atomic<bool> cancel_requested_{false};
-  progress_range progress_range_{0, 100};
+  progress_range progress_range_{0, MAXIMUM_PROGRESS};
 
   static int progress_callback(uint64_t current, uint64_t total, void* user);
 
