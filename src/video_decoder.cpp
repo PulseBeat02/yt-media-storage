@@ -54,10 +54,6 @@ std::size_t packet_size_at(const std::span<const std::byte> data) {
 }
 
 bool starts_with_magic(const std::span<const std::byte> data) {
-  if (data.size() < MAGIC_SIZE) {
-    return false;
-  }
-
   uint32_t magic = 0;
   std::memcpy(&magic, data.data(), sizeof(magic));
   return magic == MAGIC_ID;
