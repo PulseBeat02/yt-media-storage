@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <charconv>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -28,6 +29,30 @@
 
 namespace {
 constexpr int STREAM_DECODE_TIMEOUT_SECONDS = 30;
+
+constexpr int COMMAND_INDEX = 1;
+constexpr int FIRST_OPTION_INDEX = COMMAND_INDEX + 1;
+constexpr int MINIMUM_ARGUMENT_COUNT = COMMAND_INDEX + 1;
+
+constexpr std::string_view ENCODE_COMMAND = "encode";
+constexpr std::string_view DECODE_COMMAND = "decode";
+constexpr std::string_view STREAM_ENCODE_COMMAND = "stream-encode";
+constexpr std::string_view STREAM_DECODE_COMMAND = "stream-decode";
+
+constexpr const char* INPUT_AND_OUTPUT_REQUIRED_MESSAGE = "both --input and --output must be specified";
+constexpr const char* PASSWORD_REQUIRED_MESSAGE = "--encrypt requires --password";
+
+constexpr const char* INPUT_LABEL = "Input: ";
+constexpr const char* OUTPUT_LABEL = "Output: ";
+constexpr const char* STREAM_URL_LABEL = "Stream URL: ";
+constexpr const char* WRITTEN_TO_LABEL = "Written to: ";
+constexpr const char* ERROR_LABEL = "Error: ";
+
+constexpr const char* SIZE_UNITS[] = {"B", "KB", "MB", "GB", "TB"};
+constexpr int SIZE_UNIT_RATIO = 1024;
+constexpr int SIZE_DECIMAL_PLACES = 1;
+
+constexpr int CONTINUE_OPERATION = 0;
 
 struct cli_options {
   std::string command;
@@ -44,16 +69,15 @@ struct cli_options {
 };
 
 std::string format_size(const uint64_t bytes) {
-  constexpr const char* units[] = {"B", "KB", "MB", "GB", "TB"};
-  constexpr int last_unit = static_cast<int>(std::size(units)) - 1;
+  constexpr int last_unit = static_cast<int>(std::size(SIZE_UNITS)) - 1;
   int unit = 0;
   auto size = static_cast<double>(bytes);
-  while (size >= 1024 && unit < last_unit) {
-    size /= 1024;
+  while (size >= SIZE_UNIT_RATIO && unit < last_unit) {
+    size /= SIZE_UNIT_RATIO;
     ++unit;
   }
   std::ostringstream stream;
-  stream << std::fixed << std::setprecision(1) << size << " " << units[unit];
+  stream << std::fixed << std::setprecision(SIZE_DECIMAL_PLACES) << size << " " << SIZE_UNITS[unit];
   return stream.str();
 }
 
@@ -63,7 +87,7 @@ int report_progress(const char* label, const uint64_t current, const uint64_t to
     std::cout << "/" << total;
   }
   std::cout << "..." << std::flush;
-  return 0;
+  return CONTINUE_OPERATION;
 }
 
 int encode_progress(const uint64_t current, const uint64_t total, void*) {
@@ -95,12 +119,12 @@ void print_usage(const char* program) {
 
 int report_failure(const ms_status_t status) {
   std::cout << "\n";
-  std::cerr << "Error: " << ms_status_string(status);
+  std::cerr << ERROR_LABEL << ms_status_string(status);
   if (const std::string_view detail = ms_last_error(); !detail.empty()) {
     std::cerr << " (" << detail << ")";
   }
   std::cerr << "\n";
-  return 1;
+  return EXIT_FAILURE;
 }
 
 void print_statistics(const ms_result_t& result) {
@@ -109,8 +133,8 @@ void print_statistics(const ms_result_t& result) {
 }
 
 int do_encode(const cli_options& cli) {
-  std::cout << "Input: " << cli.input_path << "\n";
-  std::cout << "Output: " << cli.output_path << "\n";
+  std::cout << INPUT_LABEL << cli.input_path << "\n";
+  std::cout << OUTPUT_LABEL << cli.output_path << "\n";
 
   ms_encode_options_t options{};
   options.input_path = cli.input_path.c_str();
@@ -129,13 +153,13 @@ int do_encode(const cli_options& cli) {
   std::cout << "\n\nEncode complete: " << format_size(result.input_size) << " -> " << format_size(result.output_size)
             << "\n";
   print_statistics(result);
-  std::cout << "Written to: " << cli.output_path << "\n";
-  return 0;
+  std::cout << WRITTEN_TO_LABEL << cli.output_path << "\n";
+  return EXIT_SUCCESS;
 }
 
 int do_decode(const cli_options& cli) {
-  std::cout << "Input: " << cli.input_path << "\n";
-  std::cout << "Output: " << cli.output_path << "\n";
+  std::cout << INPUT_LABEL << cli.input_path << "\n";
+  std::cout << OUTPUT_LABEL << cli.output_path << "\n";
 
   ms_decode_options_t options{};
   options.input_path = cli.input_path.c_str();
@@ -152,13 +176,13 @@ int do_decode(const cli_options& cli) {
   std::cout << "\n\nDecode complete: " << format_size(result.input_size) << " -> " << format_size(result.output_size)
             << "\n";
   print_statistics(result);
-  std::cout << "Written to: " << cli.output_path << "\n";
-  return 0;
+  std::cout << WRITTEN_TO_LABEL << cli.output_path << "\n";
+  return EXIT_SUCCESS;
 }
 
 int do_stream_encode(const cli_options& cli) {
-  std::cout << "Input: " << cli.input_path << "\n";
-  std::cout << "Stream URL: " << cli.stream_url << "\n";
+  std::cout << INPUT_LABEL << cli.input_path << "\n";
+  std::cout << STREAM_URL_LABEL << cli.stream_url << "\n";
   std::cout << "Resolution: " << cli.width << "x" << cli.height << " (" << cli.frames_per_second << " fps)\n";
   std::cout << "Bitrate: " << cli.bitrate_kilobits_per_second << " kbps\n";
 
@@ -182,12 +206,12 @@ int do_stream_encode(const cli_options& cli) {
 
   std::cout << "\n\nStream encode complete: " << format_size(result.input_size) << "\n";
   print_statistics(result);
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 int do_stream_decode(const cli_options& cli) {
-  std::cout << "Stream URL: " << cli.stream_url << "\n";
-  std::cout << "Output: " << cli.output_path << "\n";
+  std::cout << STREAM_URL_LABEL << cli.stream_url << "\n";
+  std::cout << OUTPUT_LABEL << cli.output_path << "\n";
   std::cout << "Waiting for stream...\n";
 
   ms_stream_decode_options_t options{};
@@ -205,8 +229,8 @@ int do_stream_decode(const cli_options& cli) {
 
   std::cout << "\n\nStream decode complete: -> " << format_size(result.output_size) << "\n";
   print_statistics(result);
-  std::cout << "Written to: " << cli.output_path << "\n";
-  return 0;
+  std::cout << WRITTEN_TO_LABEL << cli.output_path << "\n";
+  return EXIT_SUCCESS;
 }
 
 std::optional<int> parse_positive_integer(const std::string_view text) {
@@ -220,7 +244,7 @@ std::optional<int> parse_positive_integer(const std::string_view text) {
 
 std::optional<cli_options> parse_arguments(const int argc, char* argv[]) {
   cli_options cli;
-  cli.command = argv[1];
+  cli.command = argv[COMMAND_INDEX];
 
   const auto take_value = [&](int& i) -> std::optional<std::string_view> {
     if (i + 1 >= argc)
@@ -234,12 +258,12 @@ std::optional<cli_options> parse_arguments(const int argc, char* argv[]) {
       return std::nullopt;
     const auto value = parse_positive_integer(*text);
     if (!value) {
-      std::cerr << "Error: " << flag << " expects a positive integer, got '" << *text << "'\n";
+      std::cerr << ERROR_LABEL << flag << " expects a positive integer, got '" << *text << "'\n";
     }
     return value;
   };
 
-  for (int i = 2; i < argc; ++i) {
+  for (int i = FIRST_OPTION_INDEX; i < argc; ++i) {
     const std::string_view argument = argv[i];
     std::optional<std::string_view> value;
     std::optional<int> number;
@@ -268,11 +292,11 @@ std::optional<cli_options> parse_arguments(const int argc, char* argv[]) {
       } else if (*value == "crc32") {
         cli.hash_algorithm = MS_HASH_CRC32;
       } else {
-        std::cerr << "Error: unknown hash algorithm '" << *value << "' (use crc32 or xxhash)\n";
+        std::cerr << ERROR_LABEL << "unknown hash algorithm '" << *value << "' (use crc32 or xxhash)\n";
         return std::nullopt;
       }
     } else {
-      std::cerr << "Error: unknown or incomplete argument '" << argument << "'\n";
+      std::cerr << ERROR_LABEL << "unknown or incomplete argument '" << argument << "'\n";
       print_usage(argv[0]);
       return std::nullopt;
     }
@@ -282,7 +306,7 @@ std::optional<cli_options> parse_arguments(const int argc, char* argv[]) {
 
 bool require(const bool condition, const char* message, const char* program) {
   if (!condition) {
-    std::cerr << "Error: " << message << "\n";
+    std::cerr << ERROR_LABEL << message << "\n";
     print_usage(program);
   }
   return condition;
@@ -290,51 +314,50 @@ bool require(const bool condition, const char* message, const char* program) {
 }
 
 int main(const int argc, char* argv[]) {
-  if (argc < 2) {
+  if (argc < MINIMUM_ARGUMENT_COUNT) {
     print_usage(argv[0]);
-    return 1;
+    return EXIT_FAILURE;
   }
 
-  const std::string_view command = argv[1];
-  if (command != "encode" && command != "decode" && command != "stream-encode" && command != "stream-decode") {
-    std::cerr << "Error: unknown command '" << command << "'\n";
+  const std::string_view command = argv[COMMAND_INDEX];
+  if (command != ENCODE_COMMAND && command != DECODE_COMMAND && command != STREAM_ENCODE_COMMAND &&
+      command != STREAM_DECODE_COMMAND) {
+    std::cerr << ERROR_LABEL << "unknown command '" << command << "'\n";
     print_usage(argv[0]);
-    return 1;
+    return EXIT_FAILURE;
   }
 
   const auto cli = parse_arguments(argc, argv);
   if (!cli) {
-    return 1;
+    return EXIT_FAILURE;
   }
 
   const bool encrypt_ok = !cli->encrypt || !cli->password.empty();
 
-  if (command == "encode") {
-    if (!require(!cli->input_path.empty() && !cli->output_path.empty(), "both --input and --output must be specified",
-                 argv[0]) ||
-        !require(encrypt_ok, "--encrypt requires --password", argv[0])) {
-      return 1;
+  if (command == ENCODE_COMMAND) {
+    if (!require(!cli->input_path.empty() && !cli->output_path.empty(), INPUT_AND_OUTPUT_REQUIRED_MESSAGE, argv[0]) ||
+        !require(encrypt_ok, PASSWORD_REQUIRED_MESSAGE, argv[0])) {
+      return EXIT_FAILURE;
     }
     return do_encode(*cli);
   }
-  if (command == "decode") {
-    if (!require(!cli->input_path.empty() && !cli->output_path.empty(), "both --input and --output must be specified",
-                 argv[0])) {
-      return 1;
+  if (command == DECODE_COMMAND) {
+    if (!require(!cli->input_path.empty() && !cli->output_path.empty(), INPUT_AND_OUTPUT_REQUIRED_MESSAGE, argv[0])) {
+      return EXIT_FAILURE;
     }
     return do_decode(*cli);
   }
-  if (command == "stream-encode") {
+  if (command == STREAM_ENCODE_COMMAND) {
     if (!require(!cli->input_path.empty() && !cli->stream_url.empty(),
                  "--input and --url must be specified for stream-encode", argv[0]) ||
-        !require(encrypt_ok, "--encrypt requires --password", argv[0])) {
-      return 1;
+        !require(encrypt_ok, PASSWORD_REQUIRED_MESSAGE, argv[0])) {
+      return EXIT_FAILURE;
     }
     return do_stream_encode(*cli);
   }
   if (!require(!cli->stream_url.empty() && !cli->output_path.empty(),
                "--url and --output must be specified for stream-decode", argv[0])) {
-    return 1;
+    return EXIT_FAILURE;
   }
   return do_stream_decode(*cli);
 }
