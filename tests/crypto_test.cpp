@@ -38,6 +38,7 @@ file_id_type make_salt(const uint8_t base) {
   for (std::size_t i = 0; i < salt.size(); ++i) {
     salt[i] = static_cast<std::byte>(base + i);
   }
+
   return salt;
 }
 

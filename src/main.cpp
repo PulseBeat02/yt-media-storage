@@ -76,6 +76,7 @@ std::string format_size(const uint64_t bytes) {
     size /= SIZE_UNIT_RATIO;
     ++unit;
   }
+
   std::ostringstream stream;
   stream << std::fixed << std::setprecision(SIZE_DECIMAL_PLACES) << size << " " << SIZE_UNITS[unit];
   return stream.str();
@@ -86,7 +87,9 @@ int report_progress(const char* label, const uint64_t current, const uint64_t to
   if (total > 0) {
     std::cout << "/" << total;
   }
+
   std::cout << "..." << std::flush;
+
   return CONTINUE_OPERATION;
 }
 
@@ -123,7 +126,9 @@ int report_failure(const ms_status_t status) {
   if (const std::string_view detail = ms_last_error(); !detail.empty()) {
     std::cerr << " (" << detail << ")";
   }
+
   std::cerr << "\n";
+
   return EXIT_FAILURE;
 }
 
@@ -154,6 +159,7 @@ int do_encode(const cli_options& cli) {
             << "\n";
   print_statistics(result);
   std::cout << WRITTEN_TO_LABEL << cli.output_path << "\n";
+
   return EXIT_SUCCESS;
 }
 
@@ -177,6 +183,7 @@ int do_decode(const cli_options& cli) {
             << "\n";
   print_statistics(result);
   std::cout << WRITTEN_TO_LABEL << cli.output_path << "\n";
+
   return EXIT_SUCCESS;
 }
 
@@ -206,6 +213,7 @@ int do_stream_encode(const cli_options& cli) {
 
   std::cout << "\n\nStream encode complete: " << format_size(result.input_size) << "\n";
   print_statistics(result);
+
   return EXIT_SUCCESS;
 }
 
@@ -230,6 +238,7 @@ int do_stream_decode(const cli_options& cli) {
   std::cout << "\n\nStream decode complete: -> " << format_size(result.output_size) << "\n";
   print_statistics(result);
   std::cout << WRITTEN_TO_LABEL << cli.output_path << "\n";
+
   return EXIT_SUCCESS;
 }
 
@@ -239,6 +248,7 @@ std::optional<int> parse_positive_integer(const std::string_view text) {
   if (error_code != std::errc{} || parsed_end != text.data() + text.size() || value <= 0) {
     return std::nullopt;
   }
+
   return value;
 }
 
@@ -246,6 +256,7 @@ std::optional<std::string_view> take_value(const int argc, char* argv[], int& i)
   if (i + 1 >= argc) {
     return std::nullopt;
   }
+
   return std::string_view(argv[++i]);
 }
 
@@ -254,10 +265,12 @@ std::optional<int> take_positive_integer(const int argc, char* argv[], int& i, c
   if (!text) {
     return std::nullopt;
   }
+
   const std::optional<int> value = parse_positive_integer(*text);
   if (!value) {
     std::cerr << ERROR_LABEL << flag << " expects a positive integer, got '" << *text << "'\n";
   }
+
   return value;
 }
 
@@ -299,6 +312,7 @@ bool parse_option(const int argc, char* argv[], int& i, cli_options& cli) {
     print_usage(argv[0]);
     return false;
   }
+
   return true;
 }
 
@@ -311,6 +325,7 @@ std::optional<cli_options> parse_arguments(const int argc, char* argv[]) {
       return std::nullopt;
     }
   }
+
   return cli;
 }
 
@@ -319,6 +334,7 @@ bool require(const bool condition, const char* message, const char* program) {
     std::cerr << ERROR_LABEL << message << "\n";
     print_usage(program);
   }
+
   return condition;
 }
 }
@@ -351,12 +367,14 @@ int main(const int argc, char* argv[]) {
     }
     return do_encode(*cli);
   }
+
   if (command == DECODE_COMMAND) {
     if (!require(!cli->input_path.empty() && !cli->output_path.empty(), INPUT_AND_OUTPUT_REQUIRED_MESSAGE, argv[0])) {
       return EXIT_FAILURE;
     }
     return do_decode(*cli);
   }
+
   if (command == STREAM_ENCODE_COMMAND) {
     if (!require(!cli->input_path.empty() && !cli->stream_url.empty(),
                  "--input and --url must be specified for stream-encode", argv[0]) ||
@@ -365,9 +383,11 @@ int main(const int argc, char* argv[]) {
     }
     return do_stream_encode(*cli);
   }
+
   if (!require(!cli->stream_url.empty() && !cli->output_path.empty(),
                "--url and --output must be specified for stream-decode", argv[0])) {
     return EXIT_FAILURE;
   }
+
   return do_stream_decode(*cli);
 }

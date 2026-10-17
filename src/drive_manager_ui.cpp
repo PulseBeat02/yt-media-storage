@@ -129,6 +129,7 @@ QString describe_failure(const QString& prefix, const ms_status_t status) {
   if (const QString detail = QString::fromUtf8(ms_last_error()); !detail.isEmpty()) {
     message += QString(" (%1)").arg(detail);
   }
+
   return message;
 }
 }
@@ -141,6 +142,7 @@ int worker_thread::progress_callback(const uint64_t current, const uint64_t tota
   if (thread->cancel_requested_) {
     return CANCEL_OPERATION;
   }
+
   const auto [start, span] = thread->progress_range_;
   int percentage;
   if (total > 0) {
@@ -148,7 +150,9 @@ int worker_thread::progress_callback(const uint64_t current, const uint64_t tota
   } else {
     percentage = start + static_cast<int>(current % static_cast<uint64_t>(span));
   }
+
   emit thread->progress_updated(std::min(percentage, start + span));
+
   return CONTINUE_OPERATION;
 }
 
@@ -189,6 +193,7 @@ void worker_thread::run_encode(const std::string& input, const std::string& outp
   if (request_.encrypt) {
     emit log_message(ENCRYPTING_MESSAGE);
   }
+
   progress_range_ = {ENCODE_PROGRESS_START, ENCODE_PROGRESS_SPAN};
   emit progress_updated(progress_range_.start);
 
@@ -209,6 +214,7 @@ void worker_thread::run_encode(const std::string& input, const std::string& outp
     emit log_message(QString(CHUNKS_TEMPLATE).arg(result.total_chunks));
     emit log_message(QString("Generated %1 packets in %2 frames").arg(result.total_packets).arg(result.total_frames));
   }
+
   finish(status, "Encoding completed successfully", "Encode error");
 }
 
@@ -234,6 +240,7 @@ void worker_thread::run_decode(const std::string& input, const std::string& outp
     emit log_message(QString(CHUNKS_DECODED_TEMPLATE).arg(result.total_chunks));
     emit log_message(QString(FRAMES_TEMPLATE).arg(result.total_frames));
   }
+
   finish(status, "Decoding completed successfully", "Decode error");
 }
 
@@ -246,6 +253,7 @@ void worker_thread::run_stream_encode(const std::string& input, const std::strin
   if (request_.encrypt) {
     emit log_message(ENCRYPTING_MESSAGE);
   }
+
   progress_range_ = {ENCODE_PROGRESS_START, ENCODE_PROGRESS_SPAN};
   emit progress_updated(progress_range_.start);
 
@@ -270,6 +278,7 @@ void worker_thread::run_stream_encode(const std::string& input, const std::strin
     emit log_message(QString(CHUNKS_TEMPLATE).arg(result.total_chunks));
     emit log_message(QString("Streamed %1 packets in %2 frames").arg(result.total_packets).arg(result.total_frames));
   }
+
   finish(status, "Stream encode completed successfully", "Stream encode error");
 }
 
@@ -296,6 +305,7 @@ void worker_thread::run_stream_decode(const std::string& url, const std::string&
     emit log_message(QString(FRAMES_TEMPLATE).arg(result.total_frames));
     emit log_message(QString("Output size: %1 bytes").arg(result.output_size));
   }
+
   finish(status, "Stream decode completed successfully", "Stream decode error");
 }
 
@@ -318,6 +328,7 @@ drive_manager_ui::~drive_manager_ui() {
     worker_thread_->request_cancel();
     worker_thread_->wait();
   }
+
   save_settings();
 }
 
@@ -583,6 +594,7 @@ void drive_manager_ui::add_batch_files() {
       file_list_widget_->addItem(file_name);
     }
   }
+
   log_message(QString("Added %1 files to batch list").arg(file_names.size()));
   update_file_list();
 }
@@ -600,6 +612,7 @@ bool drive_manager_ui::warn_if_busy() {
   if (operation_running_) {
     QMessageBox::warning(this, WARNING_TITLE, "An operation is already in progress");
   }
+
   return operation_running_;
 }
 
@@ -608,10 +621,12 @@ bool drive_manager_ui::validate_input_file() {
     QMessageBox::warning(this, WARNING_TITLE, "Please select an input file");
     return false;
   }
+
   if (!QFile::exists(input_file_edit_->text())) {
     QMessageBox::warning(this, WARNING_TITLE, "Input file does not exist");
     return false;
   }
+
   return true;
 }
 
@@ -620,6 +635,7 @@ bool drive_manager_ui::validate_output_file() {
     QMessageBox::warning(this, WARNING_TITLE, "Please select an output file");
     return false;
   }
+
   return true;
 }
 
@@ -628,6 +644,7 @@ bool drive_manager_ui::validate_password() {
     QMessageBox::warning(this, WARNING_TITLE, "Password required when encrypting");
     return false;
   }
+
   return true;
 }
 
@@ -683,14 +700,17 @@ void drive_manager_ui::start_batch_encode() {
   if (warn_if_busy()) {
     return;
   }
+
   if (file_list_widget_->count() == 0) {
     QMessageBox::warning(this, WARNING_TITLE, "No files in batch list");
     return;
   }
+
   if (batch_output_directory_edit_->text().isEmpty()) {
     QMessageBox::warning(this, WARNING_TITLE, "Please select an output directory");
     return;
   }
+
   if (!validate_password()) {
     return;
   }
@@ -699,6 +719,7 @@ void drive_manager_ui::start_batch_encode() {
   for (int i = 0; i < file_list_widget_->count(); ++i) {
     batch_queue_.append(file_list_widget_->item(i)->text());
   }
+
   batch_succeeded_ = 0;
   batch_failed_ = 0;
   batch_running_ = true;
@@ -755,10 +776,12 @@ void drive_manager_ui::start_stream_encode() {
   if (warn_if_busy() || !validate_input_file()) {
     return;
   }
+
   if (stream_key_edit_->text().isEmpty()) {
     QMessageBox::warning(this, WARNING_TITLE, "Please enter your stream key");
     return;
   }
+
   if (!validate_password()) {
     return;
   }
@@ -781,6 +804,7 @@ void drive_manager_ui::start_stream_decode() {
   if (warn_if_busy() || !validate_output_file()) {
     return;
   }
+
   if (stream_url_edit_->text().isEmpty()) {
     QMessageBox::warning(this, WARNING_TITLE, "Please enter a stream URL to decode from");
     return;
@@ -803,6 +827,7 @@ void drive_manager_ui::remove_selected_files() const {
   for (const QListWidgetItem* const item : file_list_widget_->selectedItems()) {
     delete file_list_widget_->takeItem(file_list_widget_->row(item));
   }
+
   update_file_list();
 }
 

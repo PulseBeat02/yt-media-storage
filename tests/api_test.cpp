@@ -44,6 +44,7 @@ constexpr int CANCEL_OPERATION = 1;
 
 int count_progress_call(uint64_t, uint64_t, void* user) {
   static_cast<std::atomic<int>*>(user)->fetch_add(1);
+
   return CONTINUE_OPERATION;
 }
 

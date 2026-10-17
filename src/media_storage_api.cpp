@@ -56,6 +56,7 @@ void set_last_error(std::string message) {
 
 ms_status_t fail(const ms_status_t status, std::string message) {
   set_last_error(std::move(message));
+
   return status;
 }
 
@@ -141,6 +142,7 @@ struct encode_job {
       const std::string message = "Batch could not be FEC encoded!";
       throw std::runtime_error(message);
     }
+
     return results;
   }
 
@@ -151,6 +153,7 @@ struct encode_job {
       encrypted = encrypt_chunk(data, key, encoder.file_id(), static_cast<uint32_t>(chunk_index));
       data = encrypted;
     }
+
     const chunk_position position = position_of_chunk(chunk_index, reader.chunk_count());
     return encoder.encode_chunk(static_cast<uint32_t>(chunk_index), data, position, encryption).first;
   }
@@ -182,6 +185,7 @@ struct encode_job {
     sink.finalize();
     statistics.total_chunks = chunk_count;
     statistics.total_frames = sink.frames_written();
+
     return MS_OK;
   }
 
@@ -211,6 +215,7 @@ std::unique_ptr<video_decoder> open_stream_with_retries(const std::string& strea
       std::this_thread::sleep_for(STREAM_RETRY_DELAY);
     }
   }
+
   return std::make_unique<video_decoder>(stream_url);
 }
 
@@ -244,6 +249,7 @@ ms_status_t consume_video(video_decoder& video, decoder& decoder, const ms_progr
 
   statistics.total_frames = video.frames_read();
   statistics.expected_chunks = decoder.last_chunk_index().value_or(decoder.maximum_chunk_index()) + 1;
+
   return MS_OK;
 }
 
@@ -252,6 +258,7 @@ ms_status_t write_decoded_file(decoder& decoder, const std::string& output_path,
   if (statistics.total_packets == 0) {
     return fail(MS_ERR_DECODE_FAILED, "no packets found in input");
   }
+
   if (statistics.decoded_chunks < statistics.expected_chunks) {
     return fail(MS_ERR_INCOMPLETE, "decoded " + std::to_string(statistics.decoded_chunks) + " of " +
                                        std::to_string(statistics.expected_chunks) + " chunks");
@@ -268,11 +275,13 @@ ms_status_t write_decoded_file(decoder& decoder, const std::string& output_path,
 
   const bool written = decoder.write_assembled_file(output_path, statistics.expected_chunks);
   decoder.clear_decrypt_key();
+
   if (!written) {
     return fail(decoder.is_encrypted() ? MS_ERR_CRYPTO : MS_ERR_IO,
                 decoder.is_encrypted() ? "failed to decrypt or write output (wrong password?)"
                                        : "failed to write output file");
   }
+
   return MS_OK;
 }
 
@@ -281,6 +290,7 @@ void fill_result(ms_result_t* result, const uint64_t input_size, const uint64_t 
   if (!result) {
     return;
   }
+
   result->input_size = input_size;
   result->output_size = output_size;
   result->total_chunks = total_chunks;
@@ -308,9 +318,11 @@ ms_status_t encode_file(const char* input_path_c_string, const payload_encryptio
   if (!std::filesystem::exists(input_path)) {
     return fail(MS_ERR_FILE_NOT_FOUND, INPUT_NOT_FOUND_MESSAGE + input_path);
   }
+
   if (std::error_code error_code; !std::filesystem::is_regular_file(input_path, error_code)) {
     return fail(MS_ERR_INVALID_ARGS, "input is not a regular file: " + input_path);
   }
+
   input_size = file_size_or_zero(input_path);
 
   try {
@@ -337,6 +349,7 @@ ms_status_t encode_file(const char* input_path_c_string, const payload_encryptio
 
 ms_status_t ms_encode(const ms_encode_options_t* options, ms_result_t* result) {
   set_last_error({});
+
   if (!options || !options->input_path || !options->output_path) {
     return fail(MS_ERR_INVALID_ARGS, INPUT_AND_OUTPUT_REQUIRED_MESSAGE);
   }
@@ -354,11 +367,13 @@ ms_status_t ms_encode(const ms_encode_options_t* options, ms_result_t* result) {
 
   fill_result(result, input_size, file_size_or_zero(output_path), statistics.total_chunks, statistics.total_packets,
               static_cast<uint64_t>(statistics.total_frames));
+
   return MS_OK;
 }
 
 ms_status_t ms_stream_encode(const ms_stream_encode_options_t* options, ms_result_t* result) {
   set_last_error({});
+
   if (!options || !options->input_path || !options->stream_url) {
     return fail(MS_ERR_INVALID_ARGS, "input_path and stream_url are required");
   }
@@ -382,11 +397,13 @@ ms_status_t ms_stream_encode(const ms_stream_encode_options_t* options, ms_resul
 
   fill_result(result, input_size, 0, statistics.total_chunks, statistics.total_packets,
               static_cast<uint64_t>(statistics.total_frames));
+
   return MS_OK;
 }
 
 ms_status_t ms_decode(const ms_decode_options_t* options, ms_result_t* result) {
   set_last_error({});
+
   if (!options || !options->input_path || !options->output_path) {
     return fail(MS_ERR_INVALID_ARGS, INPUT_AND_OUTPUT_REQUIRED_MESSAGE);
   }
@@ -417,11 +434,13 @@ ms_status_t ms_decode(const ms_decode_options_t* options, ms_result_t* result) {
 
   fill_result(result, file_size_or_zero(input_path), file_size_or_zero(output_path), statistics.expected_chunks,
               statistics.total_packets, static_cast<uint64_t>(statistics.total_frames));
+
   return MS_OK;
 }
 
 ms_status_t ms_stream_decode(const ms_stream_decode_options_t* options, ms_result_t* result) {
   set_last_error({});
+
   if (!options || !options->stream_url || !options->output_path) {
     return fail(MS_ERR_INVALID_ARGS, "stream_url and output_path are required");
   }
@@ -451,6 +470,7 @@ ms_status_t ms_stream_decode(const ms_stream_decode_options_t* options, ms_resul
 
   fill_result(result, 0, file_size_or_zero(output_path), statistics.expected_chunks, statistics.total_packets,
               static_cast<uint64_t>(statistics.total_frames));
+
   return MS_OK;
 }
 

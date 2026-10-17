@@ -93,6 +93,7 @@ inline std::vector<std::byte> make_pattern(const std::size_t size) {
   for (std::size_t i = 0; i < size; ++i) {
     data[i] = static_cast<std::byte>((i * PATTERN_MULTIPLIER + PATTERN_OFFSET) & BYTE_MASK);
   }
+
   return data;
 }
 
@@ -101,6 +102,7 @@ inline std::vector<std::byte> make_counting_data(const std::size_t size) {
   for (std::size_t i = 0; i < size; ++i) {
     data[i] = static_cast<std::byte>(i % COUNTING_PERIOD);
   }
+
   return data;
 }
 
@@ -109,6 +111,7 @@ inline std::vector<std::byte> make_stepped_data(const std::size_t size, const st
   for (std::size_t i = 0; i < size; ++i) {
     data[i] = static_cast<std::byte>((i * step) & BYTE_MASK);
   }
+
   return data;
 }
 
@@ -117,6 +120,7 @@ inline file_id_type make_test_file_id() {
   for (std::size_t i = 0; i < file_id.size(); ++i) {
     file_id[i] = static_cast<std::byte>(i);
   }
+
   return file_id;
 }
 
@@ -145,6 +149,7 @@ inline std::vector<std::byte> read_bytes(const std::filesystem::path& path) {
   for (std::size_t i = 0; i < characters.size(); ++i) {
     data[i] = static_cast<std::byte>(characters[i]);
   }
+
   return data;
 }
 

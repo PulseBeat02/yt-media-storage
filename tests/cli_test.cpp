@@ -102,6 +102,7 @@ std::string build_command(const std::vector<std::string>& arguments) {
   for (const std::string& argument : arguments) {
     command += ARGUMENT_SEPARATOR + argument;
   }
+
   return command + ARGUMENT_SEPARATOR + MERGE_ERRORS_INTO_OUTPUT;
 }
 

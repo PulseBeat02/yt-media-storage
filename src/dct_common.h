@@ -95,6 +95,7 @@ inline float dot_product_64(const float* left, const float* right) {
     sum3 = _mm_add_ps(sum3, _mm_mul_ps(_mm_loadu_ps(left + i + FOURTH_VECTOR_OFFSET),
                                        _mm_loadu_ps(right + i + FOURTH_VECTOR_OFFSET)));
   }
+
   sum0 = _mm_add_ps(_mm_add_ps(sum0, sum1), _mm_add_ps(sum2, sum3));
   __m128 shuffled = _mm_shuffle_ps(sum0, sum0, SWAP_ADJACENT_LANES);
   sum0 = _mm_add_ps(sum0, shuffled);
@@ -155,6 +156,7 @@ inline cosine_table build_cosine_table() {
                                          static_cast<float>(j) * PI / HALF_STEPS_PER_BLOCK);
     }
   }
+
   return cosine_table;
 }
 
@@ -203,6 +205,7 @@ inline pattern_components build_pattern_components() {
   for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
     fill_embed_basis(bit_index, components.embed_basis[bit_index]);
   }
+
   return components;
 }
 
@@ -212,6 +215,7 @@ inline uint8_t pattern_pixel(const pattern_components& components, const int pat
     const int bit = (pattern >> (BITS_PER_BLOCK - 1 - bit_index)) & 1;
     value += (bit ? 1.0f : -1.0f) * components.embed_basis[bit_index][y][x];
   }
+
   value = std::clamp(value, 0.0f, MAXIMUM_GRAY);
   return static_cast<uint8_t>(value);
 }
@@ -231,6 +235,7 @@ inline precomputed_blocks build_precomputed_blocks() {
   for (int pattern = 0; pattern < precomputed_blocks::PATTERN_COUNT; ++pattern) {
     fill_pattern(components, pattern, result.patterns[pattern]);
   }
+
   return result;
 }
 
@@ -258,6 +263,7 @@ inline decoder_projections build_decoder_projections() {
   for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
     fill_decoder_projection(bit_index, decoder_projections.vectors[bit_index]);
   }
+
   return decoder_projections;
 }
 

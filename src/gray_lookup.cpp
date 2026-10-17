@@ -46,6 +46,7 @@ frame_pointer allocate_frame(const AVPixelFormat format, const int width, const 
   frame->format = format;
   frame->width = width;
   frame->height = height;
+
   if (av_frame_get_buffer(frame.get(), DEFAULT_ALIGNMENT) < 0) {
     return nullptr;
   }

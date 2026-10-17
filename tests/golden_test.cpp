@@ -113,6 +113,7 @@ std::vector<packet> read_packets(const std::string& path) {
     const std::size_t size = std::min(extracted[i].size(), packets[i].bytes.size());
     std::copy_n(extracted[i].begin(), size, packets[i].bytes.begin());
   }
+
   return packets;
 }
 
@@ -123,6 +124,7 @@ std::vector<uint8_t> copy_luma_plane(const AVFrame& frame) {
     const uint8_t* const start = frame.data[0] + static_cast<std::ptrdiff_t>(row) * frame.linesize[0];
     plane.insert(plane.end(), start, start + frame.width);
   }
+
   return plane;
 }
 
@@ -145,6 +147,7 @@ format_pointer open_video(const std::string& path) {
     const std::string message = "Video stream information could not be read!";
     throw std::runtime_error(message);
   }
+
   return format;
 }
 
@@ -156,6 +159,7 @@ codec_pointer open_decoder(const AVCodecParameters& parameters) {
     const std::string message = "Video decoder could not be opened!";
     throw std::runtime_error(message);
   }
+
   return context;
 }
 

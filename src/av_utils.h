@@ -57,6 +57,7 @@ inline void ensure_fresh_writable_frame(AVFrame* frame) {
   if (av_frame_is_writable(frame)) {
     return;
   }
+
   const int format = frame->format;
   const int width = frame->width;
   const int height = frame->height;
@@ -64,6 +65,7 @@ inline void ensure_fresh_writable_frame(AVFrame* frame) {
   frame->format = format;
   frame->width = width;
   frame->height = height;
+
   if (av_frame_get_buffer(frame, DEFAULT_ALIGNMENT) < 0) {
     throw std::runtime_error(FRAME_BUFFER_ALLOCATION_MESSAGE);
   }

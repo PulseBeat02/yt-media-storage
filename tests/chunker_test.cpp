@@ -228,6 +228,7 @@ TEST(chunker_test, should_read_the_contents_of_each_chunk) {
   for (std::size_t i = 0; i < CHUNK_SIZE_BYTES; ++i) {
     EXPECT_EQ(first_chunk[i], original_data[i]);
   }
+
   for (std::size_t i = 0; i < 50u; ++i) {
     EXPECT_EQ(second_chunk[i], original_data[CHUNK_SIZE_BYTES + i]);
   }
@@ -262,6 +263,7 @@ TEST(chunker_test, should_read_chunks_of_a_custom_size) {
     EXPECT_EQ(first_chunk[i], original_data[i]);
     EXPECT_EQ(second_chunk[i], original_data[CUSTOM_CHUNK_SIZE + i]);
   }
+
   for (std::size_t i = 0; i < 50; ++i) {
     EXPECT_EQ(third_chunk[i], original_data[THIRD_CHUNK_OFFSET + i]);
   }

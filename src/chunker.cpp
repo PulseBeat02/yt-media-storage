@@ -48,10 +48,12 @@ std::vector<chunk_slice_type> slice_into_chunks(const std::size_t size, const st
     chunks.push_back(chunk_slice_type{0, 0});
     return chunks;
   }
+
   chunks.reserve((size + chunk_size - 1) / chunk_size);
   for (std::size_t offset = 0; offset < size; offset += chunk_size) {
     chunks.push_back(chunk_slice_type{offset, (std::min)(chunk_size, size - offset)});
   }
+
   return chunks;
 }
 
@@ -77,14 +79,17 @@ chunked_storage_data chunk_file(const char* path, const std::size_t chunk_size) 
   if (end < 0) {
     throw std::runtime_error(FILE_SIZE_FAILURE_MESSAGE);
   }
+
   const std::size_t size = static_cast<std::size_t>(end);
   file.seekg(0);
 
   chunked_storage_data result;
   result.storage.resize(size);
+
   if (size > 0 && !file.read(reinterpret_cast<char*>(result.storage.data()), static_cast<std::streamsize>(size))) {
     throw std::runtime_error(FILE_READ_FAILURE_MESSAGE);
   }
+
   result.chunks = slice_into_chunks(size, effective_chunk_size(chunk_size));
   return result;
 }
@@ -94,11 +99,13 @@ file_chunk_reader::file_chunk_reader(const char* path, const std::size_t chunk_s
   if (!file_) {
     throw std::runtime_error(FILE_OPEN_FAILURE_MESSAGE);
   }
+
   file_.seekg(0, std::ios::end);
   const std::streamoff end = file_.tellg();
   if (end < 0) {
     throw std::runtime_error(FILE_SIZE_FAILURE_MESSAGE);
   }
+
   file_size_ = static_cast<std::size_t>(end);
   file_.seekg(0);
   chunk_count_ = file_size_ == 0 ? 1 : (file_size_ + chunk_size_ - 1) / chunk_size_;
@@ -135,11 +142,13 @@ void file_chunk_reader::map_file(const char* path) {
   if (file_descriptor < 0) {
     return;
   }
+
   const void* const view = ::mmap(nullptr, file_size_, PROT_READ, MAP_SHARED, file_descriptor, FILE_START_OFFSET);
   if (view == MAP_FAILED) {
     ::close(file_descriptor);
     return;
   }
+
   file_descriptor_ = file_descriptor;
   mapped_ = static_cast<const std::byte*>(view);
 #endif
@@ -160,6 +169,7 @@ file_chunk_reader::~file_chunk_reader() {
   if (mapped_) {
     ::munmap(const_cast<std::byte*>(mapped_), file_size_);
   }
+
   if (file_descriptor_ >= 0) {
     ::close(file_descriptor_);
   }
@@ -172,10 +182,12 @@ chunk_slice_type file_chunk_reader::chunk_slice(const std::size_t index) const {
         "Chunk index " + std::to_string(index) + " must be below the chunk count " + std::to_string(chunk_count_) + "!";
     throw std::runtime_error(message);
   }
+
   const std::size_t offset = index * chunk_size_;
   if (offset >= file_size_) {
     return chunk_slice_type{offset, 0};
   }
+
   return chunk_slice_type{offset, (std::min)(chunk_size_, file_size_ - offset)};
 }
 
@@ -184,10 +196,12 @@ std::span<const std::byte> file_chunk_reader::chunk_view(const std::size_t index
   if (length == 0) {
     return {};
   }
+
   if (!mapped_) {
     const std::string message = "Chunk views need a memory-mapped file!";
     throw std::runtime_error(message);
   }
+
   return {mapped_ + offset, length};
 }
 
@@ -196,6 +210,7 @@ std::vector<std::byte> file_chunk_reader::read_chunk(const std::size_t index) co
   if (length == 0) {
     return {};
   }
+
   if (mapped_) {
     return {mapped_ + offset, mapped_ + offset + length};
   }
@@ -203,10 +218,13 @@ std::vector<std::byte> file_chunk_reader::read_chunk(const std::size_t index) co
   if (offset != file_position_) {
     file_.seekg(static_cast<std::streamoff>(offset));
   }
+
   std::vector<std::byte> data(length);
   if (!file_.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(length))) {
     throw std::runtime_error(FILE_READ_FAILURE_MESSAGE);
   }
+
   file_position_ = offset + length;
+
   return data;
 }

@@ -42,6 +42,7 @@ std::vector<std::byte> bytes_from_string(const std::string& text) {
   for (const unsigned char character : text) {
     result.push_back(std::byte{character});
   }
+
   return result;
 }
 
@@ -179,6 +180,7 @@ TEST(integrity_test, should_hash_large_input) {
   for (std::size_t i = 0; i < large_data.size(); ++i) {
     large_data[i] = static_cast<std::byte>(i & fixtures::BYTE_MASK);
   }
+
   const sha256_digest digest = sha256(large_data);
   const sha256_digest digest_again = sha256(large_data);
   const std::size_t hexadecimal_length = digest.hexadecimal_value().size();

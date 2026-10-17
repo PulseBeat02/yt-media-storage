@@ -141,5 +141,6 @@ std::optional<parsed_packet> parse_and_verify_packet(const std::span<const std::
   if (!parsed || !verify_packet_checksum(*parsed)) {
     return std::nullopt;
   }
+
   return parsed;
 }

@@ -54,6 +54,7 @@ nonce build_nonce(const std::span<const std::byte, FILE_ID_SIZE> file_id, const 
   for (std::size_t i = 0; i < sizeof(chunk_index); ++i) {
     nonce[FILE_ID_SIZE + i] = static_cast<unsigned char>(chunk_index >> (i * CHAR_BIT));
   }
+
   return nonce;
 }
 
@@ -76,6 +77,7 @@ uint32_t read_plain_size_from_header(const std::span<const std::byte> chunk) {
   for (std::size_t i = 0; i < sizeof(plain_size); ++i) {
     plain_size |= static_cast<uint32_t>(static_cast<uint8_t>(chunk[i])) << (i * CHAR_BIT);
   }
+
   return plain_size;
 }
 
@@ -90,6 +92,7 @@ crypto_key derive_key(const std::span<const std::byte> password, const std::span
     const std::string message = "Key could not be derived!";
     throw std::runtime_error(message);
   }
+
   return key;
 }
 

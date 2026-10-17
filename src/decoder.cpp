@@ -40,6 +40,7 @@ chunk_decoder::chunk_decoder(const uint32_t chunk_index, const uint32_t chunk_si
       symbol_size_(symbol_size) {
   ensure_wirehair_initialized();
   codec_.reset(wirehair_decoder_create(nullptr, chunk_size_, symbol_size_));
+
   if (!codec_) {
     const std::string message = "Wirehair decoder could not be created!";
     throw std::runtime_error(message);
@@ -50,6 +51,7 @@ bool chunk_decoder::add_packet(const uint32_t esi, const std::span<const std::by
   if (decoded_) {
     return true;
   }
+
   if (!codec_) {
     const std::string message = "Codec must not be null!";
     throw std::runtime_error(message);
@@ -62,17 +64,21 @@ bool chunk_decoder::add_packet(const uint32_t esi, const std::span<const std::by
   if (result == Wirehair_NeedMore) {
     return false;
   }
+
   if (result != Wirehair_Success) {
     const std::string message = "Wirehair could not decode a packet!";
     throw std::runtime_error(message);
   }
 
   decoded_data_.resize(chunk_size_);
+
   if (wirehair_recover(codec, decoded_data_.data(), chunk_size_) != Wirehair_Success) {
     const std::string message = "Wirehair could not recover the chunk!";
     throw std::runtime_error(message);
   }
+
   decoded_ = true;
+
   return true;
 }
 
@@ -80,6 +86,7 @@ std::vector<std::byte> chunk_decoder::get_decoded_data() const {
   if (!decoded_) {
     throw std::runtime_error(DATA_NOT_DECODED_MESSAGE);
   }
+
   return decoded_data_;
 }
 
@@ -87,6 +94,7 @@ std::vector<std::byte> chunk_decoder::consume_decoded_data() {
   if (!decoded_) {
     throw std::runtime_error(DATA_NOT_DECODED_MESSAGE);
   }
+
   return std::move(decoded_data_);
 }
 
@@ -97,6 +105,7 @@ std::optional<chunk_decode_result> decoder::process_packet(const std::span<const
     ++total_packets_;
     return std::nullopt;
   }
+
   return process_verified_packet(*parsed, computation);
 }
 
@@ -122,6 +131,7 @@ std::optional<chunk_decode_result> decoder::process_verified_packet(const parsed
   if (header.chunk_index >= active_decoders_.size()) {
     active_decoders_.resize(header.chunk_index + 1);
   }
+
   std::optional<chunk_decoder>& slot = active_decoders_[header.chunk_index];
   if (!slot) {
     slot.emplace(header.chunk_index, header.chunk_size, header.source_symbol_count, header.symbol_size);
@@ -138,11 +148,13 @@ std::optional<chunk_decode_result> decoder::process_verified_packet(const parsed
   if (computation == sha256_computation::COMPUTE) {
     result.sha256 = sha256(result.data);
   }
+
   result.success = true;
 
   if (header.chunk_index >= completed_chunks_.size()) {
     completed_chunks_.resize(header.chunk_index + 1);
   }
+
   completed_chunks_[header.chunk_index] = result.data;
   ++completed_count_;
   slot.reset();
@@ -158,6 +170,7 @@ std::optional<std::vector<std::byte>> decoder::get_chunk_data(const uint32_t chu
   if (is_chunk_complete(chunk_index)) {
     return *completed_chunks_[chunk_index];
   }
+
   return std::nullopt;
 }
 
@@ -169,6 +182,7 @@ std::vector<uint32_t> decoder::completed_chunk_indices() const {
       indices.push_back(i);
     }
   }
+
   return indices;
 }
 
@@ -188,14 +202,17 @@ bool decoder::ready_to_assemble(const uint32_t expected_chunks) const {
   if (completed_count_ != expected_chunks || completed_chunks_.size() > expected_chunks) {
     return false;
   }
+
   if (!file_id_ || (encrypted_ && !decrypt_key_set_)) {
     return false;
   }
+
   for (uint32_t i = 0; i < expected_chunks; ++i) {
     if (!is_chunk_complete(i)) {
       return false;
     }
   }
+
   return true;
 }
 
@@ -219,6 +236,7 @@ std::optional<std::vector<std::size_t>> decoder::plain_chunk_sizes(const uint32_
       return std::nullopt;
     }
   }
+
   return sizes;
 }
 
@@ -258,6 +276,7 @@ std::optional<std::vector<std::byte>> decoder::assemble_file(const uint32_t expe
   if (failed) {
     return std::nullopt;
   }
+
   return result;
 }
 
@@ -284,6 +303,7 @@ bool decoder::write_assembled_file(const std::string& output_path, const uint32_
       return false;
     }
   }
+
   return true;
 }
 

@@ -48,6 +48,7 @@ std::size_t packet_size_at(const std::span<const std::byte> data) {
   if (data.size() <= VERSION_OFFSET) {
     return HEADER_SIZE + SYMBOL_SIZE_BYTES;
   }
+
   const std::size_t header_size = packet_header_size(static_cast<uint8_t>(data[VERSION_OFFSET]));
   return (header_size > 0 ? header_size : HEADER_SIZE) + SYMBOL_SIZE_BYTES;
 }
@@ -56,6 +57,7 @@ bool starts_with_magic(const std::span<const std::byte> data) {
   if (data.size() < MAGIC_SIZE) {
     return false;
   }
+
   uint32_t magic = 0;
   std::memcpy(&magic, data.data(), sizeof(magic));
   return magic == MAGIC_ID;
@@ -66,6 +68,7 @@ int32_t project_columns(const int (&columns)[BLOCK_SIZE]) {
   for (std::size_t i = 0; i < std::size(PROJECTION_WEIGHTS); ++i) {
     projection += PROJECTION_WEIGHTS[i] * (columns[i] - columns[BLOCK_SIZE - 1 - i]);
   }
+
   return projection;
 }
 
@@ -77,6 +80,7 @@ template <typename GrayOf> int32_t project_block(const uint8_t* block, const int
       columns[x] += gray_of(row[x]);
     }
   }
+
   return project_columns(columns);
 }
 
@@ -114,6 +118,7 @@ uint8_t read_single_bit_byte(const block_grid grid, const int byte_index, const 
     const int32_t projection = project_block(block, grid.stride, gray_of);
     current_byte = static_cast<uint8_t>((current_byte << 1) | (projection > 0 ? 1 : 0));
   }
+
   return current_byte;
 }
 
@@ -143,6 +148,7 @@ uint8_t read_multi_bit_byte(const block_grid grid, const int byte_index, const G
       current_byte = static_cast<uint8_t>((current_byte << 1) | (sum > 0.0f ? 1 : 0));
     }
   }
+
   return current_byte;
 }
 
@@ -187,18 +193,23 @@ void video_decoder::release() {
     sws_freeContext(sws_context_);
     sws_context_ = nullptr;
   }
+
   if (av_packet_) {
     av_packet_free(&av_packet_);
   }
+
   if (gray_frame_) {
     av_frame_free(&gray_frame_);
   }
+
   if (frame_) {
     av_frame_free(&frame_);
   }
+
   if (codec_context_) {
     avcodec_free_context(&codec_context_);
   }
+
   if (format_context_) {
     avformat_close_input(&format_context_);
   }
@@ -212,6 +223,7 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
   }
 
   status = avformat_find_stream_info(format_context_, nullptr);
+
   if (status < 0) {
     const std::string message = "Stream information could not be found!";
     throw std::runtime_error(message);
@@ -219,6 +231,7 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
 
   video_stream_index_ =
       av_find_best_stream(format_context_, AVMEDIA_TYPE_VIDEO, ANY_STREAM, NO_RELATED_STREAM, nullptr, NO_FLAGS);
+
   if (video_stream_index_ < 0) {
     const std::string message = "Input has no video stream!";
     throw std::runtime_error(message);
@@ -232,11 +245,13 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
   }
 
   codec_context_ = avcodec_alloc_context3(codec);
+
   if (!codec_context_) {
     throw std::runtime_error(CODEC_CONTEXT_ALLOCATION_MESSAGE);
   }
 
   status = avcodec_parameters_to_context(codec_context_, stream->codecpar);
+
   if (status < 0) {
     throw std::runtime_error(CODEC_PARAMETERS_COPY_MESSAGE);
   }
@@ -245,6 +260,7 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
   codec_context_->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
 
   status = avcodec_open2(codec_context_, codec, nullptr);
+
   if (status < 0) {
     const std::string message = "Codec could not be opened!";
     throw std::runtime_error(message);
@@ -252,6 +268,7 @@ void video_decoder::initialize_decoder(const std::string& input_path) {
 
   frame_ = av_frame_alloc();
   av_packet_ = av_packet_alloc();
+
   if (!frame_ || !av_packet_) {
     const std::string message = "Frame or packet could not be allocated!";
     throw std::runtime_error(message);
@@ -295,6 +312,7 @@ int64_t video_decoder::total_frames() const {
   if (stream->nb_frames > 0) {
     return stream->nb_frames;
   }
+
   if (stream->duration > 0 && stream->time_base.den > 0) {
     const double duration_seconds = static_cast<double>(stream->duration) * av_q2d(stream->time_base);
     const double frames_per_second = stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0
@@ -302,6 +320,7 @@ int64_t video_decoder::total_frames() const {
                                          : FRAMES_PER_SECOND;
     return static_cast<int64_t>(duration_seconds * frames_per_second);
   }
+
   return UNKNOWN_FRAME_COUNT;
 }
 
@@ -324,6 +343,7 @@ void video_decoder::extract_packets_from_buffer(std::vector<std::byte>& accumula
     out_packets.emplace_back(remaining.begin(), remaining.begin() + static_cast<std::ptrdiff_t>(packet_size));
     offset += packet_size;
   }
+
   accumulated.erase(accumulated.begin(), accumulated.begin() + static_cast<std::ptrdiff_t>(offset));
 }
 
@@ -340,6 +360,7 @@ video_decoder::packet_list video_decoder::consume_decoded_frame() {
     }
     extract_data_into(extract_buffer_, *gray_plane_frame(), layout_, std::identity{});
   }
+
   ++frame_index_;
 
   packet_list packets;
@@ -374,6 +395,7 @@ bool video_decoder::read_next_video_packet() {
     }
     av_packet_unref(av_packet_);
   }
+
   return false;
 }
 
@@ -410,5 +432,6 @@ video_decoder::packet_list video_decoder::decode_all_frames() {
       results.push_back(std::move(packet));
     }
   }
+
   return results;
 }

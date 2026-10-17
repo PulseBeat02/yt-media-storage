@@ -50,15 +50,19 @@ uint8_t build_flags(const uint32_t block_id, const uint32_t source_symbol_count,
   if (block_id > source_symbol_count) {
     flags |= FLAG_REPAIR_SYMBOL;
   }
+
   if (position == chunk_position::LAST) {
     flags |= FLAG_LAST_CHUNK;
   }
+
   if (encryption == payload_encryption::ENCRYPTED) {
     flags |= FLAG_ENCRYPTED;
   }
+
   if (algorithm == hash_algorithm_type::XXHASH32) {
     flags |= FLAG_USE_XXHASH;
   }
+
   return flags;
 }
 }
@@ -111,6 +115,7 @@ std::pair<std::vector<packet>, chunk_manifest_entry> encoder::encode_chunk(const
     const std::string message = "Wirehair encoder could not be created!";
     throw std::runtime_error(message);
   }
+
   reusable_codec.reset(codec);
 
   const uint32_t repair_count = compute_repair_count(source_symbol_count, REPAIR_OVERHEAD);

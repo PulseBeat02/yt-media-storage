@@ -115,6 +115,7 @@ void note_chunk_header(const std::vector<std::byte>& packet_data, stream_decode_
   if (chunk_index > progress.maximum_chunk_index) {
     progress.maximum_chunk_index = chunk_index;
   }
+
   if (flags & FLAG_LAST_CHUNK) {
     progress.found_last_chunk = true;
     progress.last_chunk_index = chunk_index;
@@ -139,6 +140,7 @@ stream_decode_progress feed_every_frame(video_decoder& video_decoder, decoder& d
       feed_packet(packet_data, decoder, progress);
     }
   }
+
   return progress;
 }
 
@@ -172,6 +174,7 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
   if (decoder.is_encrypted()) {
     decoder.clear_decrypt_key();
   }
+
   return assembled.value_or(std::vector<std::byte>{});
 }
 }

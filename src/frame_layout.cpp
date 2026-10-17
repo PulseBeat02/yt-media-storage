@@ -65,6 +65,7 @@ void embed_data_into_plane(uint8_t* plane, const int stride, const frame_layout&
       std::memset(plane + y * stride + covered_width, MIDDLE_GRAY, layout.frame_width - covered_width);
     }
   }
+
   for (int y = covered_rows; y < layout.frame_height; ++y) {
     std::memset(plane + y * stride, MIDDLE_GRAY, layout.frame_width);
   }

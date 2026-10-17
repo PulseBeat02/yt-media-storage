@@ -68,6 +68,7 @@ bool feed_all_packets_to_decoder(decoder& decoder, const std::vector<packet>& pa
       any_decoded = true;
     }
   }
+
   return any_decoded;
 }
 
@@ -606,6 +607,7 @@ TEST(codec_test, should_return_decoded_data_and_ignore_packets_after_decoding) {
   for (std::size_t i = 0; i < parsed.size() && !decoded; ++i) {
     decoded = decoder.add_packet(parsed[i].header.esi, parsed[i].payload);
   }
+
   const uint32_t received = decoder.packets_received();
 
   const bool added_after_decoding = decoder.add_packet(parsed.back().header.esi, parsed.back().payload);

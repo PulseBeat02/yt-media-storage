@@ -229,6 +229,7 @@ private:
     if (QWidget* const focused = QApplication::focusWidget()) {
       focused->clearFocus();
     }
+
     dialog->setDirectory(QFileInfo(files.front()).absolutePath());
     dialog->selectFile(selection_text(files));
     QDialog* const base = dialog;
@@ -244,6 +245,7 @@ private:
     for (const QString& file : files) {
       quoted.append("\"" + QFileInfo(file).fileName() + "\"");
     }
+
     return quoted.join(FILE_NAME_SEPARATOR);
   }
 
@@ -259,6 +261,7 @@ bool wait_until(const std::function<bool()>& condition) {
     QTimer::singleShot(EVENT_WAIT_MILLISECONDS, &loop, &QEventLoop::quit);
     loop.exec();
   }
+
   return condition();
 }
 
@@ -306,6 +309,7 @@ protected:
         return box;
       }
     }
+
     return nullptr;
   }
 
@@ -316,6 +320,7 @@ protected:
         return candidate;
       }
     }
+
     return nullptr;
   }
 
@@ -998,5 +1003,6 @@ int main(int argument_count, char** arguments) {
   QApplication::setOrganizationName(TEST_ORGANIZATION);
   QApplication::setQuitOnLastWindowClosed(false);
   testing::InitGoogleTest(&argument_count, arguments);
+
   return RUN_ALL_TESTS();
 }

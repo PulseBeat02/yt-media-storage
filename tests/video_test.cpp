@@ -116,6 +116,7 @@ packet make_framed_packet(const std::size_t seed) {
   for (std::size_t i = 0; i < packet.bytes.size(); ++i) {
     packet.bytes[i] = static_cast<std::byte>((i * fixtures::PATTERN_MULTIPLIER + seed) & fixtures::BYTE_MASK);
   }
+
   std::memcpy(packet.bytes.data(), &MAGIC_ID, MAGIC_SIZE);
   packet.bytes[VERSION_OFFSET] = std::byte{VERSION_ID_V2};
   return packet;
@@ -180,6 +181,7 @@ std::vector<std::byte> read_last_frame_data(const std::string& path) {
 
   av_packet_free(&packet);
   avformat_close_input(&context);
+
   return last_frame;
 }
 

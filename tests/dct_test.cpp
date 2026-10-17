@@ -122,6 +122,7 @@ TEST(dct_test, should_compute_a_zero_dot_product_for_orthogonal_vectors) {
   for (int i = 0; i < half_area; ++i) {
     left[i] = 1.0f;
   }
+
   for (int i = half_area; i < BLOCK_AREA; ++i) {
     right[i] = 1.0f;
   }

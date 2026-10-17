@@ -38,6 +38,7 @@ video_encoder::~video_encoder() {
     } catch (...) {
     }
   }
+
   release();
 }
 
@@ -45,12 +46,15 @@ void video_encoder::release() {
   if (av_packet_) {
     av_packet_free(&av_packet_);
   }
+
   if (frame_) {
     av_frame_free(&frame_);
   }
+
   if (codec_context_) {
     avcodec_free_context(&codec_context_);
   }
+
   if (format_context_) {
     if (format_context_->pb) {
       avio_closep(&format_context_->pb);
@@ -74,11 +78,13 @@ void video_encoder::initialize_encoder(const std::string& output_path) {
   }
 
   stream_ = avformat_new_stream(format_context_, nullptr);
+
   if (!stream_) {
     throw std::runtime_error(VIDEO_STREAM_CREATION_MESSAGE);
   }
 
   codec_context_ = avcodec_alloc_context3(codec);
+
   if (!codec_context_) {
     throw std::runtime_error(CODEC_CONTEXT_ALLOCATION_MESSAGE);
   }
@@ -98,30 +104,37 @@ void video_encoder::initialize_encoder(const std::string& output_path) {
   }
 
   status = avcodec_open2(codec_context_, codec, nullptr);
+
   if (status < 0) {
     const std::string message = ffmpeg_failure_message(status, "open the codec");
     throw std::runtime_error(message);
   }
 
   status = avcodec_parameters_from_context(stream_->codecpar, codec_context_);
+
   if (status < 0) {
     throw std::runtime_error(CODEC_PARAMETERS_COPY_MESSAGE);
   }
+
   stream_->time_base = codec_context_->time_base;
   stream_->avg_frame_rate = codec_context_->framerate;
 
   frame_ = av_frame_alloc();
+
   if (!frame_) {
     throw std::runtime_error(FRAME_ALLOCATION_MESSAGE);
   }
+
   frame_->format = codec_context_->pix_fmt;
   frame_->width = codec_context_->width;
   frame_->height = codec_context_->height;
+
   if (av_frame_get_buffer(frame_, DEFAULT_ALIGNMENT) < 0) {
     throw std::runtime_error(FRAME_BUFFER_ALLOCATION_MESSAGE);
   }
 
   av_packet_ = av_packet_alloc();
+
   if (!av_packet_) {
     throw std::runtime_error(PACKET_ALLOCATION_MESSAGE);
   }
@@ -130,12 +143,14 @@ void video_encoder::initialize_encoder(const std::string& output_path) {
   frame_data_buffer_.reserve(layout_.bytes_per_frame);
 
   status = avio_open(&format_context_->pb, output_path.c_str(), AVIO_FLAG_WRITE);
+
   if (status < 0) {
     const std::string message = ffmpeg_failure_message(status, "open the output file");
     throw std::runtime_error(message);
   }
 
   status = avformat_write_header(format_context_, nullptr);
+
   if (status < 0) {
     const std::string message = ffmpeg_failure_message(status, "write the header");
     throw std::runtime_error(message);
@@ -178,6 +193,7 @@ void video_encoder::encode_frame() {
     const std::string message = ffmpeg_failure_message(status, "send a frame");
     throw std::runtime_error(message);
   }
+
   write_pending_packets();
 }
 
@@ -190,6 +206,7 @@ void video_encoder::add_packet(const packet& packet) {
   if (frame_data_buffer_.size() + packet.bytes.size() > static_cast<std::size_t>(layout_.bytes_per_frame)) {
     flush_frame_buffer();
   }
+
   frame_data_buffer_.insert(frame_data_buffer_.end(), packet.bytes.begin(), packet.bytes.end());
 }
 
@@ -203,6 +220,7 @@ void video_encoder::flush_frame_buffer() {
   if (frame_data_buffer_.empty()) {
     return;
   }
+
   encode_frame();
   frame_data_buffer_.clear();
 }
@@ -211,6 +229,7 @@ void video_encoder::flush_encoder() {
   if (avcodec_send_frame(codec_context_, nullptr) < 0) {
     return;
   }
+
   write_pending_packets();
 }
 
@@ -218,9 +237,11 @@ void video_encoder::finalize() {
   if (finalized_) {
     return;
   }
+
   finalized_ = true;
   flush_frame_buffer();
   flush_encoder();
+
   if (const int status = av_write_trailer(format_context_); status < 0) {
     const std::string message = ffmpeg_failure_message(status, "write the trailer");
     throw std::runtime_error(message);

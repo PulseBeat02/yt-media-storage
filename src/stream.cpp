@@ -62,6 +62,7 @@ AVSampleFormat preferred_sample_format(const AVCodec* codec) {
       formats && count > 0) {
     return formats[0];
   }
+
   return AV_SAMPLE_FMT_FLTP;
 #else
   return codec->sample_fmts ? codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
@@ -84,11 +85,14 @@ stream_encoder::stream_encoder(const std::string& rtmp_url, const int bitrate_ki
     const std::string message = "Stream resolution, frame rate and bitrate must be positive!";
     throw std::invalid_argument(message);
   }
+
   layout_ = compute_frame_layout(width, height);
+
   if (::packets_per_frame(layout_) < 1) {
     const std::string message = "Stream resolution is too small to hold a single packet!";
     throw std::invalid_argument(message);
   }
+
   try {
     initialize_stream(rtmp_url, bitrate_kilobits_per_second);
   } catch (...) {
@@ -104,6 +108,7 @@ stream_encoder::~stream_encoder() {
     } catch (...) {
     }
   }
+
   release();
 }
 
@@ -111,18 +116,23 @@ void stream_encoder::release() {
   if (av_packet_) {
     av_packet_free(&av_packet_);
   }
+
   if (frame_) {
     av_frame_free(&frame_);
   }
+
   if (audio_frame_) {
     av_frame_free(&audio_frame_);
   }
+
   if (video_codec_context_) {
     avcodec_free_context(&video_codec_context_);
   }
+
   if (audio_codec_context_) {
     avcodec_free_context(&audio_codec_context_);
   }
+
   if (format_context_) {
     if (format_context_->pb) {
       avio_closep(&format_context_->pb);
@@ -143,6 +153,7 @@ void stream_encoder::initialize_stream(const std::string& rtmp_url, const int bi
   initialize_audio_encoder();
 
   av_packet_ = av_packet_alloc();
+
   if (!av_packet_) {
     throw std::runtime_error(PACKET_ALLOCATION_MESSAGE);
   }
@@ -150,12 +161,14 @@ void stream_encoder::initialize_stream(const std::string& rtmp_url, const int bi
   frame_data_buffer_.reserve(layout_.bytes_per_frame);
 
   status = avio_open(&format_context_->pb, rtmp_url.c_str(), AVIO_FLAG_WRITE);
+
   if (status < 0) {
     const std::string message = ffmpeg_failure_message(status, "open the RTMP stream");
     throw std::runtime_error(message);
   }
 
   status = avformat_write_header(format_context_, nullptr);
+
   if (status < 0) {
     const std::string message = ffmpeg_failure_message(status, "write the stream header");
     throw std::runtime_error(message);
@@ -170,11 +183,13 @@ void stream_encoder::initialize_video_encoder(const int bitrate_kilobits_per_sec
   }
 
   video_stream_ = avformat_new_stream(format_context_, nullptr);
+
   if (!video_stream_) {
     throw std::runtime_error(VIDEO_STREAM_CREATION_MESSAGE);
   }
 
   video_codec_context_ = avcodec_alloc_context3(codec);
+
   if (!video_codec_context_) {
     throw std::runtime_error(CODEC_CONTEXT_ALLOCATION_MESSAGE);
   }
@@ -206,19 +221,24 @@ void stream_encoder::initialize_video_encoder(const int bitrate_kilobits_per_sec
   }
 
   status = avcodec_parameters_from_context(video_stream_->codecpar, video_codec_context_);
+
   if (status < 0) {
     throw std::runtime_error(CODEC_PARAMETERS_COPY_MESSAGE);
   }
+
   video_stream_->time_base = video_codec_context_->time_base;
   video_stream_->avg_frame_rate = video_codec_context_->framerate;
 
   frame_ = av_frame_alloc();
+
   if (!frame_) {
     throw std::runtime_error(FRAME_ALLOCATION_MESSAGE);
   }
+
   frame_->format = AV_PIX_FMT_YUV420P;
   frame_->width = width_;
   frame_->height = height_;
+
   if (av_frame_get_buffer(frame_, DEFAULT_ALIGNMENT) < 0) {
     throw std::runtime_error(FRAME_BUFFER_ALLOCATION_MESSAGE);
   }
@@ -232,12 +252,14 @@ void stream_encoder::initialize_audio_encoder() {
   }
 
   audio_stream_ = avformat_new_stream(format_context_, nullptr);
+
   if (!audio_stream_) {
     const std::string message = "Audio stream could not be created!";
     throw std::runtime_error(message);
   }
 
   audio_codec_context_ = avcodec_alloc_context3(codec);
+
   if (!audio_codec_context_) {
     const std::string message = "Audio codec context could not be allocated!";
     throw std::runtime_error(message);
@@ -264,17 +286,21 @@ void stream_encoder::initialize_audio_encoder() {
   }
 
   status = avcodec_parameters_from_context(audio_stream_->codecpar, audio_codec_context_);
+
   if (status < 0) {
     const std::string message = "Audio codec parameters could not be copied!";
     throw std::runtime_error(message);
   }
+
   audio_stream_->time_base = {1, audio_codec_context_->sample_rate};
 
   audio_frame_ = av_frame_alloc();
+
   if (!audio_frame_) {
     const std::string message = "Audio frame could not be allocated!";
     throw std::runtime_error(message);
   }
+
   audio_frame_->format = audio_codec_context_->sample_fmt;
 #if MS_HAS_CHANNEL_LAYOUT
   audio_frame_->ch_layout = audio_codec_context_->ch_layout;
@@ -289,6 +315,7 @@ void stream_encoder::initialize_audio_encoder() {
     const std::string message = "Audio frame buffer could not be allocated!";
     throw std::runtime_error(message);
   }
+
   if (av_frame_make_writable(audio_frame_) < 0) {
     const std::string message = "Audio frame is not writable!";
     throw std::runtime_error(message);
@@ -369,6 +396,7 @@ void stream_encoder::encode_frame() {
     const std::string message = ffmpeg_failure_message(status, "send a frame");
     throw std::runtime_error(message);
   }
+
   write_pending_packets(video_codec_context_, video_stream_, failure_handling::THROW);
   write_audio_up_to(frame_->pts);
 }
@@ -382,6 +410,7 @@ void stream_encoder::add_packet(const packet& packet) {
   if (frame_data_buffer_.size() + packet.bytes.size() > static_cast<std::size_t>(layout_.bytes_per_frame)) {
     flush_frame_buffer();
   }
+
   frame_data_buffer_.insert(frame_data_buffer_.end(), packet.bytes.begin(), packet.bytes.end());
 }
 
@@ -395,6 +424,7 @@ void stream_encoder::flush_frame_buffer() {
   if (frame_data_buffer_.empty()) {
     return;
   }
+
   encode_frame();
   frame_data_buffer_.clear();
 }
@@ -411,9 +441,11 @@ void stream_encoder::finalize() {
   if (finalized_) {
     return;
   }
+
   finalized_ = true;
   flush_frame_buffer();
   flush_encoders();
+
   if (const int status = av_write_trailer(format_context_); status < 0) {
     const std::string message = ffmpeg_failure_message(status, "write the stream trailer");
     throw std::runtime_error(message);

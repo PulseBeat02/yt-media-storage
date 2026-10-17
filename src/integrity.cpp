@@ -53,6 +53,7 @@ std::string bytes_to_hexadecimal(const std::span<const std::byte> input) {
     *out++ = HEXADECIMAL_DIGITS[value >> BITS_PER_HEXADECIMAL_DIGIT];
     *out++ = HEXADECIMAL_DIGITS[value & HEXADECIMAL_DIGIT_MASK];
   }
+
   return hexadecimal;
 }
 
@@ -66,6 +67,7 @@ uint32_t read_uint32_little_endian(const std::span<const std::byte> buffer, cons
   if (offset + sizeof(value) <= buffer.size()) {
     std::memcpy(&value, buffer.data() + offset, sizeof(value));
   }
+
   return value;
 }
 }
@@ -86,6 +88,7 @@ sha256_digest sha256(const std::span<const std::byte> data) {
     CC_SHA256_Update(&context, begin + offset, step);
     offset += step;
   }
+
   CC_SHA256_Final(hash.data(), &context);
 #else
   picosha2::hash256(begin, begin + data.size(), hash.begin(), hash.end());
@@ -93,6 +96,7 @@ sha256_digest sha256(const std::span<const std::byte> data) {
   for (std::size_t i = 0; i < SHA256_HASH_SIZE; ++i) {
     digest.bytes[i] = std::byte{hash[i]};
   }
+
   return digest;
 }
 
@@ -100,10 +104,12 @@ uint32_t crc32_mpeg2(const std::span<const std::byte> data, const uint32_t seed)
   if (seed == 0) {
     return CRC::Calculate(data.data(), data.size(), crc_table());
   }
+
   uint8_t seed_bytes[sizeof(seed)];
   for (std::size_t i = 0; i < sizeof(seed); ++i) {
     seed_bytes[i] = static_cast<uint8_t>(seed >> (i * CHAR_BIT));
   }
+
   const uint32_t crc = CRC::Calculate(seed_bytes, sizeof(seed_bytes), crc_table());
   return CRC::Calculate(data.data(), data.size(), crc_table(), crc);
 }
@@ -121,9 +127,11 @@ uint32_t packet_crc32(const std::span<const std::byte> header, const std::span<c
     constexpr uint8_t zeros[CRC_SIZE] = {};
     crc = CRC::Calculate(zeros, sizeof(zeros), table, crc);
   }
+
   if (const std::size_t after_crc = crc_offset + crc_size; after_crc < header.size()) {
     crc = CRC::Calculate(header.data() + after_crc, header.size() - after_crc, table, crc);
   }
+
   return CRC::Calculate(payload.data(), payload.size(), table, crc);
 }
 
@@ -136,9 +144,11 @@ uint32_t packet_xxhash32(const std::span<const std::byte> header, const std::spa
     constexpr uint8_t zeros[CRC_SIZE] = {};
     XXH32_update(&state, zeros, sizeof(zeros));
   }
+
   if (const std::size_t after_crc = crc_offset + crc_size; after_crc < header.size()) {
     XXH32_update(&state, header.data() + after_crc, header.size() - after_crc);
   }
+
   XXH32_update(&state, payload.data(), payload.size());
   return XXH32_digest(&state);
 }
@@ -149,6 +159,7 @@ uint32_t packet_checksum(const std::span<const std::byte> header, const std::spa
   if (algorithm == hash_algorithm_type::XXHASH32) {
     return packet_xxhash32(header, payload, crc_offset, crc_size);
   }
+
   return packet_crc32(header, payload, crc_offset, crc_size);
 }
 
@@ -157,6 +168,7 @@ bool verify_packet_crc32(const std::span<const std::byte> header, const std::spa
   if (crc_size != CRC_SIZE || crc_offset + CRC_SIZE > header.size()) {
     return false;
   }
+
   const uint32_t stored = read_uint32_little_endian(header, crc_offset);
   return stored == packet_crc32(header, payload, crc_offset, crc_size);
 }
