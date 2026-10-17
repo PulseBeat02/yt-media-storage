@@ -51,6 +51,7 @@ constexpr const char* OUTPUT_NAME = "output.mkv";
 constexpr const char* MATROSKA_EXTENSION = ".mkv";
 constexpr const char* AVI_EXTENSION = ".avi";
 constexpr const char* MXF_EXTENSION = ".mxf";
+constexpr const char* ASF_EXTENSION = ".asf";
 constexpr const char* FLV_EXTENSION = ".flv";
 constexpr const char* SUBTITLE_EXTENSION = ".srt";
 constexpr const char* UNKNOWN_EXTENSION = ".unknown";
@@ -495,6 +496,16 @@ TEST(video_decoder_test, should_count_frames_from_the_frame_count_of_the_contain
 
 TEST(video_decoder_test, should_estimate_frames_from_the_duration_of_the_stream) {
   const fixtures::temporary_file video(MXF_EXTENSION);
+  write_video(video.string(), FRAMES_TO_WRITE);
+  const video_decoder decoder(video.string());
+
+  const int64_t total_frames = decoder.total_frames();
+
+  EXPECT_EQ(total_frames, FRAMES_TO_WRITE);
+}
+
+TEST(video_decoder_test, should_estimate_frames_from_the_duration_and_frame_rate_of_the_stream) {
+  const fixtures::temporary_file video(ASF_EXTENSION);
   write_video(video.string(), FRAMES_TO_WRITE);
   const video_decoder decoder(video.string());
 

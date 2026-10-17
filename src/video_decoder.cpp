@@ -22,6 +22,7 @@
 #include "packet_format.h"
 
 #include <climits>
+#include <cmath>
 #include <cstring>
 #include <functional>
 #include <span>
@@ -322,7 +323,8 @@ int64_t video_decoder::total_frames() const {
     const double frames_per_second = stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0
                                          ? av_q2d(stream->avg_frame_rate)
                                          : FRAMES_PER_SECOND;
-    return static_cast<int64_t>(duration_seconds * frames_per_second);
+    const double frames = duration_seconds * frames_per_second;
+    return static_cast<int64_t>(std::llround(frames));
   }
 
   return UNKNOWN_FRAME_COUNT;
