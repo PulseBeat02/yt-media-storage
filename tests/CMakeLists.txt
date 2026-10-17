@@ -23,6 +23,7 @@ add_executable(media_storage_tests
         test_stream.cpp
         test_dct.cpp
         test_api.cpp
+        cli_test.cpp
 )
 
 target_link_libraries(media_storage_tests PRIVATE
@@ -31,6 +32,9 @@ target_link_libraries(media_storage_tests PRIVATE
         GTest::gtest
         GTest::gtest_main
 )
+
+target_compile_definitions(media_storage_tests PRIVATE MEDIA_STORAGE_CLI_PATH="$<TARGET_FILE:media_storage>")
+add_dependencies(media_storage_tests media_storage)
 
 if (WIN32)
     add_custom_command(TARGET media_storage_tests POST_BUILD
