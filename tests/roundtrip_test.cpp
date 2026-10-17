@@ -63,7 +63,7 @@ void encode_and_feed(const Encoder& encoder, Decoder& decoder, const std::span<c
 }
 } // namespace
 
-TEST(Roundtrip, SingleChunk) {
+TEST(roundtrip_test, should_restore_a_single_chunk) {
   const std::vector<std::byte> original_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   Decoder decoder;
@@ -77,7 +77,7 @@ TEST(Roundtrip, SingleChunk) {
   EXPECT_EQ(*assembled, original_data);
 }
 
-TEST(Roundtrip, MultipleChunks) {
+TEST(roundtrip_test, should_restore_several_chunks) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2 + 5000;
   const std::vector<std::byte> original_data = make_test_data(total_size);
   const Encoder encoder(make_test_file_id());
@@ -99,7 +99,7 @@ TEST(Roundtrip, MultipleChunks) {
   EXPECT_EQ(*assembled, original_data);
 }
 
-TEST(Roundtrip, SmallData) {
+TEST(roundtrip_test, should_restore_small_data) {
   const std::vector<std::byte> original_data = make_test_data(10);
   const Encoder encoder(make_test_file_id());
   Decoder decoder;
@@ -111,7 +111,7 @@ TEST(Roundtrip, SmallData) {
   EXPECT_EQ(*assembled, original_data);
 }
 
-TEST(Roundtrip, WithEncryption) {
+TEST(roundtrip_test, should_restore_encrypted_data) {
   const std::vector<std::byte> original_data = make_test_data(8192);
   const Encoder::FileId file_id = make_test_file_id();
   const Encoder encoder(file_id);
@@ -137,7 +137,7 @@ TEST(Roundtrip, WithEncryption) {
   secure_zero(std::span<std::byte>(encryption_key));
 }
 
-TEST(Roundtrip, WithXXHash) {
+TEST(roundtrip_test, should_restore_data_with_xxhash_checksums) {
   const std::vector<std::byte> original_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id(), HashAlgorithm::XXHash32);
   Decoder decoder;
@@ -149,7 +149,7 @@ TEST(Roundtrip, WithXXHash) {
   EXPECT_EQ(*assembled, original_data);
 }
 
-TEST(Roundtrip, AssembleFile_FailsWithIncompleteChunks) {
+TEST(roundtrip_test, should_not_assemble_a_file_with_incomplete_chunks) {
   const std::vector<std::byte> original_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   Decoder decoder;
@@ -160,7 +160,7 @@ TEST(Roundtrip, AssembleFile_FailsWithIncompleteChunks) {
   EXPECT_FALSE(assembled.has_value());
 }
 
-TEST(Roundtrip, MultipleChunks_Sha256ManifestVerification) {
+TEST(roundtrip_test, should_restore_data_matching_the_sha256_of_its_manifest) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES + 1000;
   const std::vector<std::byte> original_data = make_test_data(total_size);
   const Encoder encoder(make_test_file_id());
@@ -188,7 +188,7 @@ TEST(Roundtrip, MultipleChunks_Sha256ManifestVerification) {
   EXPECT_EQ(*assembled, original_data);
 }
 
-TEST(Roundtrip, WithEncryptionAndXXHash) {
+TEST(roundtrip_test, should_restore_encrypted_data_with_xxhash_checksums) {
   const std::vector<std::byte> original_data = make_test_data(8192);
   const Encoder::FileId file_id = make_test_file_id();
   const Encoder encoder(file_id, HashAlgorithm::XXHash32);
@@ -213,7 +213,7 @@ TEST(Roundtrip, WithEncryptionAndXXHash) {
   secure_zero(std::span<std::byte>(key));
 }
 
-TEST(Roundtrip, EmptyData) {
+TEST(roundtrip_test, should_restore_empty_data) {
   const std::vector<std::byte> original_data;
   const Encoder encoder(make_test_file_id());
   Decoder decoder;
@@ -225,7 +225,7 @@ TEST(Roundtrip, EmptyData) {
   EXPECT_TRUE(assembled->empty());
 }
 
-TEST(Roundtrip, ExactChunkSizeBoundary) {
+TEST(roundtrip_test, should_restore_data_of_one_chunk_size) {
   const std::vector<std::byte> original_data = make_test_data(CHUNK_SIZE_BYTES);
   const Encoder encoder(make_test_file_id());
   Decoder decoder;
@@ -237,7 +237,7 @@ TEST(Roundtrip, ExactChunkSizeBoundary) {
   EXPECT_EQ(*assembled, original_data);
 }
 
-TEST(Roundtrip, ExactTwoChunkBoundary) {
+TEST(roundtrip_test, should_restore_data_of_two_chunk_sizes) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2;
   const std::vector<std::byte> original_data = make_test_data(total_size);
   const Encoder encoder(make_test_file_id());
@@ -256,7 +256,7 @@ TEST(Roundtrip, ExactTwoChunkBoundary) {
   EXPECT_EQ(*assembled, original_data);
 }
 
-TEST(Roundtrip, ManyChunks) {
+TEST(roundtrip_test, should_restore_many_chunks) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 5 + 12345;
   const std::vector<std::byte> original_data = make_test_data(total_size);
   const Encoder encoder(make_test_file_id());
@@ -275,7 +275,7 @@ TEST(Roundtrip, ManyChunks) {
   EXPECT_EQ(*assembled, original_data);
 }
 
-TEST(Roundtrip, OutOfOrderPackets) {
+TEST(roundtrip_test, should_restore_data_from_packets_out_of_order) {
   const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 4);
   const Encoder encoder(make_test_file_id());
   auto [packets, manifest] = encoder.encode_chunk(0, original_data, true);
@@ -292,7 +292,7 @@ TEST(Roundtrip, OutOfOrderPackets) {
   EXPECT_EQ(*assembled, original_data);
 }
 
-TEST(Roundtrip, PacketLossRecovery) {
+TEST(roundtrip_test, should_restore_data_despite_lost_packets) {
   const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 64);
   const Encoder encoder(make_test_file_id());
   auto [packets, manifest] = encoder.encode_chunk(0, original_data, true);
@@ -313,7 +313,7 @@ TEST(Roundtrip, PacketLossRecovery) {
   EXPECT_EQ(*assembled, original_data);
 }
 
-TEST(Roundtrip, WriteAssembledFile) {
+TEST(roundtrip_test, should_write_the_assembled_file) {
   const std::vector<std::byte> original_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   Decoder decoder;

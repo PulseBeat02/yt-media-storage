@@ -159,7 +159,7 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
 }
 } // namespace
 
-TEST(Stream, Roundtrip_1080p_SmallFile) {
+TEST(stream_test, should_restore_a_small_file_from_1080p_frames) {
   const auto original = make_random_data(65536);
   const TempFile input("test_stream_input.bin");
   const TempFile flv("test_stream_1080.flv");
@@ -172,7 +172,7 @@ TEST(Stream, Roundtrip_1080p_SmallFile) {
   EXPECT_EQ(decoded, original);
 }
 
-TEST(Stream, Roundtrip_4K_SmallFile) {
+TEST(stream_test, should_restore_a_small_file_from_4k_frames) {
   const auto original = make_random_data(65536);
   const TempFile input("test_stream_input_4k.bin");
   const TempFile flv("test_stream_4k.flv");
@@ -185,7 +185,7 @@ TEST(Stream, Roundtrip_4K_SmallFile) {
   EXPECT_EQ(decoded, original);
 }
 
-TEST(Stream, Roundtrip_1080p_LargerFile) {
+TEST(stream_test, should_restore_a_larger_file_from_1080p_frames) {
   const auto original = make_random_data(256 * 1024);
   const TempFile input("test_stream_input_256k.bin");
   const TempFile flv("test_stream_256k.flv");
@@ -198,7 +198,7 @@ TEST(Stream, Roundtrip_1080p_LargerFile) {
   EXPECT_EQ(decoded, original);
 }
 
-TEST(Stream, Roundtrip_WithEncryption) {
+TEST(stream_test, should_restore_an_encrypted_file_from_frames) {
   const auto original = make_random_data(65536);
   const TempFile input("test_stream_enc_input.bin");
   const TempFile flv("test_stream_enc.flv");
@@ -213,7 +213,7 @@ TEST(Stream, Roundtrip_WithEncryption) {
   EXPECT_EQ(decoded, original);
 }
 
-TEST(Stream, Roundtrip_SmallData) {
+TEST(stream_test, should_restore_small_data_from_frames) {
   const auto original = make_random_data(100);
   const TempFile input("test_stream_small.bin");
   const TempFile flv("test_stream_small.flv");
@@ -226,7 +226,7 @@ TEST(Stream, Roundtrip_SmallData) {
   EXPECT_EQ(decoded, original);
 }
 
-TEST(Stream, FrameLayout_1080p) {
+TEST(stream_test, should_lay_out_1080p_frames) {
   const FrameLayout layout = compute_frame_layout(1920, 1080);
   EXPECT_EQ(layout.frame_width, 1920);
   EXPECT_EQ(layout.frame_height, 1080);
@@ -235,7 +235,7 @@ TEST(Stream, FrameLayout_1080p) {
   EXPECT_EQ(layout.total_blocks, 32400);
 }
 
-TEST(Stream, FrameLayout_4K) {
+TEST(stream_test, should_lay_out_4k_frames) {
   const FrameLayout layout = compute_frame_layout(3840, 2160);
   EXPECT_EQ(layout.frame_width, 3840);
   EXPECT_EQ(layout.frame_height, 2160);
@@ -244,7 +244,7 @@ TEST(Stream, FrameLayout_4K) {
   EXPECT_EQ(layout.total_blocks, 129600);
 }
 
-TEST(Stream, FrameLayout_DefaultMatchesConstants) {
+TEST(stream_test, should_lay_out_default_frames_from_the_configuration) {
   const FrameLayout default_layout = compute_frame_layout();
   const FrameLayout explicit_layout = compute_frame_layout(FRAME_WIDTH, FRAME_HEIGHT);
   EXPECT_EQ(default_layout.frame_width, explicit_layout.frame_width);
@@ -253,7 +253,7 @@ TEST(Stream, FrameLayout_DefaultMatchesConstants) {
   EXPECT_EQ(default_layout.bytes_per_frame, explicit_layout.bytes_per_frame);
 }
 
-TEST(Stream, MKV_Roundtrip) {
+TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
   const auto original = make_random_data(65536);
   const TempFile input("test_mkv_input.bin");
   const TempFile mkv("test_mkv_roundtrip.mkv");
@@ -311,7 +311,7 @@ TEST(Stream, MKV_Roundtrip) {
   }
 }
 
-TEST(Stream, Roundtrip_WithXXHash) {
+TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
   const auto original = make_random_data(65536);
   const TempFile input("test_stream_xxhash_input.bin");
   const TempFile flv("test_stream_xxhash.flv");
@@ -337,7 +337,7 @@ TEST(Stream, Roundtrip_WithXXHash) {
   EXPECT_EQ(decoded, original);
 }
 
-TEST(Stream, Roundtrip_720p) {
+TEST(stream_test, should_restore_a_file_from_720p_frames) {
   const auto original = make_random_data(32768);
   const TempFile input("test_stream_720p_input.bin");
   const TempFile flv("test_stream_720p.flv");
@@ -350,7 +350,7 @@ TEST(Stream, Roundtrip_720p) {
   EXPECT_EQ(decoded, original);
 }
 
-TEST(Stream, Roundtrip_60fps) {
+TEST(stream_test, should_restore_a_file_from_sixty_frames_per_second) {
   const auto original = make_random_data(65536);
   const TempFile input("test_stream_60fps_input.bin");
   const TempFile flv("test_stream_60fps.flv");
@@ -363,7 +363,7 @@ TEST(Stream, Roundtrip_60fps) {
   EXPECT_EQ(decoded, original);
 }
 
-TEST(Stream, Roundtrip_1fps) {
+TEST(stream_test, should_restore_a_file_from_one_frame_per_second) {
   const auto original = make_random_data(32768);
   const TempFile input("test_stream_1fps_input.bin");
   const TempFile flv("test_stream_1fps.flv");
@@ -376,13 +376,13 @@ TEST(Stream, Roundtrip_1fps) {
   EXPECT_EQ(decoded, original);
 }
 
-TEST(Stream, InvalidParametersThrow) {
+TEST(stream_test, should_reject_invalid_stream_parameters) {
   EXPECT_THROW(StreamEncoder("unused.flv", 8000, 1280, 720, 0), std::invalid_argument);
   EXPECT_THROW(StreamEncoder("unused.flv", 0, 1280, 720, 30), std::invalid_argument);
   EXPECT_THROW(StreamEncoder("unused.flv", 8000, 16, 16, 30), std::invalid_argument);
 }
 
-TEST(Stream, PacketsPerFrame_ReturnsPositive) {
+TEST(stream_test, should_fit_at_least_one_packet_in_a_frame) {
   const int ppf = VideoEncoder::packets_per_frame();
   EXPECT_GT(ppf, 0);
   EXPECT_EQ(ppf, packets_per_frame(compute_frame_layout()));
@@ -392,13 +392,13 @@ TEST(Stream, PacketsPerFrame_ReturnsPositive) {
   EXPECT_LE(stream_ppf, ppf);
 }
 
-TEST(Stream, MaxPacketBytesPerFrame_MatchesLayout) {
+TEST(stream_test, should_fit_the_packet_bytes_the_layout_holds) {
   const std::size_t max_bytes = max_packet_bytes_per_frame();
   const FrameLayout layout = compute_frame_layout();
   EXPECT_EQ(max_bytes, static_cast<std::size_t>(layout.bytes_per_frame));
 }
 
-TEST(Stream, Roundtrip_MultiChunk) {
+TEST(stream_test, should_restore_a_file_of_several_chunks_from_frames) {
   const auto original = make_random_data(CHUNK_SIZE_BYTES + 1024);
   const TempFile input("test_stream_multichunk_input.bin");
   const TempFile flv("test_stream_multichunk.flv");
@@ -411,7 +411,7 @@ TEST(Stream, Roundtrip_MultiChunk) {
   EXPECT_EQ(decoded, original);
 }
 
-TEST(Stream, DecodeAllFrames_Path) {
+TEST(stream_test, should_restore_a_file_from_every_frame_of_a_video) {
   const auto original = make_random_data(32768);
   const TempFile input("test_stream_decodeall_input.bin");
   const TempFile flv("test_stream_decodeall.flv");
@@ -430,7 +430,7 @@ TEST(Stream, DecodeAllFrames_Path) {
   EXPECT_GE(decoder.chunks_completed(), 1u);
 }
 
-TEST(Stream, EmptyFile_Roundtrip) {
+TEST(stream_test, should_restore_an_empty_file_from_frames) {
   const TempFile input("test_stream_empty_input.bin");
   const TempFile flv("test_stream_empty.flv");
   write_file(input.path, {});

@@ -15,14 +15,14 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 add_executable(media_storage_tests
-        test_integrity.cpp
-        test_chunker.cpp
-        test_codec.cpp
-        test_crypto.cpp
-        test_roundtrip.cpp
-        test_stream.cpp
-        test_dct.cpp
-        test_api.cpp
+        integrity_test.cpp
+        chunker_test.cpp
+        codec_test.cpp
+        crypto_test.cpp
+        roundtrip_test.cpp
+        stream_test.cpp
+        dct_test.cpp
+        api_test.cpp
         cli_test.cpp
         video_test.cpp
         api_decode_test.cpp

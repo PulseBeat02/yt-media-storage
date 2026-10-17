@@ -86,7 +86,7 @@ bool feed_all_packets_to_decoder(Decoder& decoder, const std::vector<Packet>& pa
 }
 } // namespace
 
-TEST(Codec, Encoder_ProducesCorrectPacketCount) {
+TEST(codec_test, should_encode_a_chunk_into_its_packet_count) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -95,7 +95,7 @@ TEST(Codec, Encoder_ProducesCorrectPacketCount) {
   EXPECT_EQ(packets.size(), num_source + repair);
 }
 
-TEST(Codec, Encoder_PacketHasCorrectMagic) {
+TEST(codec_test, should_start_every_packet_with_the_magic) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -105,7 +105,7 @@ TEST(Codec, Encoder_PacketHasCorrectMagic) {
   }
 }
 
-TEST(Codec, Encoder_PacketHasV2Version) {
+TEST(codec_test, should_write_version_two_packets) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -115,7 +115,7 @@ TEST(Codec, Encoder_PacketHasV2Version) {
   }
 }
 
-TEST(Codec, Encoder_ManifestMatchesInput) {
+TEST(codec_test, should_describe_the_input_in_the_manifest) {
   constexpr uint32_t chunk_index = 7;
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
@@ -124,7 +124,7 @@ TEST(Codec, Encoder_ManifestMatchesInput) {
   EXPECT_EQ(manifest.original_size, static_cast<uint32_t>(input_data.size()));
 }
 
-TEST(Codec, Encoder_LastChunkFlagIsSet) {
+TEST(codec_test, should_flag_the_last_chunk) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data, 0, true);
@@ -134,7 +134,7 @@ TEST(Codec, Encoder_LastChunkFlagIsSet) {
   }
 }
 
-TEST(Codec, Encoder_LastChunkFlagNotSetForMiddleChunk) {
+TEST(codec_test, should_not_flag_a_middle_chunk_as_the_last) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data, 0, false);
@@ -144,7 +144,7 @@ TEST(Codec, Encoder_LastChunkFlagNotSetForMiddleChunk) {
   }
 }
 
-TEST(Codec, Encoder_SmallDataIsPadded) {
+TEST(codec_test, should_pad_small_data_to_a_whole_symbol) {
   const std::vector<std::byte> small_data = make_test_data(100);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, small_data);
@@ -153,7 +153,7 @@ TEST(Codec, Encoder_SmallDataIsPadded) {
   EXPECT_GE(manifest.chunk_size, min_padded_size);
 }
 
-TEST(Codec, Decoder_ParsesValidPacket) {
+TEST(codec_test, should_parse_a_valid_packet) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -164,7 +164,7 @@ TEST(Codec, Decoder_ParsesValidPacket) {
   EXPECT_EQ(parsed->header.version, VERSION_ID_V2);
 }
 
-TEST(Codec, Decoder_RejectsInvalidMagic) {
+TEST(codec_test, should_reject_a_packet_with_the_wrong_magic) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -179,7 +179,7 @@ TEST(Codec, Decoder_RejectsInvalidMagic) {
   EXPECT_FALSE(parsed.has_value());
 }
 
-TEST(Codec, Decoder_RejectsTruncatedPacket) {
+TEST(codec_test, should_reject_a_truncated_packet) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -191,7 +191,7 @@ TEST(Codec, Decoder_RejectsTruncatedPacket) {
   EXPECT_FALSE(parsed.has_value());
 }
 
-TEST(Codec, Decoder_ValidatesCrcOnParsedPacket) {
+TEST(codec_test, should_check_the_checksum_of_a_parsed_packet) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -201,7 +201,7 @@ TEST(Codec, Decoder_ValidatesCrcOnParsedPacket) {
   EXPECT_TRUE(verify_packet_checksum(*parsed));
 }
 
-TEST(Codec, Decoder_ValidatesCrcOnRawBytes) {
+TEST(codec_test, should_check_the_checksum_of_raw_packet_bytes) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -210,7 +210,7 @@ TEST(Codec, Decoder_ValidatesCrcOnRawBytes) {
   EXPECT_TRUE(crc_valid);
 }
 
-TEST(Codec, Decoder_DetectsCorruptedPayload) {
+TEST(codec_test, should_detect_a_corrupted_payload) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -222,7 +222,7 @@ TEST(Codec, Decoder_DetectsCorruptedPayload) {
   EXPECT_FALSE(crc_valid);
 }
 
-TEST(Codec, Decoder_ChunkRoundtrip) {
+TEST(codec_test, should_decode_the_chunk_it_encoded) {
   const std::vector<std::byte> original_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, original_data);
@@ -238,7 +238,7 @@ TEST(Codec, Decoder_ChunkRoundtrip) {
   EXPECT_EQ(*recovered_chunk, original_data);
 }
 
-TEST(Codec, Decoder_ChunkRoundtripVerifiesSha256) {
+TEST(codec_test, should_decode_a_chunk_matching_its_sha256) {
   const std::vector<std::byte> original_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, original_data);
@@ -259,7 +259,7 @@ TEST(Codec, Decoder_ChunkRoundtripVerifiesSha256) {
   EXPECT_EQ(decode_result->sha256, expected_digest);
 }
 
-TEST(Codec, Decoder_XXHashAlgorithmRoundtrip) {
+TEST(codec_test, should_decode_a_chunk_with_xxhash_checksums) {
   const std::vector<std::byte> original_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id(), HashAlgorithm::XXHash32);
   const auto [packets, manifest] = encode_test_data(encoder, original_data);
@@ -274,7 +274,7 @@ TEST(Codec, Decoder_XXHashAlgorithmRoundtrip) {
   EXPECT_EQ(*recovered_chunk, original_data);
 }
 
-TEST(Codec, Encoder_EncryptedFlagIsSet) {
+TEST(codec_test, should_flag_encrypted_packets) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data, 0, false, true);
@@ -284,7 +284,7 @@ TEST(Codec, Encoder_EncryptedFlagIsSet) {
   }
 }
 
-TEST(Codec, Decoder_CompletedChunkReturnsNullopt) {
+TEST(codec_test, should_ignore_packets_for_a_decoded_chunk) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -299,7 +299,7 @@ TEST(Codec, Decoder_CompletedChunkReturnsNullopt) {
   }
 }
 
-TEST(Codec, Decoder_MultipleChunks) {
+TEST(codec_test, should_decode_several_chunks) {
   const auto chunk0_data = make_test_data(2048);
   const auto chunk1_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
@@ -323,7 +323,7 @@ TEST(Codec, Decoder_MultipleChunks) {
   EXPECT_EQ(*data1, chunk1_data);
 }
 
-TEST(Codec, Decoder_StateTracking) {
+TEST(codec_test, should_track_which_chunks_are_decoded) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -344,7 +344,7 @@ TEST(Codec, Decoder_StateTracking) {
   EXPECT_EQ(indices[0], 0u);
 }
 
-TEST(Codec, Decoder_GetChunkDataIsCopy) {
+TEST(codec_test, should_return_a_copy_of_the_chunk_data) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -356,7 +356,7 @@ TEST(Codec, Decoder_GetChunkDataIsCopy) {
   EXPECT_TRUE(decoder.get_chunk_data(0).has_value());
 }
 
-TEST(Codec, Decoder_PacketLossResilience) {
+TEST(codec_test, should_decode_a_chunk_despite_lost_packets) {
   const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 64);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, original_data);
@@ -378,7 +378,7 @@ TEST(Codec, Decoder_PacketLossResilience) {
   EXPECT_EQ(*recovered, original_data);
 }
 
-TEST(Codec, Decoder_OutOfOrderDelivery) {
+TEST(codec_test, should_decode_packets_delivered_out_of_order) {
   const std::vector<std::byte> original_data = make_test_data(SYMBOL_SIZE_BYTES * 4);
   const Encoder encoder(make_test_file_id());
   auto [packets, manifest] = encode_test_data(encoder, original_data);
@@ -394,7 +394,7 @@ TEST(Codec, Decoder_OutOfOrderDelivery) {
   EXPECT_EQ(*recovered, original_data);
 }
 
-TEST(Codec, Decoder_IncompleteChunkNotAccessible) {
+TEST(codec_test, should_not_return_an_incomplete_chunk) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -406,7 +406,7 @@ TEST(Codec, Decoder_IncompleteChunkNotAccessible) {
   EXPECT_FALSE(decoder.get_chunk_data(0).has_value());
 }
 
-TEST(Codec, Encoder_AllPacketsPassChecksumForUnalignedChunk) {
+TEST(codec_test, should_checksum_every_packet_of_an_unaligned_chunk) {
   const std::vector<std::byte> input_data = make_test_data(SYMBOL_SIZE_BYTES * 16 + 100);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -420,7 +420,7 @@ TEST(Codec, Encoder_AllPacketsPassChecksumForUnalignedChunk) {
   EXPECT_TRUE(saw_partial_symbol);
 }
 
-TEST(Codec, Decoder_AcceptsLegacyPartialSymbolChecksum) {
+TEST(codec_test, should_accept_the_legacy_checksum_of_a_partial_symbol) {
   const std::vector<std::byte> input_data = make_test_data(SYMBOL_SIZE_BYTES * 16 + 100);
   const Encoder encoder(make_test_file_id());
   auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -458,7 +458,7 @@ std::vector<std::byte> to_version_one(const Packet& packet) {
 }
 }
 
-TEST(Codec, should_reject_a_packet_shorter_than_the_version_one_header) {
+TEST(codec_test, should_reject_a_packet_shorter_than_the_version_one_header) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, make_test_data(SYMBOL_SIZE_BYTES));
   const std::span<const std::byte> packet = packet_span(packets[0]);
@@ -468,7 +468,7 @@ TEST(Codec, should_reject_a_packet_shorter_than_the_version_one_header) {
   EXPECT_FALSE(parsed.has_value());
 }
 
-TEST(Codec, should_parse_a_version_one_packet_with_the_chunk_size_as_original_size) {
+TEST(codec_test, should_parse_a_version_one_packet_with_the_chunk_size_as_original_size) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, make_test_data(SYMBOL_SIZE_BYTES * 4));
   const std::vector<std::byte> converted = to_version_one(packets[0]);
@@ -484,7 +484,7 @@ TEST(Codec, should_parse_a_version_one_packet_with_the_chunk_size_as_original_si
   EXPECT_EQ(parsed->header.crc, read_u32_le(converted.data() + CRC_OFF));
 }
 
-TEST(Codec, should_decode_a_chunk_from_version_one_packets) {
+TEST(codec_test, should_decode_a_chunk_from_version_one_packets) {
   const std::vector<std::byte> input_data = make_test_data(SYMBOL_SIZE_BYTES * 16);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -555,7 +555,7 @@ Decoder decode_encrypted_chunk(const std::vector<std::byte>& plain) {
 }
 }
 
-TEST(Codec, should_refuse_a_chunk_decoder_for_fewer_than_two_symbols) {
+TEST(codec_test, should_refuse_a_chunk_decoder_for_fewer_than_two_symbols) {
   constexpr uint32_t one_byte = 1;
   constexpr uint32_t one_symbol = 1;
 
@@ -565,7 +565,7 @@ TEST(Codec, should_refuse_a_chunk_decoder_for_fewer_than_two_symbols) {
   EXPECT_EQ(message, "wirehair_decoder_create failed");
 }
 
-TEST(Codec, should_return_decoded_data_and_ignore_packets_after_decoding) {
+TEST(codec_test, should_return_decoded_data_and_ignore_packets_after_decoding) {
   const std::vector<std::byte> input_data = make_test_data(SYMBOL_SIZE_BYTES * 4);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
@@ -585,7 +585,7 @@ TEST(Codec, should_return_decoded_data_and_ignore_packets_after_decoding) {
   EXPECT_EQ(decoder.get_decoded_data(), input_data);
 }
 
-TEST(Codec, should_refuse_decoded_data_before_the_chunk_is_decoded) {
+TEST(codec_test, should_refuse_decoded_data_before_the_chunk_is_decoded) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, make_test_data(SYMBOL_SIZE_BYTES * 4));
   ChunkDecoder decoder = make_chunk_decoder(parse_all(packets)[0]);
@@ -598,7 +598,7 @@ TEST(Codec, should_refuse_decoded_data_before_the_chunk_is_decoded) {
   EXPECT_EQ(move_message, "data not yet decoded");
 }
 
-TEST(Codec, should_reject_packets_on_a_moved_from_chunk_decoder) {
+TEST(codec_test, should_reject_packets_on_a_moved_from_chunk_decoder) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, make_test_data(SYMBOL_SIZE_BYTES * 4));
   const std::vector<ParsedPacket> parsed = parse_all(packets);
@@ -612,7 +612,7 @@ TEST(Codec, should_reject_packets_on_a_moved_from_chunk_decoder) {
   EXPECT_EQ(moved.num_source_symbols(), parsed[0].header.k);
 }
 
-TEST(Codec, should_reject_a_payload_of_the_wrong_size) {
+TEST(codec_test, should_reject_a_payload_of_the_wrong_size) {
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, make_test_data(SYMBOL_SIZE_BYTES * 4));
   const std::vector<ParsedPacket> parsed = parse_all(packets);
@@ -625,7 +625,7 @@ TEST(Codec, should_reject_a_payload_of_the_wrong_size) {
   EXPECT_EQ(message, "wirehair_decode failed with error");
 }
 
-TEST(Codec, should_not_assemble_before_any_packet_arrives) {
+TEST(codec_test, should_not_assemble_before_any_packet_arrives) {
   const Decoder decoder;
   constexpr uint32_t no_chunks = 0;
 
@@ -634,7 +634,7 @@ TEST(Codec, should_not_assemble_before_any_packet_arrives) {
   EXPECT_FALSE(assembled.has_value());
 }
 
-TEST(Codec, should_not_assemble_an_encrypted_file_without_a_key) {
+TEST(codec_test, should_not_assemble_an_encrypted_file_without_a_key) {
   const Decoder decoder = decode_encrypted_chunk(make_test_data(SYMBOL_SIZE_BYTES * 4));
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
@@ -643,7 +643,7 @@ TEST(Codec, should_not_assemble_an_encrypted_file_without_a_key) {
   EXPECT_FALSE(assembled.has_value());
 }
 
-TEST(Codec, should_assemble_an_encrypted_file_with_its_key) {
+TEST(codec_test, should_assemble_an_encrypted_file_with_its_key) {
   const std::vector<std::byte> plain = make_test_data(SYMBOL_SIZE_BYTES * 4);
   Decoder decoder = decode_encrypted_chunk(plain);
   decoder.set_decrypt_key(make_key(KEY_FILL));
@@ -653,7 +653,7 @@ TEST(Codec, should_assemble_an_encrypted_file_with_its_key) {
   EXPECT_EQ(assembled, plain);
 }
 
-TEST(Codec, should_not_assemble_an_encrypted_file_with_the_wrong_key) {
+TEST(codec_test, should_not_assemble_an_encrypted_file_with_the_wrong_key) {
   Decoder decoder = decode_encrypted_chunk(make_test_data(SYMBOL_SIZE_BYTES * 4));
   decoder.set_decrypt_key(make_key(WRONG_KEY_FILL));
 
@@ -662,7 +662,7 @@ TEST(Codec, should_not_assemble_an_encrypted_file_with_the_wrong_key) {
   EXPECT_FALSE(assembled.has_value());
 }
 
-TEST(Codec, should_not_assemble_an_encrypted_chunk_without_a_size_header) {
+TEST(codec_test, should_not_assemble_an_encrypted_chunk_without_a_size_header) {
   Decoder decoder = decode_chunk(make_test_data(CRYPTO_PLAIN_SIZE_HEADER - 1), true);
   decoder.set_decrypt_key(make_key(KEY_FILL));
 
@@ -671,7 +671,7 @@ TEST(Codec, should_not_assemble_an_encrypted_chunk_without_a_size_header) {
   EXPECT_FALSE(assembled.has_value());
 }
 
-TEST(Codec, should_not_assemble_an_encrypted_chunk_claiming_more_than_a_chunk) {
+TEST(codec_test, should_not_assemble_an_encrypted_chunk_claiming_more_than_a_chunk) {
   std::vector<std::byte> cipher =
       encrypt_chunk(make_test_data(SYMBOL_SIZE_BYTES), make_key(KEY_FILL), make_test_file_id(), 0);
   const auto oversized = static_cast<uint32_t>(CHUNK_SIZE_BYTES + 1);
@@ -684,7 +684,7 @@ TEST(Codec, should_not_assemble_an_encrypted_chunk_claiming_more_than_a_chunk) {
   EXPECT_FALSE(assembled.has_value());
 }
 
-TEST(Codec, should_not_write_an_incomplete_file) {
+TEST(codec_test, should_not_write_an_incomplete_file) {
   const Decoder decoder = decode_chunk(make_test_data(SYMBOL_SIZE_BYTES * 4), false);
   const fixtures::temporary_file output(BINARY_EXTENSION);
   constexpr uint32_t two_chunks = 2;
@@ -695,7 +695,7 @@ TEST(Codec, should_not_write_an_incomplete_file) {
   EXPECT_FALSE(std::filesystem::exists(output.path()));
 }
 
-TEST(Codec, should_not_write_into_a_missing_directory) {
+TEST(codec_test, should_not_write_into_a_missing_directory) {
   const Decoder decoder = decode_chunk(make_test_data(SYMBOL_SIZE_BYTES * 4), false);
   const fixtures::temporary_file directory(NO_EXTENSION);
   const std::filesystem::path output = directory.path() / MISSING_DIRECTORY / OUTPUT_NAME;
@@ -705,7 +705,7 @@ TEST(Codec, should_not_write_into_a_missing_directory) {
   EXPECT_FALSE(written);
 }
 
-TEST(Codec, should_report_a_failed_write) {
+TEST(codec_test, should_report_a_failed_write) {
   if (!std::filesystem::exists(fixtures::FULL_DEVICE)) {
     GTEST_SKIP() << fixtures::NO_FULL_DEVICE_MESSAGE;
   }
@@ -717,7 +717,7 @@ TEST(Codec, should_report_a_failed_write) {
   EXPECT_FALSE(written);
 }
 
-TEST(Codec, should_write_an_encrypted_file_with_its_key) {
+TEST(codec_test, should_write_an_encrypted_file_with_its_key) {
   const std::vector<std::byte> plain = make_test_data(SYMBOL_SIZE_BYTES * 4);
   Decoder decoder = decode_encrypted_chunk(plain);
   decoder.set_decrypt_key(make_key(KEY_FILL));
@@ -729,7 +729,7 @@ TEST(Codec, should_write_an_encrypted_file_with_its_key) {
   EXPECT_EQ(fixtures::read_bytes(output.path()), plain);
 }
 
-TEST(Codec, should_reject_a_chunk_larger_than_the_chunk_size) {
+TEST(codec_test, should_reject_a_chunk_larger_than_the_chunk_size) {
   const Encoder encoder(make_test_file_id());
   const std::vector<std::byte> oversized = make_test_data(CHUNK_SIZE_BYTES + 1);
 

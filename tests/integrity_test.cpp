@@ -45,21 +45,21 @@ bool is_hex_char(const char ch) {
 
 } // namespace
 
-TEST(Integrity, Sha256_EmptyInput) {
+TEST(integrity_test, should_hash_empty_input_to_the_known_sha256_digest) {
   const std::vector<std::byte> empty_input;
   const Sha256Digest digest = sha256(empty_input);
   const std::string hex_output = digest.hex_value();
   EXPECT_EQ(hex_output, "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855");
 }
 
-TEST(Integrity, Sha256_KnownInput) {
+TEST(integrity_test, should_hash_known_input_to_its_sha256_digest) {
   const std::vector<std::byte> hello_bytes = bytes_from_string("hello");
   const Sha256Digest digest = sha256(hello_bytes);
   const std::string hex_output = digest.hex_value();
   EXPECT_EQ(hex_output, "2CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824");
 }
 
-TEST(Integrity, Sha256_HexOutputContainsOnlyHexChars) {
+TEST(integrity_test, should_write_the_sha256_digest_in_hex) {
   const std::vector<std::byte> abc_bytes = bytes_from_string("abc");
   const Sha256Digest digest = sha256(abc_bytes);
   for (const std::string hex_output = digest.hex_value(); const char ch : hex_output) {
@@ -67,7 +67,7 @@ TEST(Integrity, Sha256_HexOutputContainsOnlyHexChars) {
   }
 }
 
-TEST(Integrity, Sha256_EqualInputsProduceEqualDigests) {
+TEST(integrity_test, should_hash_equal_inputs_to_equal_digests) {
   const std::vector<std::byte> same_data = bytes_from_string("same");
   const std::vector<std::byte> different_data = bytes_from_string("diff");
   const Sha256Digest digest_a = sha256(same_data);
@@ -77,14 +77,14 @@ TEST(Integrity, Sha256_EqualInputsProduceEqualDigests) {
   EXPECT_NE(digest_a, digest_c);
 }
 
-TEST(Integrity, Crc32_SameInputIsDeterministic) {
+TEST(integrity_test, should_compute_the_same_crc32_for_the_same_input) {
   const std::vector<std::byte> input = bytes_from_string("deterministic");
   const uint32_t first_crc = crc32_mpeg2(input);
   const uint32_t second_crc = crc32_mpeg2(input);
   EXPECT_EQ(first_crc, second_crc);
 }
 
-TEST(Integrity, Crc32_DifferentInputsProduceDifferentValues) {
+TEST(integrity_test, should_compute_different_crc32_values_for_different_inputs) {
   const std::vector<std::byte> alpha = bytes_from_string("alpha");
   const std::vector<std::byte> beta = bytes_from_string("beta");
   const uint32_t alpha_crc = crc32_mpeg2(alpha);
@@ -92,7 +92,7 @@ TEST(Integrity, Crc32_DifferentInputsProduceDifferentValues) {
   EXPECT_NE(alpha_crc, beta_crc);
 }
 
-TEST(Integrity, Crc32Concat_MatchesSingleCallOnCombinedData) {
+TEST(integrity_test, should_continue_a_crc32_across_concatenated_data) {
   const std::vector<std::byte> first_part = bytes_from_string("first");
   const std::vector<std::byte> second_part = bytes_from_string("second");
 
@@ -104,7 +104,7 @@ TEST(Integrity, Crc32Concat_MatchesSingleCallOnCombinedData) {
   EXPECT_EQ(concat_crc, combined_crc);
 }
 
-TEST(Integrity, PacketChecksum_CRC32DispatchMatchesDirect) {
+TEST(integrity_test, should_compute_crc32_packet_checksums_with_crc32) {
   const std::vector<std::byte> header = bytes_from_string("hdr");
   const std::vector<std::byte> payload = bytes_from_string("pld");
   constexpr std::size_t crc_offset = 0;
@@ -114,7 +114,7 @@ TEST(Integrity, PacketChecksum_CRC32DispatchMatchesDirect) {
   EXPECT_EQ(dispatched, direct);
 }
 
-TEST(Integrity, PacketChecksum_XXHashDispatchMatchesDirect) {
+TEST(integrity_test, should_compute_xxhash_packet_checksums_with_xxhash) {
   const std::vector<std::byte> header = bytes_from_string("hdr");
   const std::vector<std::byte> payload = bytes_from_string("pld");
   constexpr std::size_t crc_offset = 0;
@@ -124,7 +124,7 @@ TEST(Integrity, PacketChecksum_XXHashDispatchMatchesDirect) {
   EXPECT_EQ(dispatched, direct);
 }
 
-TEST(Integrity, VerifyPacketCrc_ValidPacketPasses) {
+TEST(integrity_test, should_accept_a_packet_with_a_valid_checksum) {
   std::vector<std::byte> header = bytes_from_string("\x01\x02\x03\x04\x05\x06");
   const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
   constexpr std::size_t crc_offset = 2;
@@ -135,7 +135,7 @@ TEST(Integrity, VerifyPacketCrc_ValidPacketPasses) {
   EXPECT_TRUE(verify_packet_crc32(header, payload, crc_offset));
 }
 
-TEST(Integrity, VerifyPacketCrc_CorruptedPayloadFails) {
+TEST(integrity_test, should_reject_a_packet_with_a_corrupted_payload) {
   std::vector<std::byte> header = bytes_from_string("\x01\x02\x03\x04\x05\x06");
   std::vector<std::byte> payload = bytes_from_string("payload-bytes");
   constexpr std::size_t crc_offset = 2;
@@ -149,21 +149,21 @@ TEST(Integrity, VerifyPacketCrc_CorruptedPayloadFails) {
   EXPECT_FALSE(verify_packet_crc32(header, payload, crc_offset));
 }
 
-TEST(Integrity, Crc32_EmptyInput) {
+TEST(integrity_test, should_compute_the_crc32_of_empty_input) {
   const std::vector<std::byte> empty;
   const uint32_t crc = crc32_mpeg2(empty);
   const uint32_t crc_again = crc32_mpeg2(empty);
   EXPECT_EQ(crc, crc_again);
 }
 
-TEST(Integrity, Crc32_WithCustomSeed) {
+TEST(integrity_test, should_start_a_crc32_from_a_custom_seed) {
   const std::vector<std::byte> data = bytes_from_string("seed-test");
   const uint32_t crc_default = crc32_mpeg2(data, 0);
   const uint32_t crc_seeded = crc32_mpeg2(data, 12345);
   EXPECT_NE(crc_default, crc_seeded);
 }
 
-TEST(Integrity, Sha256_LargeInput) {
+TEST(integrity_test, should_hash_large_input) {
   std::vector<std::byte> large_data(1024 * 1024);
   for (std::size_t i = 0; i < large_data.size(); ++i) {
     large_data[i] = static_cast<std::byte>(i & 0xFF);
@@ -174,7 +174,7 @@ TEST(Integrity, Sha256_LargeInput) {
   EXPECT_EQ(digest.hex_value().size(), 64u);
 }
 
-TEST(Integrity, XXHash_EmptyPayload) {
+TEST(integrity_test, should_hash_an_empty_payload_with_xxhash) {
   const std::vector<std::byte> header = bytes_from_string("hdr");
   const std::vector<std::byte> empty_payload;
   const uint32_t hash = packet_xxhash32(header, empty_payload, 0);
@@ -182,7 +182,7 @@ TEST(Integrity, XXHash_EmptyPayload) {
   EXPECT_EQ(hash, hash_again);
 }
 
-TEST(Integrity, should_checksum_the_header_bytes_after_the_crc_field) {
+TEST(integrity_test, should_checksum_the_header_bytes_after_the_crc_field) {
   const std::vector<std::byte> header = bytes_from_string("ab\x11\x22\x33\x44trail");
   const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
   constexpr std::size_t crc_offset = 2;
@@ -195,7 +195,7 @@ TEST(Integrity, should_checksum_the_header_bytes_after_the_crc_field) {
   EXPECT_EQ(crc, crc32_mpeg2_concat(zeroed_header, payload));
 }
 
-TEST(Integrity, should_hash_the_header_bytes_after_the_hash_field) {
+TEST(integrity_test, should_hash_the_header_bytes_after_the_hash_field) {
   const std::vector<std::byte> header = bytes_from_string("ab\x11\x22\x33\x44trail");
   const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
   constexpr std::size_t hash_offset = 2;
@@ -210,7 +210,7 @@ TEST(Integrity, should_hash_the_header_bytes_after_the_hash_field) {
   EXPECT_EQ(hash, XXH32(zeroed_packet.data(), zeroed_packet.size(), seed));
 }
 
-TEST(Integrity, should_reject_a_crc_field_that_is_not_four_bytes) {
+TEST(integrity_test, should_reject_a_crc_field_that_is_not_four_bytes) {
   std::vector<std::byte> header = bytes_from_string("\x01\x02\x03\x04\x05\x06");
   const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
   constexpr std::size_t crc_offset = 2;
@@ -222,7 +222,7 @@ TEST(Integrity, should_reject_a_crc_field_that_is_not_four_bytes) {
   EXPECT_FALSE(verified);
 }
 
-TEST(Integrity, should_reject_a_crc_field_that_ends_past_the_header) {
+TEST(integrity_test, should_reject_a_crc_field_that_ends_past_the_header) {
   const std::vector<std::byte> header = bytes_from_string("\x01\x02\x03\x04\x05\x06");
   const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
   constexpr std::size_t crc_offset = 3;

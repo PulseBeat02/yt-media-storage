@@ -93,7 +93,7 @@ void expect_chunks_cover_data(const ChunkedStorageData& chunked, const std::vect
 
 } // namespace
 
-TEST(Chunker, ChunkByteData_EmptyInput) {
+TEST(chunker_test, should_chunk_empty_data_into_no_chunks) {
   const std::vector<std::byte> empty_data;
   const std::span empty_span(empty_data.data(), empty_data.size());
   const auto [storage, chunks] = chunk_byte_data(empty_span);
@@ -103,7 +103,7 @@ TEST(Chunker, ChunkByteData_EmptyInput) {
   EXPECT_TRUE(storage.empty());
 }
 
-TEST(Chunker, ChunkByteData_SmallInput) {
+TEST(chunker_test, should_chunk_small_data_into_one_chunk) {
   const std::vector<std::byte> small_data = make_patterned_data(100);
   const std::span data_span(small_data.data(), small_data.size());
   const auto [storage, chunks] = chunk_byte_data(data_span);
@@ -112,7 +112,7 @@ TEST(Chunker, ChunkByteData_SmallInput) {
   EXPECT_EQ(chunks[0].length, 100u);
 }
 
-TEST(Chunker, ChunkByteData_ExactChunkSize) {
+TEST(chunker_test, should_chunk_data_of_one_chunk_size_into_one_chunk) {
   const std::vector<std::byte> exact_data = make_patterned_data(CHUNK_SIZE_BYTES);
   const std::span data_span(exact_data.data(), exact_data.size());
   const auto [storage, chunks] = chunk_byte_data(data_span);
@@ -121,7 +121,7 @@ TEST(Chunker, ChunkByteData_ExactChunkSize) {
   EXPECT_EQ(chunks[0].length, CHUNK_SIZE_BYTES);
 }
 
-TEST(Chunker, ChunkByteData_MultipleChunks) {
+TEST(chunker_test, should_chunk_large_data_into_several_chunks) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2 + CHUNK_SIZE_BYTES / 2;
   const std::vector<std::byte> large_data = make_patterned_data(total_size);
   const std::span data_span(large_data.data(), large_data.size());
@@ -132,14 +132,14 @@ TEST(Chunker, ChunkByteData_MultipleChunks) {
   EXPECT_EQ(chunks[2].length, CHUNK_SIZE_BYTES / 2);
 }
 
-TEST(Chunker, ChunkByteData_StoragePreservesData) {
+TEST(chunker_test, should_keep_the_data_in_its_chunks) {
   const std::vector<std::byte> original_data = make_patterned_data(5000, 17);
   const std::span data_span(original_data.data(), original_data.size());
   const ChunkedStorageData chunked = chunk_byte_data(data_span);
   expect_chunks_cover_data(chunked, original_data);
 }
 
-TEST(Chunker, ChunkSpan_ReturnsCorrectSlice) {
+TEST(chunker_test, should_return_the_slice_of_a_chunk) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES + 42;
   const std::vector<std::byte> input_data = make_patterned_data(total_size);
   const std::span data_span(input_data.data(), input_data.size());
@@ -158,7 +158,7 @@ TEST(Chunker, ChunkSpan_ReturnsCorrectSlice) {
   }
 }
 
-TEST(Chunker, ChunkFile_MatchesByteData) {
+TEST(chunker_test, should_chunk_a_file_like_its_bytes) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES + 99;
   const std::vector<std::byte> original_data = make_patterned_data(total_size, 3);
   const TempFile temp_file(original_data);
@@ -176,7 +176,7 @@ TEST(Chunker, ChunkFile_MatchesByteData) {
   }
 }
 
-TEST(Chunker, FileChunkReader_EmptyFile) {
+TEST(chunker_test, should_read_no_chunks_from_an_empty_file) {
   const TempFile temp_file({});
   const FileChunkReader reader(temp_file.path_cstr());
 
@@ -185,7 +185,7 @@ TEST(Chunker, FileChunkReader_EmptyFile) {
   EXPECT_EQ(reader.chunk_size(), CHUNK_SIZE_BYTES);
 }
 
-TEST(Chunker, FileChunkReader_SingleByteFile) {
+TEST(chunker_test, should_read_one_chunk_from_a_single_byte_file) {
   const std::vector<std::byte> one_byte = {std::byte{0xAB}};
   const TempFile temp_file(one_byte);
   const FileChunkReader reader(temp_file.path_cstr());
@@ -194,7 +194,7 @@ TEST(Chunker, FileChunkReader_SingleByteFile) {
   EXPECT_EQ(reader.file_size(), 1u);
 }
 
-TEST(Chunker, FileChunkReader_ExactChunkSizeFile) {
+TEST(chunker_test, should_read_one_chunk_from_a_file_of_one_chunk_size) {
   const std::vector<std::byte> exact_data(CHUNK_SIZE_BYTES);
   const TempFile temp_file(exact_data);
   const FileChunkReader reader(temp_file.path_cstr());
@@ -203,7 +203,7 @@ TEST(Chunker, FileChunkReader_ExactChunkSizeFile) {
   EXPECT_EQ(reader.file_size(), CHUNK_SIZE_BYTES);
 }
 
-TEST(Chunker, FileChunkReader_TwoChunkFile) {
+TEST(chunker_test, should_read_two_chunks_from_a_file_just_over_one_chunk) {
   const std::vector<std::byte> over_data(CHUNK_SIZE_BYTES + 1);
   const TempFile temp_file(over_data);
   const FileChunkReader reader(temp_file.path_cstr());
@@ -212,7 +212,7 @@ TEST(Chunker, FileChunkReader_TwoChunkFile) {
   EXPECT_EQ(reader.file_size(), CHUNK_SIZE_BYTES + 1);
 }
 
-TEST(Chunker, FileChunkReader_ReadChunkContents) {
+TEST(chunker_test, should_read_the_contents_of_each_chunk) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES + 50;
   const std::vector<std::byte> original_data = make_patterned_data(total_size, 11);
   const TempFile temp_file(original_data);
@@ -234,7 +234,7 @@ TEST(Chunker, FileChunkReader_ReadChunkContents) {
   }
 }
 
-TEST(Chunker, FileChunkReader_CustomChunkSize) {
+TEST(chunker_test, should_read_chunks_of_a_custom_size) {
   constexpr std::size_t custom_chunk_size = 100;
   constexpr std::size_t total_size = 250;
   const std::vector<std::byte> original_data = make_patterned_data(total_size);
@@ -261,7 +261,7 @@ TEST(Chunker, FileChunkReader_CustomChunkSize) {
   }
 }
 
-TEST(Chunker, FileChunkReader_OutOfRangeThrows) {
+TEST(chunker_test, should_fail_to_read_a_chunk_past_the_end) {
   const std::vector<std::byte> small_data(10);
   const TempFile temp_file(small_data);
   const FileChunkReader reader(temp_file.path_cstr());
@@ -270,7 +270,7 @@ TEST(Chunker, FileChunkReader_OutOfRangeThrows) {
   EXPECT_THROW(static_cast<void>(reader.read_chunk(invalid_index)), std::runtime_error);
 }
 
-TEST(Chunker, FileChunkReader_NonSequentialReadOrder) {
+TEST(chunker_test, should_read_chunks_in_any_order) {
   constexpr std::size_t custom_chunk = 100;
   constexpr std::size_t total_size = 300;
   const std::vector<std::byte> original_data = make_patterned_data(total_size, 7);
@@ -290,7 +290,7 @@ TEST(Chunker, FileChunkReader_NonSequentialReadOrder) {
   }
 }
 
-TEST(Chunker, FileChunkReader_ReadSameChunkTwice) {
+TEST(chunker_test, should_read_the_same_chunk_twice) {
   const std::vector<std::byte> original_data = make_patterned_data(200, 13);
   const TempFile temp_file(original_data);
   const FileChunkReader reader(temp_file.path_cstr(), 100);
@@ -301,15 +301,15 @@ TEST(Chunker, FileChunkReader_ReadSameChunkTwice) {
   EXPECT_EQ(first_read, second_read);
 }
 
-TEST(Chunker, FileChunkReader_NonExistentFileThrows) {
+TEST(chunker_test, should_fail_to_read_a_missing_file) {
   EXPECT_THROW(FileChunkReader("/tmp/nonexistent_chunker_test_12345.bin"), std::runtime_error);
 }
 
-TEST(Chunker, ChunkFile_NonExistentFileThrows) {
+TEST(chunker_test, should_fail_to_chunk_a_missing_file) {
   EXPECT_THROW(static_cast<void>(chunk_file("/tmp/nonexistent_chunker_test_12345.bin")), std::runtime_error);
 }
 
-TEST(Chunker, ChunkFile_CustomChunkSize) {
+TEST(chunker_test, should_chunk_a_file_into_chunks_of_a_custom_size) {
   constexpr std::size_t custom_chunk = 50;
   const std::vector<std::byte> original_data = make_patterned_data(120, 5);
   const TempFile temp_file(original_data);
@@ -323,7 +323,7 @@ TEST(Chunker, ChunkFile_CustomChunkSize) {
   EXPECT_EQ(storage, original_data);
 }
 
-TEST(Chunker, ChunkByteData_ExactlyTwoChunks) {
+TEST(chunker_test, should_chunk_data_of_two_chunk_sizes_into_two_chunks) {
   constexpr std::size_t total_size = CHUNK_SIZE_BYTES * 2;
   const std::vector<std::byte> data = make_patterned_data(total_size);
   const std::span data_span(data.data(), data.size());
@@ -333,7 +333,7 @@ TEST(Chunker, ChunkByteData_ExactlyTwoChunks) {
   EXPECT_EQ(chunks[1].length, CHUNK_SIZE_BYTES);
 }
 
-TEST(Chunker, ChunkFile_EmptyFile) {
+TEST(chunker_test, should_chunk_an_empty_file_into_no_chunks) {
   const TempFile temp_file({});
   const auto [storage, chunks] = chunk_file(temp_file.path_cstr());
   ASSERT_EQ(chunks.size(), 1u);
@@ -341,7 +341,7 @@ TEST(Chunker, ChunkFile_EmptyFile) {
   EXPECT_TRUE(storage.empty());
 }
 
-TEST(Chunker, should_return_an_empty_view_of_an_empty_file) {
+TEST(chunker_test, should_return_an_empty_view_of_an_empty_file) {
   const TempFile temp_file({});
   const FileChunkReader reader(temp_file.path_cstr());
 
@@ -349,7 +349,7 @@ TEST(Chunker, should_return_an_empty_view_of_an_empty_file) {
   EXPECT_TRUE(view.empty());
 }
 
-TEST(Chunker, should_stream_a_file_that_cannot_be_memory_mapped) {
+TEST(chunker_test, should_stream_a_file_that_cannot_be_memory_mapped) {
   if (!std::filesystem::exists(fixtures::UNMAPPABLE_FILE)) {
     GTEST_SKIP() << fixtures::NO_UNMAPPABLE_FILE_MESSAGE;
   }
@@ -361,7 +361,7 @@ TEST(Chunker, should_stream_a_file_that_cannot_be_memory_mapped) {
   EXPECT_EQ(first_chunk.size(), SINGLE_BYTE_CHUNK_SIZE);
 }
 
-TEST(Chunker, should_fail_to_read_past_the_content_of_an_unmapped_file) {
+TEST(chunker_test, should_fail_to_read_past_the_content_of_an_unmapped_file) {
   if (!std::filesystem::exists(fixtures::UNMAPPABLE_FILE)) {
     GTEST_SKIP() << fixtures::NO_UNMAPPABLE_FILE_MESSAGE;
   }
@@ -372,7 +372,7 @@ TEST(Chunker, should_fail_to_read_past_the_content_of_an_unmapped_file) {
   EXPECT_THROW(static_cast<void>(reader.read_chunk(last_chunk)), std::runtime_error);
 }
 
-TEST(Chunker, should_refuse_a_view_of_an_unmapped_file) {
+TEST(chunker_test, should_refuse_a_view_of_an_unmapped_file) {
   if (!std::filesystem::exists(fixtures::UNMAPPABLE_FILE)) {
     GTEST_SKIP() << fixtures::NO_UNMAPPABLE_FILE_MESSAGE;
   }
@@ -382,7 +382,7 @@ TEST(Chunker, should_refuse_a_view_of_an_unmapped_file) {
   EXPECT_THROW(static_cast<void>(reader.chunk_view(0)), std::runtime_error);
 }
 
-TEST(Chunker, should_fail_to_chunk_a_file_shorter_than_its_reported_size) {
+TEST(chunker_test, should_fail_to_chunk_a_file_shorter_than_its_reported_size) {
   if (!std::filesystem::exists(fixtures::UNMAPPABLE_FILE)) {
     GTEST_SKIP() << fixtures::NO_UNMAPPABLE_FILE_MESSAGE;
   }
@@ -390,7 +390,7 @@ TEST(Chunker, should_fail_to_chunk_a_file_shorter_than_its_reported_size) {
   EXPECT_THROW(static_cast<void>(chunk_file(fixtures::UNMAPPABLE_FILE)), std::runtime_error);
 }
 
-TEST(Chunker, should_fail_to_read_a_file_without_a_size) {
+TEST(chunker_test, should_fail_to_read_a_file_without_a_size) {
   if (!std::filesystem::exists(UNSEEKABLE_FILE)) {
     GTEST_SKIP() << NO_UNSEEKABLE_FILE_MESSAGE;
   }

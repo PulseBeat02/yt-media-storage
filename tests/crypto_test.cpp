@@ -64,14 +64,14 @@ std::vector<std::byte> make_patterned_data(const std::size_t byte_count, const u
 
 } // namespace
 
-TEST(Crypto, GenerateFileId_ProducesDistinctIds) {
+TEST(crypto_test, should_generate_distinct_file_ids) {
   const FileId first = generate_file_id();
   const FileId second = generate_file_id();
   EXPECT_NE(first, second);
   EXPECT_NE(first, FileId{});
 }
 
-TEST(Crypto, DeriveKey_SameInputProducesSameKey) {
+TEST(crypto_test, should_derive_the_same_key_from_the_same_password_and_salt) {
   static constexpr std::byte password[] = {std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
   const std::array<std::byte, 16> salt = make_salt(0x00);
 
@@ -81,7 +81,7 @@ TEST(Crypto, DeriveKey_SameInputProducesSameKey) {
   EXPECT_EQ(first_key, second_key);
 }
 
-TEST(Crypto, DeriveKey_DifferentPasswordsProduceDifferentKeys) {
+TEST(crypto_test, should_derive_different_keys_from_different_passwords) {
   static constexpr std::byte password_a[] = {std::byte{'a'}};
   static constexpr std::byte password_b[] = {std::byte{'b'}};
   const std::array<std::byte, 16> salt = make_salt(0x20);
@@ -92,7 +92,7 @@ TEST(Crypto, DeriveKey_DifferentPasswordsProduceDifferentKeys) {
   EXPECT_NE(key_a, key_b);
 }
 
-TEST(Crypto, DeriveKey_DifferentSaltsProduceDifferentKeys) {
+TEST(crypto_test, should_derive_different_keys_from_different_salts) {
   static constexpr std::byte password[] = {std::byte{'x'}, std::byte{'y'}};
   const std::array<std::byte, 16> first_salt = make_salt(0x00);
   const std::array<std::byte, 16> second_salt = make_salt(0x80);
@@ -103,7 +103,7 @@ TEST(Crypto, DeriveKey_DifferentSaltsProduceDifferentKeys) {
   EXPECT_NE(first_key, second_key);
 }
 
-TEST(Crypto, EncryptDecrypt_BasicRoundtrip) {
+TEST(crypto_test, should_decrypt_what_it_encrypted) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   const std::vector<std::byte> plaintext = make_patterned_data(64, 3);
@@ -114,7 +114,7 @@ TEST(Crypto, EncryptDecrypt_BasicRoundtrip) {
   EXPECT_EQ(decrypted, plaintext);
 }
 
-TEST(Crypto, EncryptDecrypt_SingleByte) {
+TEST(crypto_test, should_decrypt_a_single_encrypted_byte) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   const std::vector plaintext = {std::byte{0x42}};
@@ -125,7 +125,7 @@ TEST(Crypto, EncryptDecrypt_SingleByte) {
   EXPECT_EQ(decrypted, plaintext);
 }
 
-TEST(Crypto, EncryptDecrypt_LargeData) {
+TEST(crypto_test, should_decrypt_a_large_encrypted_chunk) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   constexpr std::size_t large_size = 100u * 1024u;
@@ -138,7 +138,7 @@ TEST(Crypto, EncryptDecrypt_LargeData) {
   EXPECT_EQ(decrypted, plaintext);
 }
 
-TEST(Crypto, DecryptChunkInto_MatchesDecryptChunk) {
+TEST(crypto_test, should_decrypt_in_place_like_a_copying_decryption) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   const std::vector<std::byte> plaintext = make_patterned_data(128, 0xA0);
@@ -152,7 +152,7 @@ TEST(Crypto, DecryptChunkInto_MatchesDecryptChunk) {
   EXPECT_EQ(output_buffer, plaintext);
 }
 
-TEST(Crypto, EncryptedSize_IncludesOverhead) {
+TEST(crypto_test, should_add_the_size_header_and_the_tag_to_the_ciphertext) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   const std::vector<std::byte> plaintext = make_patterned_data(500);
@@ -163,7 +163,7 @@ TEST(Crypto, EncryptedSize_IncludesOverhead) {
   EXPECT_EQ(ciphertext.size(), plaintext.size() + expected_overhead);
 }
 
-TEST(Crypto, Decrypt_WrongKeyThrows) {
+TEST(crypto_test, should_reject_the_wrong_key) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   const std::vector plaintext = {std::byte{1}, std::byte{2}, std::byte{3}};
@@ -176,7 +176,7 @@ TEST(Crypto, Decrypt_WrongKeyThrows) {
   EXPECT_THROW(static_cast<void>(decrypt_chunk(ciphertext, wrong_key, file_id, 0u)), std::runtime_error);
 }
 
-TEST(Crypto, Decrypt_WrongChunkIndexThrows) {
+TEST(crypto_test, should_reject_the_wrong_chunk_index) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   const std::vector<std::byte> plaintext = make_patterned_data(32);
@@ -188,7 +188,7 @@ TEST(Crypto, Decrypt_WrongChunkIndexThrows) {
   EXPECT_THROW(static_cast<void>(decrypt_chunk(ciphertext, key, file_id, wrong_index)), std::runtime_error);
 }
 
-TEST(Crypto, ReadPlainSizeFromHeader_ReadsCorrectValue) {
+TEST(crypto_test, should_read_the_plain_size_from_the_header) {
   std::array<std::byte, 4> header_bytes{};
   constexpr uint32_t expected_size = 0xDEADBEEFu;
   header_bytes[0] = static_cast<std::byte>(expected_size & 0xFFu);
@@ -201,7 +201,7 @@ TEST(Crypto, ReadPlainSizeFromHeader_ReadsCorrectValue) {
   EXPECT_EQ(actual_size, expected_size);
 }
 
-TEST(Crypto, SecureZero_ClearsEntireBuffer) {
+TEST(crypto_test, should_zero_the_whole_buffer) {
   std::vector<std::byte> buffer(64);
   for (auto& byte_val : buffer) {
     byte_val = std::byte{0xFF};
@@ -214,7 +214,7 @@ TEST(Crypto, SecureZero_ClearsEntireBuffer) {
   }
 }
 
-TEST(Crypto, EncryptDecrypt_EmptyPlaintext) {
+TEST(crypto_test, should_decrypt_an_empty_plaintext) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   const std::vector<std::byte> empty;
@@ -225,7 +225,7 @@ TEST(Crypto, EncryptDecrypt_EmptyPlaintext) {
   EXPECT_EQ(decrypted, empty);
 }
 
-TEST(Crypto, Decrypt_TooSmallBufferThrows) {
+TEST(crypto_test, should_reject_a_chunk_too_small_for_a_size_header) {
   const std::vector<std::byte> tiny = {std::byte{0}, std::byte{1}};
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
@@ -233,7 +233,7 @@ TEST(Crypto, Decrypt_TooSmallBufferThrows) {
   EXPECT_THROW(static_cast<void>(decrypt_chunk(tiny, key, file_id, 0u)), std::runtime_error);
 }
 
-TEST(Crypto, DecryptChunkInto_UndersizedOutputThrows) {
+TEST(crypto_test, should_reject_an_output_too_small_for_the_plaintext) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   const std::vector<std::byte> plaintext = make_patterned_data(64);
@@ -244,7 +244,7 @@ TEST(Crypto, DecryptChunkInto_UndersizedOutputThrows) {
   EXPECT_THROW(decrypt_chunk_into(too_small, ciphertext, key, file_id, 0u), std::runtime_error);
 }
 
-TEST(Crypto, Encrypt_CiphertextDiffersFromPlaintext) {
+TEST(crypto_test, should_hide_the_plaintext_in_the_ciphertext) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   const std::vector<std::byte> plaintext = make_patterned_data(256);
@@ -257,7 +257,7 @@ TEST(Crypto, Encrypt_CiphertextDiffersFromPlaintext) {
                                                                               plaintext.size(), cipher_body.size()))));
 }
 
-TEST(Crypto, Encrypt_DifferentChunkIndicesProduceDifferentCiphertext) {
+TEST(crypto_test, should_encrypt_each_chunk_index_differently) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   const std::vector<std::byte> plaintext = make_patterned_data(64);
@@ -282,7 +282,7 @@ template <typename Action> std::string find_runtime_error_message(Action action)
 
 }
 
-TEST(Crypto, should_reject_a_chunk_without_a_size_header_when_decrypting_in_place) {
+TEST(crypto_test, should_reject_a_chunk_without_a_size_header_when_decrypting_in_place) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   const std::vector<std::byte> chunk(CRYPTO_PLAIN_SIZE_HEADER - 1);
@@ -293,7 +293,7 @@ TEST(Crypto, should_reject_a_chunk_without_a_size_header_when_decrypting_in_plac
   EXPECT_EQ(message, "Decryption failed (chunk too small)");
 }
 
-TEST(Crypto, should_reject_a_size_header_larger_than_a_chunk) {
+TEST(crypto_test, should_reject_a_size_header_larger_than_a_chunk) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
   std::vector<std::byte> ciphertext = encrypt_chunk(make_patterned_data(64), key, file_id, 0u);

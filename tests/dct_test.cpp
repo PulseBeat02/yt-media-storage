@@ -25,12 +25,12 @@
 #include <cstdint>
 #include <vector>
 
-TEST(DCT, PrecomputedBlocks_PatternCountMatchesBitsPerBlock) {
+TEST(dct_test, should_precompute_one_block_per_bit_pattern) {
   constexpr int expected_patterns = 1 << BITS_PER_BLOCK;
   EXPECT_EQ(PrecomputedBlocks::NUM_PATTERNS, expected_patterns);
 }
 
-TEST(DCT, PrecomputedBlocks_ValuesInValidRange) {
+TEST(dct_test, should_keep_precomputed_blocks_in_the_pixel_range) {
   const auto& [patterns] = get_precomputed_blocks();
   for (int p = 0; p < PrecomputedBlocks::NUM_PATTERNS; ++p) {
     for (int y = 0; y < 8; ++y) {
@@ -41,7 +41,7 @@ TEST(DCT, PrecomputedBlocks_ValuesInValidRange) {
   }
 }
 
-TEST(DCT, DecoderProjections_NonZeroEnergy) {
+TEST(dct_test, should_give_every_decoder_projection_energy) {
   const auto& [vectors] = get_decoder_projections();
   for (int b = 0; b < BITS_PER_BLOCK; ++b) {
     float sum_sq = 0.0f;
@@ -52,7 +52,7 @@ TEST(DCT, DecoderProjections_NonZeroEnergy) {
   }
 }
 
-TEST(DCT, EmbedExtract_AllPatternsRoundtrip) {
+TEST(dct_test, should_extract_every_embedded_bit_pattern) {
   const auto& [patterns] = get_precomputed_blocks();
   const auto& [vectors] = get_decoder_projections();
 
@@ -74,7 +74,7 @@ TEST(DCT, EmbedExtract_AllPatternsRoundtrip) {
   }
 }
 
-TEST(DCT, DotProduct64_AllOnes) {
+TEST(dct_test, should_sum_a_dot_product_of_ones) {
   alignas(32) float a[64];
   alignas(32) float b[64];
 
@@ -85,7 +85,7 @@ TEST(DCT, DotProduct64_AllOnes) {
   EXPECT_FLOAT_EQ(dot_product_64(a, b), 64.0f);
 }
 
-TEST(DCT, DotProduct64_LinearSequence) {
+TEST(dct_test, should_compute_the_dot_product_of_a_linear_sequence) {
   alignas(32) float a[64];
   alignas(32) float b[64];
 
@@ -96,7 +96,7 @@ TEST(DCT, DotProduct64_LinearSequence) {
   EXPECT_FLOAT_EQ(dot_product_64(a, b), 2016.0f);
 }
 
-TEST(DCT, DotProduct64_Orthogonal) {
+TEST(dct_test, should_compute_a_zero_dot_product_for_orthogonal_vectors) {
   alignas(32) float a[64] = {};
   alignas(32) float b[64] = {};
 
@@ -108,26 +108,26 @@ TEST(DCT, DotProduct64_Orthogonal) {
   EXPECT_FLOAT_EQ(dot_product_64(a, b), 0.0f);
 }
 
-TEST(DCT, CosineTable_Deterministic) {
+TEST(dct_test, should_build_the_same_cosine_table_every_time) {
   const auto& table1 = get_cosine_table();
   const auto& table2 = get_cosine_table();
   EXPECT_EQ(&table1, &table2);
 }
 
-TEST(DCT, CosineTable_DC_IsOne) {
+TEST(dct_test, should_set_the_dc_cosine_to_one) {
   const auto& [data] = get_cosine_table();
   for (int i = 0; i < 8; ++i) {
     EXPECT_FLOAT_EQ(data[i][0], 1.0f);
   }
 }
 
-TEST(DCT, FrameLayout_BytesMatchBlocks) {
+TEST(dct_test, should_store_one_bit_per_block_in_the_frame_layout) {
   const FrameLayout layout = compute_frame_layout(1920, 1080);
   EXPECT_EQ(layout.bits_per_frame, layout.total_blocks * BITS_PER_BLOCK);
   EXPECT_EQ(layout.bytes_per_frame, layout.bits_per_frame / 8);
 }
 
-TEST(DCT, DifferentPatternsProduceDifferentBlocks) {
+TEST(dct_test, should_produce_a_different_block_for_each_pattern) {
   if constexpr (PrecomputedBlocks::NUM_PATTERNS < 2) {
     GTEST_SKIP() << "Need at least 2 patterns";
   }
@@ -144,7 +144,7 @@ TEST(DCT, DifferentPatternsProduceDifferentBlocks) {
   EXPECT_TRUE(any_differ);
 }
 
-TEST(DCT, should_fill_the_margins_a_frame_width_leaves_beside_whole_blocks) {
+TEST(dct_test, should_fill_the_margins_a_frame_width_leaves_beside_whole_blocks) {
   constexpr int frame_width = 20;
   constexpr int frame_height = 40;
   constexpr int block_width = 16;
