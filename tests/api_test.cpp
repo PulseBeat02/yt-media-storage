@@ -31,6 +31,17 @@ namespace {
 constexpr const char* BINARY_EXTENSION = ".bin";
 constexpr const char* MATROSKA_EXTENSION = ".mkv";
 
+constexpr const char* UNOPENED_PATH = "unopened";
+
+constexpr const char* STREAM_URL = "rtmp://example/live";
+
+constexpr std::size_t SMALL_INPUT_SIZE = 1024;
+constexpr std::size_t INPUT_SIZE = 65536;
+constexpr std::size_t HALF_INPUT_SIZE = INPUT_SIZE / 2;
+
+constexpr int CONTINUE_OPERATION = 0;
+constexpr int CANCEL_OPERATION = 1;
+
 }
 
 TEST(api_test, should_report_a_version) {
@@ -76,7 +87,7 @@ TEST(api_test, should_reject_encoding_without_paths) {
   const ms_status_t missing_paths_status = ms_encode(&options, nullptr);
   EXPECT_EQ(missing_paths_status, MS_ERR_INVALID_ARGS);
 
-  options.input_path = "foo";
+  options.input_path = UNOPENED_PATH;
   options.output_path = nullptr;
 
   const ms_status_t missing_output_status = ms_encode(&options, nullptr);
@@ -109,7 +120,7 @@ TEST(api_test, should_report_a_missing_input_file_when_encoding) {
 
 TEST(api_test, should_reject_encrypting_without_a_password) {
   const fixtures::temporary_file input(BINARY_EXTENSION);
-  const std::vector<std::byte> data = fixtures::make_pattern(1024);
+  const std::vector<std::byte> data = fixtures::make_pattern(SMALL_INPUT_SIZE);
   fixtures::write_bytes(input.path(), data);
 
   const fixtures::temporary_file output(MATROSKA_EXTENSION);
@@ -151,7 +162,7 @@ TEST(api_test, should_reject_decoding_without_an_input_path) {
 
 TEST(api_test, should_reject_decoding_without_an_output_path) {
   ms_decode_options_t options{};
-  options.input_path = "any.mkv";
+  options.input_path = UNOPENED_PATH;
   options.output_path = nullptr;
 
   const ms_status_t decode_status = ms_decode(&options, nullptr);
@@ -182,7 +193,7 @@ TEST(api_test, should_reject_stream_encoding_without_fields) {
   const ms_status_t missing_fields_status = ms_stream_encode(&options, nullptr);
   EXPECT_EQ(missing_fields_status, MS_ERR_INVALID_ARGS);
 
-  options.input_path = "foo";
+  options.input_path = UNOPENED_PATH;
   options.stream_url = nullptr;
 
   const ms_status_t missing_url_status = ms_stream_encode(&options, nullptr);
@@ -192,7 +203,7 @@ TEST(api_test, should_reject_stream_encoding_without_fields) {
 TEST(api_test, should_reject_stream_encoding_without_an_input_path) {
   ms_stream_encode_options_t options{};
   options.input_path = nullptr;
-  options.stream_url = "rtmp://example/live";
+  options.stream_url = STREAM_URL;
 
   const ms_status_t stream_encode_status = ms_stream_encode(&options, nullptr);
   EXPECT_EQ(stream_encode_status, MS_ERR_INVALID_ARGS);
@@ -201,12 +212,12 @@ TEST(api_test, should_reject_stream_encoding_without_an_input_path) {
 TEST(api_test, should_reject_encrypted_stream_encoding_without_a_password) {
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const std::string input_path = input.string();
-  const std::vector<std::byte> data = fixtures::make_pattern(1024);
+  const std::vector<std::byte> data = fixtures::make_pattern(SMALL_INPUT_SIZE);
   fixtures::write_bytes(input.path(), data);
 
   ms_stream_encode_options_t options{};
   options.input_path = input_path.c_str();
-  options.stream_url = "rtmp://example/live";
+  options.stream_url = STREAM_URL;
   options.encrypt = 1;
   options.password = nullptr;
   options.password_len = 0;
@@ -240,7 +251,7 @@ TEST(api_test, should_reject_stream_decoding_without_a_stream_url) {
 
 TEST(api_test, should_reject_stream_decoding_without_an_output_path) {
   ms_stream_decode_options_t options{};
-  options.stream_url = "rtmp://example/live";
+  options.stream_url = STREAM_URL;
   options.output_path = nullptr;
 
   const ms_status_t stream_decode_status = ms_stream_decode(&options, nullptr);
@@ -255,7 +266,7 @@ TEST(api_test, should_decode_what_it_encoded) {
   const std::string encoded_path = encoded.string();
   const std::string decoded_path = decoded.string();
 
-  const std::vector<std::byte> data = fixtures::make_pattern(65536);
+  const std::vector<std::byte> data = fixtures::make_pattern(INPUT_SIZE);
   fixtures::write_bytes(input.path(), data);
 
   ms_encode_options_t encode_options{};
@@ -293,7 +304,7 @@ TEST(api_test, should_decode_what_it_encrypted) {
   const std::string encoded_path = encoded.string();
   const std::string decoded_path = decoded.string();
 
-  const std::vector<std::byte> data = fixtures::make_pattern(32768);
+  const std::vector<std::byte> data = fixtures::make_pattern(HALF_INPUT_SIZE);
   fixtures::write_bytes(input.path(), data);
   const std::string password = "test_api_password";
 
@@ -328,7 +339,7 @@ TEST(api_test, should_decode_what_it_encoded_with_xxhash_checksums) {
   const std::string encoded_path = encoded.string();
   const std::string decoded_path = decoded.string();
 
-  const std::vector<std::byte> data = fixtures::make_pattern(32768);
+  const std::vector<std::byte> data = fixtures::make_pattern(HALF_INPUT_SIZE);
   fixtures::write_bytes(input.path(), data);
 
   ms_encode_options_t encode_options{};
@@ -356,7 +367,7 @@ TEST(api_test, should_report_encoding_progress) {
   const std::string input_path = input.string();
   const std::string encoded_path = encoded.string();
 
-  const std::vector<std::byte> data = fixtures::make_pattern(65536);
+  const std::vector<std::byte> data = fixtures::make_pattern(INPUT_SIZE);
   fixtures::write_bytes(input.path(), data);
 
   std::atomic<int> call_count{0};
@@ -366,7 +377,7 @@ TEST(api_test, should_report_encoding_progress) {
   encode_options.output_path = encoded_path.c_str();
   encode_options.progress = [](uint64_t, uint64_t, void* user) -> int {
     static_cast<std::atomic<int>*>(user)->fetch_add(1);
-    return 0;
+    return CONTINUE_OPERATION;
   };
   encode_options.progress_user = &call_count;
 
@@ -383,13 +394,13 @@ TEST(api_test, should_cancel_encoding_from_the_progress_callback) {
   const std::string input_path = input.string();
   const std::string encoded_path = encoded.string();
 
-  const std::vector<std::byte> data = fixtures::make_pattern(65536);
+  const std::vector<std::byte> data = fixtures::make_pattern(INPUT_SIZE);
   fixtures::write_bytes(input.path(), data);
 
   ms_encode_options_t encode_options{};
   encode_options.input_path = input_path.c_str();
   encode_options.output_path = encoded_path.c_str();
-  encode_options.progress = [](uint64_t, uint64_t, void*) -> int { return 1; };
+  encode_options.progress = [](uint64_t, uint64_t, void*) -> int { return CANCEL_OPERATION; };
 
   const ms_status_t encode_status = ms_encode(&encode_options, nullptr);
   EXPECT_EQ(encode_status, MS_ERR_ENCODE_FAILED);
@@ -405,7 +416,7 @@ TEST(api_test, should_describe_the_last_failure_and_clear_it_on_success) {
   const fixtures::temporary_file encoded(MATROSKA_EXTENSION);
   const std::string input_path = input.string();
   const std::string encoded_path = encoded.string();
-  const std::vector<std::byte> data = fixtures::make_pattern(1024);
+  const std::vector<std::byte> data = fixtures::make_pattern(SMALL_INPUT_SIZE);
   fixtures::write_bytes(input.path(), data);
 
   ms_encode_options_t options{};

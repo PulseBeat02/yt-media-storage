@@ -29,14 +29,12 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+#include "av_utils.h"
 #include "configuration.h"
 #include "fixtures.h"
 #include "gray_lookup.h"
 
 namespace {
-
-constexpr int DEFAULT_ALIGNMENT = 0;
-constexpr int FIRST_ROW = 0;
 
 constexpr int SQUARE_FRAME_SIZE = 256;
 constexpr int FRAME_HEIGHT_BEYOND_THE_SCALER = SQUARE_FRAME_SIZE * 2;

@@ -21,6 +21,7 @@
 #include "frame_layout.h"
 #include "video_encoder.h"
 
+#include <climits>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -33,8 +34,8 @@ TEST(dct_test, should_precompute_one_block_per_bit_pattern) {
 TEST(dct_test, should_keep_precomputed_blocks_in_the_pixel_range) {
   const auto& [patterns] = get_precomputed_blocks();
   for (int pattern = 0; pattern < precomputed_blocks::PATTERN_COUNT; ++pattern) {
-    for (int y = 0; y < 8; ++y) {
-      for (int x = 0; x < 8; ++x) {
+    for (int y = 0; y < BLOCK_SIZE; ++y) {
+      for (int x = 0; x < BLOCK_SIZE; ++x) {
         EXPECT_LE(patterns[pattern][y][x], 255u);
       }
     }
@@ -45,7 +46,7 @@ TEST(dct_test, should_give_every_decoder_projection_energy) {
   const auto& [vectors] = get_decoder_projections();
   for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
     float sum_of_squares = 0.0f;
-    for (int i = 0; i < 64; ++i) {
+    for (int i = 0; i < BLOCK_AREA; ++i) {
       sum_of_squares += vectors[bit_index][i] * vectors[bit_index][i];
     }
     EXPECT_GT(sum_of_squares, 0.0f);
@@ -57,10 +58,10 @@ TEST(dct_test, should_extract_every_embedded_bit_pattern) {
   const auto& [vectors] = get_decoder_projections();
 
   for (int pattern = 0; pattern < precomputed_blocks::PATTERN_COUNT; ++pattern) {
-    alignas(32) float block_flat[64];
-    for (int y = 0; y < 8; ++y) {
-      for (int x = 0; x < 8; ++x) {
-        block_flat[y * 8 + x] = static_cast<float>(patterns[pattern][y][x]);
+    alignas(VECTOR_ALIGNMENT) float block_flat[BLOCK_AREA];
+    for (int y = 0; y < BLOCK_SIZE; ++y) {
+      for (int x = 0; x < BLOCK_SIZE; ++x) {
+        block_flat[y * BLOCK_SIZE + x] = static_cast<float>(patterns[pattern][y][x]);
       }
     }
 
@@ -75,23 +76,23 @@ TEST(dct_test, should_extract_every_embedded_bit_pattern) {
 }
 
 TEST(dct_test, should_sum_a_dot_product_of_ones) {
-  alignas(32) float left[64];
-  alignas(32) float right[64];
+  alignas(VECTOR_ALIGNMENT) float left[BLOCK_AREA];
+  alignas(VECTOR_ALIGNMENT) float right[BLOCK_AREA];
 
-  for (int i = 0; i < 64; ++i) {
+  for (int i = 0; i < BLOCK_AREA; ++i) {
     left[i] = 1.0f;
     right[i] = 1.0f;
   }
 
   const float product = dot_product_64(left, right);
-  EXPECT_FLOAT_EQ(product, 64.0f);
+  EXPECT_FLOAT_EQ(product, static_cast<float>(BLOCK_AREA));
 }
 
 TEST(dct_test, should_compute_the_dot_product_of_a_linear_sequence) {
-  alignas(32) float left[64];
-  alignas(32) float right[64];
+  alignas(VECTOR_ALIGNMENT) float left[BLOCK_AREA];
+  alignas(VECTOR_ALIGNMENT) float right[BLOCK_AREA];
 
-  for (int i = 0; i < 64; ++i) {
+  for (int i = 0; i < BLOCK_AREA; ++i) {
     left[i] = static_cast<float>(i);
     right[i] = 1.0f;
   }
@@ -101,12 +102,13 @@ TEST(dct_test, should_compute_the_dot_product_of_a_linear_sequence) {
 }
 
 TEST(dct_test, should_compute_a_zero_dot_product_for_orthogonal_vectors) {
-  alignas(32) float left[64] = {};
-  alignas(32) float right[64] = {};
+  alignas(VECTOR_ALIGNMENT) float left[BLOCK_AREA] = {};
+  alignas(VECTOR_ALIGNMENT) float right[BLOCK_AREA] = {};
 
-  for (int i = 0; i < 32; ++i)
+  constexpr int half_area = BLOCK_AREA / 2;
+  for (int i = 0; i < half_area; ++i)
     left[i] = 1.0f;
-  for (int i = 32; i < 64; ++i)
+  for (int i = half_area; i < BLOCK_AREA; ++i)
     right[i] = 1.0f;
 
   const float product = dot_product_64(left, right);
@@ -121,7 +123,7 @@ TEST(dct_test, should_build_the_same_cosine_table_every_time) {
 
 TEST(dct_test, should_set_the_dc_cosine_to_one) {
   const auto& [data] = get_cosine_table();
-  for (int i = 0; i < 8; ++i) {
+  for (int i = 0; i < BLOCK_SIZE; ++i) {
     EXPECT_FLOAT_EQ(data[i][0], 1.0f);
   }
 }
@@ -129,7 +131,7 @@ TEST(dct_test, should_set_the_dc_cosine_to_one) {
 TEST(dct_test, should_store_one_bit_per_block_in_the_frame_layout) {
   const frame_layout layout = compute_frame_layout(1920, 1080);
   EXPECT_EQ(layout.bits_per_frame, layout.total_blocks * BITS_PER_BLOCK);
-  EXPECT_EQ(layout.bytes_per_frame, layout.bits_per_frame / 8);
+  EXPECT_EQ(layout.bytes_per_frame, layout.bits_per_frame / CHAR_BIT);
 }
 
 TEST(dct_test, should_produce_a_different_block_for_each_pattern) {
@@ -139,8 +141,8 @@ TEST(dct_test, should_produce_a_different_block_for_each_pattern) {
 
   const auto& [patterns] = get_precomputed_blocks();
   bool any_differ = false;
-  for (int y = 0; y < 8 && !any_differ; ++y) {
-    for (int x = 0; x < 8 && !any_differ; ++x) {
+  for (int y = 0; y < BLOCK_SIZE && !any_differ; ++y) {
+    for (int x = 0; x < BLOCK_SIZE && !any_differ; ++x) {
       if (patterns[0][y][x] != patterns[1][y][x]) {
         any_differ = true;
       }

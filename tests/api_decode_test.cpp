@@ -38,7 +38,7 @@ constexpr const char* FLV_EXTENSION = ".flv";
 
 constexpr std::size_t INPUT_SIZE = 1024;
 
-constexpr int CANCEL_REQUEST = 1;
+constexpr int CANCEL_OPERATION = 1;
 
 constexpr int STREAM_CONNECT_ATTEMPTS = 2;
 constexpr std::chrono::seconds STREAM_RETRY_DELAY{1};
@@ -46,7 +46,7 @@ constexpr std::chrono::seconds STREAM_RETRY_DELAY{1};
 constexpr uint32_t LAST_CHUNK_INDEX = 1;
 
 int request_cancellation(uint64_t, uint64_t, void*) {
-  return CANCEL_REQUEST;
+  return CANCEL_OPERATION;
 }
 
 void write_encoded_pattern(const fixtures::temporary_file& input, const fixtures::temporary_file& video) {

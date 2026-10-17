@@ -32,13 +32,17 @@ constexpr const char* UNSEEKABLE_FILE = "/proc/self/status";
 constexpr const char* NO_UNSEEKABLE_FILE_MESSAGE = "This platform has no file without a size!";
 
 constexpr std::size_t SINGLE_BYTE_CHUNK_SIZE = 1;
+constexpr std::size_t CUSTOM_CHUNK_SIZE = 100;
+
+constexpr std::size_t THIRD_CHUNK_INDEX = 2;
+constexpr std::size_t THIRD_CHUNK_OFFSET = THIRD_CHUNK_INDEX * CUSTOM_CHUNK_SIZE;
 
 constexpr const char* BINARY_EXTENSION = ".bin";
 
 std::vector<std::byte> make_patterned_data(const std::size_t size, const unsigned char multiplier = 1) {
   std::vector<std::byte> data(size);
   for (std::size_t i = 0; i < size; ++i) {
-    data[i] = static_cast<std::byte>(static_cast<unsigned char>((i * multiplier) & 0xFF));
+    data[i] = static_cast<std::byte>(static_cast<unsigned char>((i * multiplier) & fixtures::BYTE_MASK));
   }
   return data;
 }
@@ -97,7 +101,7 @@ TEST(chunker_test, should_chunk_large_data_into_several_chunks) {
   ASSERT_EQ(chunk_count, 3u);
   EXPECT_EQ(chunks[0].length, CHUNK_SIZE_BYTES);
   EXPECT_EQ(chunks[1].length, CHUNK_SIZE_BYTES);
-  EXPECT_EQ(chunks[2].length, CHUNK_SIZE_BYTES / 2);
+  EXPECT_EQ(chunks[THIRD_CHUNK_INDEX].length, CHUNK_SIZE_BYTES / 2);
 }
 
 TEST(chunker_test, should_keep_the_data_in_its_chunks) {
@@ -238,37 +242,36 @@ TEST(chunker_test, should_read_the_contents_of_each_chunk) {
 }
 
 TEST(chunker_test, should_read_chunks_of_a_custom_size) {
-  constexpr std::size_t custom_chunk_size = 100;
   constexpr std::size_t total_size = 250;
   const std::vector<std::byte> original_data = make_patterned_data(total_size);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   fixtures::write_bytes(input.path(), original_data);
 
   const std::string input_path = input.string();
-  const file_chunk_reader reader(input_path.c_str(), custom_chunk_size);
+  const file_chunk_reader reader(input_path.c_str(), CUSTOM_CHUNK_SIZE);
 
   const std::size_t chunk_size = reader.chunk_size();
   const std::size_t chunk_count = reader.chunk_count();
-  EXPECT_EQ(chunk_size, custom_chunk_size);
+  EXPECT_EQ(chunk_size, CUSTOM_CHUNK_SIZE);
   EXPECT_EQ(chunk_count, 3u);
 
   const std::vector<std::byte> first_chunk = reader.read_chunk(0);
   const std::vector<std::byte> second_chunk = reader.read_chunk(1);
-  const std::vector<std::byte> third_chunk = reader.read_chunk(2);
+  const std::vector<std::byte> third_chunk = reader.read_chunk(THIRD_CHUNK_INDEX);
 
   const std::size_t first_chunk_size = first_chunk.size();
   const std::size_t second_chunk_size = second_chunk.size();
   const std::size_t third_chunk_size = third_chunk.size();
-  ASSERT_EQ(first_chunk_size, 100u);
-  ASSERT_EQ(second_chunk_size, 100u);
+  ASSERT_EQ(first_chunk_size, CUSTOM_CHUNK_SIZE);
+  ASSERT_EQ(second_chunk_size, CUSTOM_CHUNK_SIZE);
   ASSERT_EQ(third_chunk_size, 50u);
 
-  for (std::size_t i = 0; i < 100; ++i) {
+  for (std::size_t i = 0; i < CUSTOM_CHUNK_SIZE; ++i) {
     EXPECT_EQ(first_chunk[i], original_data[i]);
-    EXPECT_EQ(second_chunk[i], original_data[100 + i]);
+    EXPECT_EQ(second_chunk[i], original_data[CUSTOM_CHUNK_SIZE + i]);
   }
   for (std::size_t i = 0; i < 50; ++i) {
-    EXPECT_EQ(third_chunk[i], original_data[200 + i]);
+    EXPECT_EQ(third_chunk[i], original_data[THIRD_CHUNK_OFFSET + i]);
   }
 }
 
@@ -285,26 +288,25 @@ TEST(chunker_test, should_fail_to_read_a_chunk_past_the_end) {
 }
 
 TEST(chunker_test, should_read_chunks_in_any_order) {
-  constexpr std::size_t custom_chunk = 100;
   constexpr std::size_t total_size = 300;
   const std::vector<std::byte> original_data = make_patterned_data(total_size, 7);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   fixtures::write_bytes(input.path(), original_data);
 
   const std::string input_path = input.string();
-  const file_chunk_reader reader(input_path.c_str(), custom_chunk);
+  const file_chunk_reader reader(input_path.c_str(), CUSTOM_CHUNK_SIZE);
 
   const std::size_t chunk_count = reader.chunk_count();
   ASSERT_EQ(chunk_count, 3u);
 
-  const auto chunk2 = reader.read_chunk(2);
+  const auto chunk2 = reader.read_chunk(THIRD_CHUNK_INDEX);
   const auto chunk0 = reader.read_chunk(0);
   const auto chunk1 = reader.read_chunk(1);
 
-  for (std::size_t i = 0; i < 100; ++i) {
+  for (std::size_t i = 0; i < CUSTOM_CHUNK_SIZE; ++i) {
     EXPECT_EQ(chunk0[i], original_data[i]);
-    EXPECT_EQ(chunk1[i], original_data[100 + i]);
-    EXPECT_EQ(chunk2[i], original_data[200 + i]);
+    EXPECT_EQ(chunk1[i], original_data[CUSTOM_CHUNK_SIZE + i]);
+    EXPECT_EQ(chunk2[i], original_data[THIRD_CHUNK_OFFSET + i]);
   }
 }
 
@@ -314,7 +316,7 @@ TEST(chunker_test, should_read_the_same_chunk_twice) {
   fixtures::write_bytes(input.path(), original_data);
 
   const std::string input_path = input.string();
-  const file_chunk_reader reader(input_path.c_str(), 100);
+  const file_chunk_reader reader(input_path.c_str(), CUSTOM_CHUNK_SIZE);
 
   const auto first_read = reader.read_chunk(0);
   const auto second_read = reader.read_chunk(0);
@@ -323,11 +325,15 @@ TEST(chunker_test, should_read_the_same_chunk_twice) {
 }
 
 TEST(chunker_test, should_fail_to_read_a_missing_file) {
-  EXPECT_THROW(file_chunk_reader("/tmp/nonexistent_chunker_test_12345.bin"), std::runtime_error);
+  const fixtures::temporary_file missing_input(BINARY_EXTENSION);
+  const std::string missing_input_path = missing_input.string();
+  EXPECT_THROW(file_chunk_reader(missing_input_path.c_str()), std::runtime_error);
 }
 
 TEST(chunker_test, should_fail_to_chunk_a_missing_file) {
-  EXPECT_THROW(static_cast<void>(chunk_file("/tmp/nonexistent_chunker_test_12345.bin")), std::runtime_error);
+  const fixtures::temporary_file missing_input(BINARY_EXTENSION);
+  const std::string missing_input_path = missing_input.string();
+  EXPECT_THROW(static_cast<void>(chunk_file(missing_input_path.c_str())), std::runtime_error);
 }
 
 TEST(chunker_test, should_chunk_a_file_into_chunks_of_a_custom_size) {
@@ -343,7 +349,7 @@ TEST(chunker_test, should_chunk_a_file_into_chunks_of_a_custom_size) {
   ASSERT_EQ(chunk_count, 3u);
   EXPECT_EQ(chunks[0].length, 50u);
   EXPECT_EQ(chunks[1].length, 50u);
-  EXPECT_EQ(chunks[2].length, 20u);
+  EXPECT_EQ(chunks[THIRD_CHUNK_INDEX].length, 20u);
   EXPECT_EQ(storage, original_data);
 }
 

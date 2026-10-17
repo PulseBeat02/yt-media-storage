@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include "fixtures.h"
 #include "integrity.h"
 #define XXH_INLINE_ALL
 #include "libs/xxhash.h"
@@ -25,6 +26,15 @@
 #include <vector>
 
 namespace {
+
+constexpr const char* PAYLOAD = "payload-bytes";
+constexpr const char* SHORT_PAYLOAD = "pld";
+
+constexpr const char* PACKET_HEADER = "\x01\x02\x03\x04\x05\x06";
+constexpr const char* SHORT_HEADER = "hdr";
+constexpr const char* HEADER_WITH_TRAILER = "ab\x11\x22\x33\x44trail";
+
+constexpr std::size_t CHECKSUM_OFFSET = 2;
 
 std::vector<std::byte> bytes_from_string(const std::string& text) {
   std::vector<std::byte> result;
@@ -106,8 +116,8 @@ TEST(integrity_test, should_continue_a_crc32_across_concatenated_data) {
 }
 
 TEST(integrity_test, should_compute_crc32_packet_checksums_with_crc32) {
-  const std::vector<std::byte> header = bytes_from_string("hdr");
-  const std::vector<std::byte> payload = bytes_from_string("pld");
+  const std::vector<std::byte> header = bytes_from_string(SHORT_HEADER);
+  const std::vector<std::byte> payload = bytes_from_string(SHORT_PAYLOAD);
   constexpr std::size_t crc_offset = 0;
 
   const uint32_t dispatched = packet_checksum(header, payload, crc_offset, hash_algorithm_type::CRC32);
@@ -116,8 +126,8 @@ TEST(integrity_test, should_compute_crc32_packet_checksums_with_crc32) {
 }
 
 TEST(integrity_test, should_compute_xxhash_packet_checksums_with_xxhash) {
-  const std::vector<std::byte> header = bytes_from_string("hdr");
-  const std::vector<std::byte> payload = bytes_from_string("pld");
+  const std::vector<std::byte> header = bytes_from_string(SHORT_HEADER);
+  const std::vector<std::byte> payload = bytes_from_string(SHORT_PAYLOAD);
   constexpr std::size_t crc_offset = 0;
 
   const uint32_t dispatched = packet_checksum(header, payload, crc_offset, hash_algorithm_type::XXHASH32);
@@ -126,29 +136,27 @@ TEST(integrity_test, should_compute_xxhash_packet_checksums_with_xxhash) {
 }
 
 TEST(integrity_test, should_accept_a_packet_with_a_valid_checksum) {
-  std::vector<std::byte> header = bytes_from_string("\x01\x02\x03\x04\x05\x06");
-  const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
-  constexpr std::size_t crc_offset = 2;
+  std::vector<std::byte> header = bytes_from_string(PACKET_HEADER);
+  const std::vector<std::byte> payload = bytes_from_string(PAYLOAD);
 
-  const uint32_t computed_crc = packet_crc32(header, payload, crc_offset);
-  write_uint32_little_endian(header, crc_offset, computed_crc);
+  const uint32_t computed_crc = packet_crc32(header, payload, CHECKSUM_OFFSET);
+  write_uint32_little_endian(header, CHECKSUM_OFFSET, computed_crc);
 
-  const bool checksum_valid = verify_packet_crc32(header, payload, crc_offset);
+  const bool checksum_valid = verify_packet_crc32(header, payload, CHECKSUM_OFFSET);
   EXPECT_TRUE(checksum_valid);
 }
 
 TEST(integrity_test, should_reject_a_packet_with_a_corrupted_payload) {
-  std::vector<std::byte> header = bytes_from_string("\x01\x02\x03\x04\x05\x06");
-  std::vector<std::byte> payload = bytes_from_string("payload-bytes");
-  constexpr std::size_t crc_offset = 2;
+  std::vector<std::byte> header = bytes_from_string(PACKET_HEADER);
+  std::vector<std::byte> payload = bytes_from_string(PAYLOAD);
 
-  const uint32_t computed_crc = packet_crc32(header, payload, crc_offset);
-  write_uint32_little_endian(header, crc_offset, computed_crc);
+  const uint32_t computed_crc = packet_crc32(header, payload, CHECKSUM_OFFSET);
+  write_uint32_little_endian(header, CHECKSUM_OFFSET, computed_crc);
 
   const auto original_byte = static_cast<unsigned char>(payload[0]);
   payload[0] = static_cast<std::byte>(original_byte ^ 0xFFu);
 
-  const bool checksum_valid = verify_packet_crc32(header, payload, crc_offset);
+  const bool checksum_valid = verify_packet_crc32(header, payload, CHECKSUM_OFFSET);
   EXPECT_FALSE(checksum_valid);
 }
 
@@ -169,7 +177,7 @@ TEST(integrity_test, should_start_a_crc32_from_a_custom_seed) {
 TEST(integrity_test, should_hash_large_input) {
   std::vector<std::byte> large_data(1024 * 1024);
   for (std::size_t i = 0; i < large_data.size(); ++i) {
-    large_data[i] = static_cast<std::byte>(i & 0xFF);
+    large_data[i] = static_cast<std::byte>(i & fixtures::BYTE_MASK);
   }
   const sha256_digest digest = sha256(large_data);
   const sha256_digest digest_again = sha256(large_data);
@@ -179,7 +187,7 @@ TEST(integrity_test, should_hash_large_input) {
 }
 
 TEST(integrity_test, should_hash_an_empty_payload_with_xxhash) {
-  const std::vector<std::byte> header = bytes_from_string("hdr");
+  const std::vector<std::byte> header = bytes_from_string(SHORT_HEADER);
   const std::vector<std::byte> empty_payload;
   const uint32_t hash = packet_xxhash32(header, empty_payload, 0);
   const uint32_t hash_again = packet_xxhash32(header, empty_payload, 0);
@@ -187,50 +195,45 @@ TEST(integrity_test, should_hash_an_empty_payload_with_xxhash) {
 }
 
 TEST(integrity_test, should_checksum_the_header_bytes_after_the_crc_field) {
-  const std::vector<std::byte> header = bytes_from_string("ab\x11\x22\x33\x44trail");
-  const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
-  constexpr std::size_t crc_offset = 2;
-  constexpr std::size_t crc_size = 4;
+  const std::vector<std::byte> header = bytes_from_string(HEADER_WITH_TRAILER);
+  const std::vector<std::byte> payload = bytes_from_string(PAYLOAD);
   std::vector<std::byte> zeroed_header = header;
-  std::memset(zeroed_header.data() + crc_offset, 0, crc_size);
+  std::memset(zeroed_header.data() + CHECKSUM_OFFSET, 0, CRC_SIZE);
 
-  const uint32_t crc = packet_crc32(header, payload, crc_offset);
+  const uint32_t crc = packet_crc32(header, payload, CHECKSUM_OFFSET);
 
   const uint32_t expected_crc = crc32_mpeg2_concat(zeroed_header, payload);
   EXPECT_EQ(crc, expected_crc);
 }
 
 TEST(integrity_test, should_hash_the_header_bytes_after_the_hash_field) {
-  const std::vector<std::byte> header = bytes_from_string("ab\x11\x22\x33\x44trail");
-  const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
-  constexpr std::size_t hash_offset = 2;
-  constexpr std::size_t hash_size = 4;
+  const std::vector<std::byte> header = bytes_from_string(HEADER_WITH_TRAILER);
+  const std::vector<std::byte> payload = bytes_from_string(PAYLOAD);
   constexpr XXH32_hash_t seed = 0;
   std::vector<std::byte> zeroed_packet = header;
-  std::memset(zeroed_packet.data() + hash_offset, 0, hash_size);
+  std::memset(zeroed_packet.data() + CHECKSUM_OFFSET, 0, CRC_SIZE);
   zeroed_packet.insert(zeroed_packet.end(), payload.begin(), payload.end());
 
-  const uint32_t hash = packet_xxhash32(header, payload, hash_offset);
+  const uint32_t hash = packet_xxhash32(header, payload, CHECKSUM_OFFSET);
 
   const XXH32_hash_t expected_hash = XXH32(zeroed_packet.data(), zeroed_packet.size(), seed);
   EXPECT_EQ(hash, expected_hash);
 }
 
 TEST(integrity_test, should_reject_a_crc_field_that_is_not_four_bytes) {
-  std::vector<std::byte> header = bytes_from_string("\x01\x02\x03\x04\x05\x06");
-  const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
-  constexpr std::size_t crc_offset = 2;
+  std::vector<std::byte> header = bytes_from_string(PACKET_HEADER);
+  const std::vector<std::byte> payload = bytes_from_string(PAYLOAD);
   constexpr std::size_t short_crc_size = 2;
-  write_uint32_little_endian(header, crc_offset, packet_crc32(header, payload, crc_offset));
+  write_uint32_little_endian(header, CHECKSUM_OFFSET, packet_crc32(header, payload, CHECKSUM_OFFSET));
 
-  const bool verified = verify_packet_crc32(header, payload, crc_offset, short_crc_size);
+  const bool verified = verify_packet_crc32(header, payload, CHECKSUM_OFFSET, short_crc_size);
 
   EXPECT_FALSE(verified);
 }
 
 TEST(integrity_test, should_reject_a_crc_field_that_ends_past_the_header) {
-  const std::vector<std::byte> header = bytes_from_string("\x01\x02\x03\x04\x05\x06");
-  const std::vector<std::byte> payload = bytes_from_string("payload-bytes");
+  const std::vector<std::byte> header = bytes_from_string(PACKET_HEADER);
+  const std::vector<std::byte> payload = bytes_from_string(PAYLOAD);
   constexpr std::size_t crc_offset = 3;
 
   const bool verified = verify_packet_crc32(header, payload, crc_offset);

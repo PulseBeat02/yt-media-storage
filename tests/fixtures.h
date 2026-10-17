@@ -40,11 +40,15 @@ constexpr const char* NO_FULL_DEVICE_MESSAGE = "This platform has no full device
 constexpr const char* UNMAPPABLE_FILE = "/sys/devices/system/cpu/online";
 constexpr const char* NO_UNMAPPABLE_FILE_MESSAGE = "This platform has no file that cannot be memory-mapped!";
 
+constexpr const char* TEMPORARY_FILE_PREFIX = "ms";
+constexpr const char* TEMPORARY_FILE_SEPARATOR = "_";
+
 class temporary_file {
 public:
   explicit temporary_file(const std::string& extension) {
     const testing::TestInfo* const test = testing::UnitTest::GetInstance()->current_test_info();
-    const std::string name = std::string("ms_") + test->test_suite_name() + "_" + test->name() + "_" +
+    const std::string name = std::string(TEMPORARY_FILE_PREFIX) + TEMPORARY_FILE_SEPARATOR + test->test_suite_name() +
+                             TEMPORARY_FILE_SEPARATOR + test->name() + TEMPORARY_FILE_SEPARATOR +
                              std::to_string(next_index()) + extension;
     path_ = std::filesystem::temp_directory_path() / name;
   }

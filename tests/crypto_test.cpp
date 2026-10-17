@@ -17,8 +17,10 @@
 #include <gtest/gtest.h>
 
 #include "crypto.h"
+#include "fixtures.h"
 
 #include <array>
+#include <climits>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -29,17 +31,19 @@
 
 namespace {
 
-std::array<std::byte, 16> make_test_file_id() {
-  std::array<std::byte, 16> file_id{};
-  for (std::size_t i = 0; i < 16; ++i) {
+constexpr std::size_t PLAINTEXT_SIZE = 64;
+
+file_id_type make_test_file_id() {
+  file_id_type file_id{};
+  for (std::size_t i = 0; i < file_id.size(); ++i) {
     file_id[i] = static_cast<std::byte>(i);
   }
   return file_id;
 }
 
-std::array<std::byte, 16> make_salt(const uint8_t base) {
-  std::array<std::byte, 16> salt{};
-  for (std::size_t i = 0; i < 16; ++i) {
+file_id_type make_salt(const uint8_t base) {
+  file_id_type salt{};
+  for (std::size_t i = 0; i < salt.size(); ++i) {
     salt[i] = static_cast<std::byte>(base + i);
   }
   return salt;
@@ -50,14 +54,14 @@ std::array<std::byte, CRYPTO_KEY_BYTES> make_test_key() {
       std::byte{'t'}, std::byte{'e'}, std::byte{'s'}, std::byte{'t'},
       std::byte{'p'}, std::byte{'a'}, std::byte{'s'}, std::byte{'s'},
   };
-  const std::array<std::byte, 16> salt = make_salt(0x10);
+  const file_id_type salt = make_salt(0x10);
   return derive_key(std::span(password), salt);
 }
 
 std::vector<std::byte> make_patterned_data(const std::size_t byte_count, const uint8_t multiplier = 1) {
   std::vector<std::byte> data(byte_count);
   for (std::size_t i = 0; i < byte_count; ++i) {
-    data[i] = static_cast<std::byte>(static_cast<uint8_t>((i * multiplier) & 0xFF));
+    data[i] = static_cast<std::byte>(static_cast<uint8_t>((i * multiplier) & fixtures::BYTE_MASK));
   }
   return data;
 }
@@ -73,7 +77,7 @@ TEST(crypto_test, should_generate_distinct_file_ids) {
 
 TEST(crypto_test, should_derive_the_same_key_from_the_same_password_and_salt) {
   static constexpr std::byte password[] = {std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
-  const std::array<std::byte, 16> salt = make_salt(0x00);
+  const file_id_type salt = make_salt(0x00);
 
   const auto first_key = derive_key(std::span(password), salt);
   const auto second_key = derive_key(std::span(password), salt);
@@ -84,7 +88,7 @@ TEST(crypto_test, should_derive_the_same_key_from_the_same_password_and_salt) {
 TEST(crypto_test, should_derive_different_keys_from_different_passwords) {
   static constexpr std::byte password_a[] = {std::byte{'a'}};
   static constexpr std::byte password_b[] = {std::byte{'b'}};
-  const std::array<std::byte, 16> salt = make_salt(0x20);
+  const file_id_type salt = make_salt(0x20);
 
   const auto key_a = derive_key(std::span(password_a), salt);
   const auto key_b = derive_key(std::span(password_b), salt);
@@ -94,8 +98,8 @@ TEST(crypto_test, should_derive_different_keys_from_different_passwords) {
 
 TEST(crypto_test, should_derive_different_keys_from_different_salts) {
   static constexpr std::byte password[] = {std::byte{'x'}, std::byte{'y'}};
-  const std::array<std::byte, 16> first_salt = make_salt(0x00);
-  const std::array<std::byte, 16> second_salt = make_salt(0x80);
+  const file_id_type first_salt = make_salt(0x00);
+  const file_id_type second_salt = make_salt(0x80);
 
   const auto first_key = derive_key(std::span(password), first_salt);
   const auto second_key = derive_key(std::span(password), second_salt);
@@ -106,7 +110,7 @@ TEST(crypto_test, should_derive_different_keys_from_different_salts) {
 TEST(crypto_test, should_decrypt_what_it_encrypted) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
-  const std::vector<std::byte> plaintext = make_patterned_data(64, 3);
+  const std::vector<std::byte> plaintext = make_patterned_data(PLAINTEXT_SIZE, 3);
 
   const std::vector<std::byte> ciphertext = encrypt_chunk(plaintext, key, file_id, 0u);
   const std::vector<std::byte> decrypted = decrypt_chunk(ciphertext, key, file_id, 0u);
@@ -191,12 +195,11 @@ TEST(crypto_test, should_reject_the_wrong_chunk_index) {
 }
 
 TEST(crypto_test, should_read_the_plain_size_from_the_header) {
-  std::array<std::byte, 4> header_bytes{};
+  std::array<std::byte, CRYPTO_PLAIN_SIZE_HEADER> header_bytes{};
   constexpr uint32_t expected_size = 0xDEADBEEFu;
-  header_bytes[0] = static_cast<std::byte>(expected_size & 0xFFu);
-  header_bytes[1] = static_cast<std::byte>((expected_size >> 8) & 0xFFu);
-  header_bytes[2] = static_cast<std::byte>((expected_size >> 16) & 0xFFu);
-  header_bytes[3] = static_cast<std::byte>((expected_size >> 24) & 0xFFu);
+  for (std::size_t i = 0; i < header_bytes.size(); ++i) {
+    header_bytes[i] = static_cast<std::byte>((expected_size >> (i * CHAR_BIT)) & fixtures::BYTE_MASK);
+  }
 
   const uint32_t actual_size = read_plain_size_from_header(header_bytes);
 
@@ -238,7 +241,7 @@ TEST(crypto_test, should_reject_a_chunk_too_small_for_a_size_header) {
 TEST(crypto_test, should_reject_an_output_too_small_for_the_plaintext) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
-  const std::vector<std::byte> plaintext = make_patterned_data(64);
+  const std::vector<std::byte> plaintext = make_patterned_data(PLAINTEXT_SIZE);
 
   const std::vector<std::byte> ciphertext = encrypt_chunk(plaintext, key, file_id, 0u);
 
@@ -263,7 +266,7 @@ TEST(crypto_test, should_hide_the_plaintext_in_the_ciphertext) {
 TEST(crypto_test, should_encrypt_each_chunk_index_differently) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
-  const std::vector<std::byte> plaintext = make_patterned_data(64);
+  const std::vector<std::byte> plaintext = make_patterned_data(PLAINTEXT_SIZE);
 
   const std::vector<std::byte> ciphertext0 = encrypt_chunk(plaintext, key, file_id, 0u);
   const std::vector<std::byte> ciphertext1 = encrypt_chunk(plaintext, key, file_id, 1u);
@@ -299,7 +302,7 @@ TEST(crypto_test, should_reject_a_chunk_without_a_size_header_when_decrypting_in
 TEST(crypto_test, should_reject_a_size_header_larger_than_a_chunk) {
   const auto key = make_test_key();
   const auto file_id = make_test_file_id();
-  std::vector<std::byte> ciphertext = encrypt_chunk(make_patterned_data(64), key, file_id, 0u);
+  std::vector<std::byte> ciphertext = encrypt_chunk(make_patterned_data(PLAINTEXT_SIZE), key, file_id, 0u);
   const auto oversized = static_cast<uint32_t>(CHUNK_SIZE_BYTES + 1);
   std::memcpy(ciphertext.data(), &oversized, sizeof(oversized));
 

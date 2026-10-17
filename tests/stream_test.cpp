@@ -43,6 +43,21 @@ constexpr const char* BINARY_EXTENSION = ".bin";
 constexpr const char* MATROSKA_EXTENSION = ".mkv";
 constexpr const char* FLV_EXTENSION = ".flv";
 
+constexpr const char* UNUSED_OUTPUT_PATH = "unused.flv";
+
+constexpr std::size_t INPUT_SIZE = 65536;
+constexpr std::size_t HALF_INPUT_SIZE = INPUT_SIZE / 2;
+
+constexpr int BITRATE_KILOBITS_PER_SECOND = 8000;
+constexpr int LOW_BITRATE_KILOBITS_PER_SECOND = 4000;
+
+constexpr int WIDTH_1080P = 1920;
+constexpr int HEIGHT_1080P = 1080;
+constexpr int WIDTH_720P = 1280;
+constexpr int HEIGHT_720P = 720;
+constexpr int WIDTH_4K = 3840;
+constexpr int HEIGHT_4K = 2160;
+
 encoder::file_id_type make_test_file_id() {
   encoder::file_id_type file_id{};
   for (std::size_t i = 0; i < file_id.size(); ++i) {
@@ -55,7 +70,8 @@ void stream_encode_file(const std::string& input_path, const std::string& output
                         const int bitrate_kilobits_per_second, const int width, const int height,
                         const bool encrypt = false, const std::string& password = {},
                         const int frames_per_second = FRAMES_PER_SECOND) {
-  const file_chunk_reader reader(input_path.c_str(), encrypt ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : 0);
+  const file_chunk_reader reader(input_path.c_str(),
+                                 encrypt ? CHUNK_SIZE_PLAIN_MAXIMUM_ENCRYPTED : AUTOMATIC_CHUNK_SIZE);
   const std::size_t chunk_count = reader.chunk_count();
   const auto file_id = make_test_file_id();
   const encoder encoder(file_id);
@@ -142,12 +158,13 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
 } // namespace
 
 TEST(stream_test, should_restore_a_small_file_from_1080p_frames) {
-  const auto original = fixtures::make_pattern(65536);
+  const auto original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
 
-  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), 8000, 1920, 1080));
+  ASSERT_NO_THROW(
+      stream_encode_file(input.string(), flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P, HEIGHT_1080P));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -157,12 +174,12 @@ TEST(stream_test, should_restore_a_small_file_from_1080p_frames) {
 }
 
 TEST(stream_test, should_restore_a_small_file_from_4k_frames) {
-  const auto original = fixtures::make_pattern(65536);
+  const auto original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
 
-  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), 35000, 3840, 2160));
+  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), 35000, WIDTH_4K, HEIGHT_4K));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -177,7 +194,8 @@ TEST(stream_test, should_restore_a_larger_file_from_1080p_frames) {
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
 
-  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), 8000, 1920, 1080));
+  ASSERT_NO_THROW(
+      stream_encode_file(input.string(), flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P, HEIGHT_1080P));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -187,14 +205,15 @@ TEST(stream_test, should_restore_a_larger_file_from_1080p_frames) {
 }
 
 TEST(stream_test, should_restore_an_encrypted_file_from_frames) {
-  const auto original = fixtures::make_pattern(65536);
+  const auto original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
 
   const std::string password = "test_password_123";
 
-  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), 8000, 1920, 1080, true, password));
+  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P,
+                                     HEIGHT_1080P, true, password));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -209,7 +228,8 @@ TEST(stream_test, should_restore_small_data_from_frames) {
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
 
-  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), 8000, 1920, 1080));
+  ASSERT_NO_THROW(
+      stream_encode_file(input.string(), flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P, HEIGHT_1080P));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -219,18 +239,18 @@ TEST(stream_test, should_restore_small_data_from_frames) {
 }
 
 TEST(stream_test, should_lay_out_1080p_frames) {
-  const frame_layout layout = compute_frame_layout(1920, 1080);
-  EXPECT_EQ(layout.frame_width, 1920);
-  EXPECT_EQ(layout.frame_height, 1080);
+  const frame_layout layout = compute_frame_layout(WIDTH_1080P, HEIGHT_1080P);
+  EXPECT_EQ(layout.frame_width, WIDTH_1080P);
+  EXPECT_EQ(layout.frame_height, HEIGHT_1080P);
   EXPECT_EQ(layout.blocks_per_row, 240);
   EXPECT_EQ(layout.blocks_per_column, 135);
   EXPECT_EQ(layout.total_blocks, 32400);
 }
 
 TEST(stream_test, should_lay_out_4k_frames) {
-  const frame_layout layout = compute_frame_layout(3840, 2160);
-  EXPECT_EQ(layout.frame_width, 3840);
-  EXPECT_EQ(layout.frame_height, 2160);
+  const frame_layout layout = compute_frame_layout(WIDTH_4K, HEIGHT_4K);
+  EXPECT_EQ(layout.frame_width, WIDTH_4K);
+  EXPECT_EQ(layout.frame_height, HEIGHT_4K);
   EXPECT_EQ(layout.blocks_per_row, 480);
   EXPECT_EQ(layout.blocks_per_column, 270);
   EXPECT_EQ(layout.total_blocks, 129600);
@@ -246,7 +266,7 @@ TEST(stream_test, should_lay_out_default_frames_from_the_configuration) {
 }
 
 TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
-  const auto original = fixtures::make_pattern(65536);
+  const auto original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file mkv(MATROSKA_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -307,7 +327,7 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
 }
 
 TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
-  const auto original = fixtures::make_pattern(65536);
+  const auto original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
@@ -317,7 +337,7 @@ TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
     const file_chunk_reader reader(input_path.c_str());
     const auto file_id = make_test_file_id();
     const encoder encoder(file_id, hash_algorithm_type::XXHASH32);
-    stream_encoder stream_encoder(flv.string(), 8000, 1920, 1080);
+    stream_encoder stream_encoder(flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P, HEIGHT_1080P);
 
     for (std::size_t i = 0; i < reader.chunk_count(); ++i) {
       auto chunk_data = reader.read_chunk(i);
@@ -336,12 +356,13 @@ TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
 }
 
 TEST(stream_test, should_restore_a_file_from_720p_frames) {
-  const auto original = fixtures::make_pattern(32768);
+  const auto original = fixtures::make_pattern(HALF_INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
 
-  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), 4000, 1280, 720));
+  ASSERT_NO_THROW(
+      stream_encode_file(input.string(), flv.string(), LOW_BITRATE_KILOBITS_PER_SECOND, WIDTH_720P, HEIGHT_720P));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -351,12 +372,13 @@ TEST(stream_test, should_restore_a_file_from_720p_frames) {
 }
 
 TEST(stream_test, should_restore_a_file_from_sixty_frames_per_second) {
-  const auto original = fixtures::make_pattern(65536);
+  const auto original = fixtures::make_pattern(INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
 
-  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), 8000, 1280, 720, false, {}, 60));
+  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_720P, HEIGHT_720P,
+                                     false, {}, 60));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -366,12 +388,13 @@ TEST(stream_test, should_restore_a_file_from_sixty_frames_per_second) {
 }
 
 TEST(stream_test, should_restore_a_file_from_one_frame_per_second) {
-  const auto original = fixtures::make_pattern(32768);
+  const auto original = fixtures::make_pattern(HALF_INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
 
-  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), 4000, 1280, 720, false, {}, 1));
+  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), LOW_BITRATE_KILOBITS_PER_SECOND, WIDTH_720P,
+                                     HEIGHT_720P, false, {}, 1));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -381,9 +404,10 @@ TEST(stream_test, should_restore_a_file_from_one_frame_per_second) {
 }
 
 TEST(stream_test, should_reject_invalid_stream_parameters) {
-  EXPECT_THROW(stream_encoder("unused.flv", 8000, 1280, 720, 0), std::invalid_argument);
-  EXPECT_THROW(stream_encoder("unused.flv", 0, 1280, 720, 30), std::invalid_argument);
-  EXPECT_THROW(stream_encoder("unused.flv", 8000, 16, 16, 30), std::invalid_argument);
+  EXPECT_THROW(stream_encoder(UNUSED_OUTPUT_PATH, BITRATE_KILOBITS_PER_SECOND, WIDTH_720P, HEIGHT_720P, 0),
+               std::invalid_argument);
+  EXPECT_THROW(stream_encoder(UNUSED_OUTPUT_PATH, 0, WIDTH_720P, HEIGHT_720P, 30), std::invalid_argument);
+  EXPECT_THROW(stream_encoder(UNUSED_OUTPUT_PATH, BITRATE_KILOBITS_PER_SECOND, 16, 16, 30), std::invalid_argument);
 }
 
 TEST(stream_test, should_fit_at_least_one_packet_in_a_frame) {
@@ -410,7 +434,8 @@ TEST(stream_test, should_restore_a_file_of_several_chunks_from_frames) {
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
 
-  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), 8000, 1920, 1080));
+  ASSERT_NO_THROW(
+      stream_encode_file(input.string(), flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P, HEIGHT_1080P));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);
@@ -420,12 +445,12 @@ TEST(stream_test, should_restore_a_file_of_several_chunks_from_frames) {
 }
 
 TEST(stream_test, should_restore_a_file_from_every_frame_of_a_video) {
-  const auto original = fixtures::make_pattern(32768);
+  const auto original = fixtures::make_pattern(HALF_INPUT_SIZE);
   const fixtures::temporary_file input(BINARY_EXTENSION);
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), original);
 
-  stream_encode_file(input.string(), flv.string(), 8000, 1920, 1080);
+  stream_encode_file(input.string(), flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P, HEIGHT_1080P);
 
   video_decoder video_decoder(flv.string());
   const auto all_packets = video_decoder.decode_all_frames();
@@ -446,7 +471,8 @@ TEST(stream_test, should_restore_an_empty_file_from_frames) {
   const fixtures::temporary_file flv(FLV_EXTENSION);
   fixtures::write_bytes(input.path(), {});
 
-  ASSERT_NO_THROW(stream_encode_file(input.string(), flv.string(), 8000, 1920, 1080));
+  ASSERT_NO_THROW(
+      stream_encode_file(input.string(), flv.string(), BITRATE_KILOBITS_PER_SECOND, WIDTH_1080P, HEIGHT_1080P));
 
   const bool flv_exists = std::filesystem::exists(flv.path());
   ASSERT_TRUE(flv_exists);

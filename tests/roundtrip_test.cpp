@@ -36,6 +36,11 @@ namespace {
 
 constexpr const char* BINARY_EXTENSION = ".bin";
 
+constexpr std::size_t INPUT_SIZE = 4096;
+constexpr std::size_t ENCRYPTED_INPUT_SIZE = 8192;
+
+constexpr std::size_t PATTERN_PERIOD = 251;
+
 encoder::file_id_type make_test_file_id() {
   encoder::file_id_type file_id{};
   for (std::size_t i = 0; i < file_id.size(); ++i) {
@@ -47,7 +52,7 @@ encoder::file_id_type make_test_file_id() {
 std::vector<std::byte> make_test_data(const std::size_t byte_count) {
   std::vector<std::byte> data(byte_count);
   for (std::size_t i = 0; i < byte_count; ++i) {
-    data[i] = std::byte{static_cast<uint8_t>(i % 251)};
+    data[i] = std::byte{static_cast<uint8_t>(i % PATTERN_PERIOD)};
   }
   return data;
 }
@@ -66,7 +71,7 @@ void encode_and_feed(const encoder& encoder, decoder& decoder, const std::span<c
 } // namespace
 
 TEST(roundtrip_test, should_restore_a_single_chunk) {
-  const std::vector<std::byte> original_data = make_test_data(4096);
+  const std::vector<std::byte> original_data = make_test_data(INPUT_SIZE);
   const encoder encoder(make_test_file_id());
   decoder decoder;
 
@@ -119,7 +124,7 @@ TEST(roundtrip_test, should_restore_small_data) {
 }
 
 TEST(roundtrip_test, should_restore_encrypted_data) {
-  const std::vector<std::byte> original_data = make_test_data(8192);
+  const std::vector<std::byte> original_data = make_test_data(ENCRYPTED_INPUT_SIZE);
   const encoder::file_id_type file_id = make_test_file_id();
   const encoder encoder(file_id);
   decoder decoder;
@@ -148,7 +153,7 @@ TEST(roundtrip_test, should_restore_encrypted_data) {
 }
 
 TEST(roundtrip_test, should_restore_data_with_xxhash_checksums) {
-  const std::vector<std::byte> original_data = make_test_data(4096);
+  const std::vector<std::byte> original_data = make_test_data(INPUT_SIZE);
   const encoder encoder(make_test_file_id(), hash_algorithm_type::XXHASH32);
   decoder decoder;
 
@@ -161,7 +166,7 @@ TEST(roundtrip_test, should_restore_data_with_xxhash_checksums) {
 }
 
 TEST(roundtrip_test, should_not_assemble_a_file_with_incomplete_chunks) {
-  const std::vector<std::byte> original_data = make_test_data(4096);
+  const std::vector<std::byte> original_data = make_test_data(INPUT_SIZE);
   const encoder encoder(make_test_file_id());
   decoder decoder;
 
@@ -202,7 +207,7 @@ TEST(roundtrip_test, should_restore_data_matching_the_sha256_of_its_manifest) {
 }
 
 TEST(roundtrip_test, should_restore_encrypted_data_with_xxhash_checksums) {
-  const std::vector<std::byte> original_data = make_test_data(8192);
+  const std::vector<std::byte> original_data = make_test_data(ENCRYPTED_INPUT_SIZE);
   const encoder::file_id_type file_id = make_test_file_id();
   const encoder encoder(file_id, hash_algorithm_type::XXHASH32);
   decoder decoder;
@@ -339,7 +344,7 @@ TEST(roundtrip_test, should_restore_data_despite_lost_packets) {
 }
 
 TEST(roundtrip_test, should_write_the_assembled_file) {
-  const std::vector<std::byte> original_data = make_test_data(4096);
+  const std::vector<std::byte> original_data = make_test_data(INPUT_SIZE);
   const encoder encoder(make_test_file_id());
   decoder decoder;
 

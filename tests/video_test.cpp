@@ -242,7 +242,7 @@ void write_frames_of_size(std::ofstream& output, const int width, const int heig
   frame.get()->width = width;
   frame.get()->height = height;
 
-  const int buffer_status = av_frame_get_buffer(frame.get(), 0);
+  const int buffer_status = av_frame_get_buffer(frame.get(), DEFAULT_ALIGNMENT);
   ASSERT_EQ(buffer_status, 0);
 
   fill_with_middle_gray(*frame.get());
@@ -276,7 +276,7 @@ TEST(av_utils_test, should_give_a_shared_frame_its_own_buffer_of_the_same_shape)
   frame.get()->width = SMALL_FRAME_WIDTH;
   frame.get()->height = SMALL_FRAME_HEIGHT;
 
-  const int buffer_status = av_frame_get_buffer(frame.get(), 0);
+  const int buffer_status = av_frame_get_buffer(frame.get(), DEFAULT_ALIGNMENT);
   ASSERT_EQ(buffer_status, 0);
 
   const int reference_status = av_frame_ref(reference.get(), frame.get());
@@ -306,7 +306,7 @@ TEST(av_utils_test, should_keep_the_buffer_of_a_frame_that_is_already_writable) 
   frame.get()->width = SMALL_FRAME_WIDTH;
   frame.get()->height = SMALL_FRAME_HEIGHT;
 
-  const int buffer_status = av_frame_get_buffer(frame.get(), 0);
+  const int buffer_status = av_frame_get_buffer(frame.get(), DEFAULT_ALIGNMENT);
   ASSERT_EQ(buffer_status, 0);
 
   const uint8_t* const plane = frame.get()->data[0];
