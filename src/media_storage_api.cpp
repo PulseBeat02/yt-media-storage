@@ -223,7 +223,7 @@ void feed_next_frame(video_decoder& video, decoder& decoder, decode_statistics& 
   for (const std::vector<std::byte>& packet_bytes : video.decode_next_frame()) {
     ++statistics.total_packets;
     if (const std::optional<chunk_decode_result> chunk_result =
-            decoder.process_packet(packet_bytes, sha256_computation::SKIP);
+            decoder.add_packet(packet_bytes, sha256_computation::SKIP);
         chunk_result && chunk_result->success) {
       ++statistics.decoded_chunks;
     }

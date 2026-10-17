@@ -43,7 +43,7 @@ void encode_and_feed(const encoder& encoder, decoder& decoder, const std::span<c
                      const uint32_t chunk_index, const chunk_position position) {
   for (auto [packets, manifest] = encoder.encode_chunk(chunk_index, chunk_data, position);
        const packet& packet : packets) {
-    (void)decoder.process_packet(fixtures::packet_span(packet), sha256_computation::SKIP);
+    (void)decoder.add_packet(fixtures::packet_span(packet), sha256_computation::SKIP);
   }
 }
 }
@@ -114,7 +114,7 @@ TEST(roundtrip_test, should_restore_encrypted_data) {
   for (auto [packets, manifest] =
            encoder.encode_chunk(0, encrypted_chunk, chunk_position::LAST, payload_encryption::ENCRYPTED);
        const packet& packet : packets) {
-    (void)decoder.process_packet(fixtures::packet_span(packet), sha256_computation::SKIP);
+    (void)decoder.add_packet(fixtures::packet_span(packet), sha256_computation::SKIP);
   }
 
   const bool encrypted = decoder.is_encrypted();
@@ -175,7 +175,7 @@ TEST(roundtrip_test, should_restore_data_matching_the_sha256_of_its_manifest) {
     EXPECT_EQ(manifest.sha256, expected_digest);
 
     for (const packet& packet : packets) {
-      (void)decoder.process_packet(fixtures::packet_span(packet), sha256_computation::SKIP);
+      (void)decoder.add_packet(fixtures::packet_span(packet), sha256_computation::SKIP);
     }
   }
 
@@ -198,7 +198,7 @@ TEST(roundtrip_test, should_restore_encrypted_data_with_xxhash_checksums) {
   for (auto [packets, manifest] =
            encoder.encode_chunk(0, encrypted, chunk_position::LAST, payload_encryption::ENCRYPTED);
        const packet& packet : packets) {
-    (void)decoder.process_packet(fixtures::packet_span(packet), sha256_computation::SKIP);
+    (void)decoder.add_packet(fixtures::packet_span(packet), sha256_computation::SKIP);
   }
 
   const bool decoder_encrypted = decoder.is_encrypted();
@@ -291,7 +291,7 @@ TEST(roundtrip_test, should_restore_data_from_packets_out_of_order) {
 
   decoder decoder;
   for (const packet& packet : packets) {
-    (void)decoder.process_packet(fixtures::packet_span(packet), sha256_computation::SKIP);
+    (void)decoder.add_packet(fixtures::packet_span(packet), sha256_computation::SKIP);
   }
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
@@ -313,7 +313,7 @@ TEST(roundtrip_test, should_restore_data_despite_lost_packets) {
     if (i % drop_every == 0) {
       continue;
     }
-    (void)decoder.process_packet(fixtures::packet_span(packets[i]), sha256_computation::SKIP);
+    (void)decoder.add_packet(fixtures::packet_span(packets[i]), sha256_computation::SKIP);
   }
 
   const bool chunk_complete = decoder.is_chunk_complete(0);

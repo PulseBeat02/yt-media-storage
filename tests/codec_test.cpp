@@ -63,7 +63,7 @@ encode_result encode_test_data(const encoder& encoder, const std::vector<std::by
 bool feed_all_packets_to_decoder(decoder& decoder, const std::vector<packet>& packets) {
   bool any_decoded = false;
   for (const packet& packet : packets) {
-    if (std::optional<chunk_decode_result> result = decoder.process_packet(fixtures::packet_span(packet));
+    if (std::optional<chunk_decode_result> result = decoder.add_packet(fixtures::packet_span(packet));
         result.has_value() && result->success) {
       any_decoded = true;
     }
@@ -247,7 +247,7 @@ TEST(codec_test, should_decode_a_chunk_matching_its_sha256) {
   std::optional<chunk_decode_result> decode_result;
   for (const packet& packet : packets) {
     if (std::optional<chunk_decode_result> result =
-            decoder.process_packet(fixtures::packet_span(packet), sha256_computation::COMPUTE);
+            decoder.add_packet(fixtures::packet_span(packet), sha256_computation::COMPUTE);
         result.has_value() && result->success) {
       decode_result = std::move(*result);
     }
@@ -300,7 +300,7 @@ TEST(codec_test, should_ignore_packets_for_a_decoded_chunk) {
   EXPECT_TRUE(chunk_complete);
 
   for (const packet& packet : packets) {
-    std::optional<chunk_decode_result> result = decoder.process_packet(fixtures::packet_span(packet));
+    std::optional<chunk_decode_result> result = decoder.add_packet(fixtures::packet_span(packet));
     const bool result_present = result.has_value();
     EXPECT_FALSE(result_present);
   }
@@ -389,7 +389,7 @@ TEST(codec_test, should_decode_a_chunk_despite_lost_packets) {
   decoder decoder;
   bool decoded = false;
   for (std::size_t i = 0; i < kept; ++i) {
-    if (std::optional<chunk_decode_result> result = decoder.process_packet(fixtures::packet_span(packets[i]));
+    if (std::optional<chunk_decode_result> result = decoder.add_packet(fixtures::packet_span(packets[i]));
         result.has_value() && result->success) {
       decoded = true;
     }
@@ -427,7 +427,7 @@ TEST(codec_test, should_not_return_an_incomplete_chunk) {
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
 
   decoder decoder;
-  (void)decoder.process_packet(fixtures::packet_span(packets[0]));
+  (void)decoder.add_packet(fixtures::packet_span(packets[0]));
 
   const bool chunk_complete = decoder.is_chunk_complete(0);
   const bool chunk_data_present = decoder.get_chunk_data(0).has_value();
@@ -533,8 +533,7 @@ TEST(codec_test, should_decode_a_chunk_from_version_one_packets) {
   bool decoded = false;
   for (const packet& packet : packets) {
     const std::vector<std::byte> converted = to_version_one(packet);
-    if (const std::optional<chunk_decode_result> result = decoder.process_packet(converted);
-        result && result->success) {
+    if (const std::optional<chunk_decode_result> result = decoder.add_packet(converted); result && result->success) {
       decoded = true;
     }
   }

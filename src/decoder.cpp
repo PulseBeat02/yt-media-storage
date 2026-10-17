@@ -98,19 +98,19 @@ std::vector<std::byte> chunk_decoder::consume_decoded_data() {
   return std::move(decoded_data_);
 }
 
-std::optional<chunk_decode_result> decoder::process_packet(const std::span<const std::byte> packet_data,
-                                                           const sha256_computation computation) {
+std::optional<chunk_decode_result> decoder::add_packet(const std::span<const std::byte> packet_data,
+                                                       const sha256_computation computation) {
   const std::optional<parsed_packet> parsed = parse_and_verify_packet(packet_data);
   if (!parsed) {
     ++total_packets_;
     return std::nullopt;
   }
 
-  return process_verified_packet(*parsed, computation);
+  return add_verified_packet(*parsed, computation);
 }
 
-std::optional<chunk_decode_result> decoder::process_verified_packet(const parsed_packet& packet,
-                                                                    const sha256_computation computation) {
+std::optional<chunk_decode_result> decoder::add_verified_packet(const parsed_packet& packet,
+                                                                const sha256_computation computation) {
   ++total_packets_;
 
   const packet_header& header = packet.header;

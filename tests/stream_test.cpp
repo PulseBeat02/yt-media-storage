@@ -126,7 +126,7 @@ void feed_packet(const std::vector<std::byte>& packet_data, decoder& decoder, st
   ++progress.total_extracted;
   note_chunk_header(packet_data, progress);
   const std::span<const std::byte> data(packet_data.data(), packet_data.size());
-  if (std::optional<chunk_decode_result> chunk_result = decoder.process_packet(data, sha256_computation::SKIP);
+  if (std::optional<chunk_decode_result> chunk_result = decoder.add_packet(data, sha256_computation::SKIP);
       chunk_result && chunk_result->success) {
     ++progress.decoded_chunks;
   }
@@ -461,7 +461,7 @@ TEST(stream_test, should_restore_a_file_from_every_frame_of_a_video) {
 
   decoder decoder;
   for (const std::vector<std::byte>& packet_data : all_packets) {
-    (void)decoder.process_packet(std::span(packet_data.data(), packet_data.size()), sha256_computation::SKIP);
+    (void)decoder.add_packet(std::span(packet_data.data(), packet_data.size()), sha256_computation::SKIP);
   }
 
   const std::size_t chunks_completed = decoder.chunks_completed();
