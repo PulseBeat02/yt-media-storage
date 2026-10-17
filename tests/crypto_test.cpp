@@ -160,7 +160,9 @@ TEST(crypto_test, should_add_the_size_header_and_the_tag_to_the_ciphertext) {
   const std::vector<std::byte> ciphertext = encrypt_chunk(plaintext, key, file_id, 0u);
 
   constexpr std::size_t expected_overhead = CRYPTO_PLAIN_SIZE_HEADER + 16u;
-  EXPECT_EQ(ciphertext.size(), plaintext.size() + expected_overhead);
+  const std::size_t ciphertext_size = ciphertext.size();
+  const std::size_t expected_ciphertext_size = plaintext.size() + expected_overhead;
+  EXPECT_EQ(ciphertext_size, expected_ciphertext_size);
 }
 
 TEST(crypto_test, should_reject_the_wrong_key) {
@@ -252,9 +254,10 @@ TEST(crypto_test, should_hide_the_plaintext_in_the_ciphertext) {
   const std::vector<std::byte> ciphertext = encrypt_chunk(plaintext, key, file_id, 0u);
 
   const std::vector<std::byte> cipher_body(ciphertext.begin() + CRYPTO_PLAIN_SIZE_HEADER, ciphertext.end());
-  EXPECT_NE(cipher_body,
-            std::vector<std::byte>(plaintext.begin(), plaintext.begin() + static_cast<std::ptrdiff_t>(std::min(
-                                                                              plaintext.size(), cipher_body.size()))));
+  const std::size_t prefix_size = std::min(plaintext.size(), cipher_body.size());
+  const std::vector<std::byte> plaintext_prefix(plaintext.begin(),
+                                                plaintext.begin() + static_cast<std::ptrdiff_t>(prefix_size));
+  EXPECT_NE(cipher_body, plaintext_prefix);
 }
 
 TEST(crypto_test, should_encrypt_each_chunk_index_differently) {

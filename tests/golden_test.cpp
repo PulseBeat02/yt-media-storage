@@ -85,6 +85,7 @@ std::vector<std::byte> decode_golden_video(const char* name, const std::string_v
   const ms_status_t status = ms_decode(&options, nullptr);
 
   EXPECT_EQ(status, MS_OK) << ms_last_error();
+
   return fixtures::read_bytes(output.path());
 }
 
@@ -101,6 +102,7 @@ std::vector<std::byte> decode_golden_stream(const char* name, const std::string_
   const ms_status_t status = ms_stream_decode(&options, nullptr);
 
   EXPECT_EQ(status, MS_OK) << ms_last_error();
+
   return fixtures::read_bytes(output.path());
 }
 
@@ -192,8 +194,11 @@ void expect_identical_frames_from_reference_packets(const char* name) {
   const luma_planes expected = read_luma_planes(reference_path);
   const luma_planes actual = read_luma_planes(rendered.string());
 
-  ASSERT_FALSE(expected.empty());
-  EXPECT_EQ(actual.size(), expected.size());
+  const bool expected_empty = expected.empty();
+  const std::size_t actual_plane_count = actual.size();
+  const std::size_t expected_plane_count = expected.size();
+  ASSERT_FALSE(expected_empty);
+  EXPECT_EQ(actual_plane_count, expected_plane_count);
   EXPECT_TRUE(actual == expected);
 }
 
@@ -202,31 +207,36 @@ void expect_identical_frames_from_reference_packets(const char* name) {
 TEST(golden_test, should_decode_the_reference_video_with_crc32_packets) {
   const std::vector<std::byte> decoded = decode_golden_video(PLAIN_CRC32_VIDEO, NO_PASSWORD);
 
-  EXPECT_EQ(decoded, read_golden_input());
+  const std::vector<std::byte> golden_input = read_golden_input();
+  EXPECT_EQ(decoded, golden_input);
 }
 
 TEST(golden_test, should_decode_the_reference_video_with_xxhash_packets) {
   const std::vector<std::byte> decoded = decode_golden_video(PLAIN_XXHASH_VIDEO, NO_PASSWORD);
 
-  EXPECT_EQ(decoded, read_golden_input());
+  const std::vector<std::byte> golden_input = read_golden_input();
+  EXPECT_EQ(decoded, golden_input);
 }
 
 TEST(golden_test, should_decode_the_encrypted_reference_video) {
   const std::vector<std::byte> decoded = decode_golden_video(ENCRYPTED_CRC32_VIDEO, GOLDEN_PASSWORD);
 
-  EXPECT_EQ(decoded, read_golden_input());
+  const std::vector<std::byte> golden_input = read_golden_input();
+  EXPECT_EQ(decoded, golden_input);
 }
 
 TEST(golden_test, should_decode_the_reference_stream) {
   const std::vector<std::byte> decoded = decode_golden_stream(PLAIN_CRC32_STREAM, NO_PASSWORD);
 
-  EXPECT_EQ(decoded, read_golden_input());
+  const std::vector<std::byte> golden_input = read_golden_input();
+  EXPECT_EQ(decoded, golden_input);
 }
 
 TEST(golden_test, should_decode_the_encrypted_reference_stream_with_xxhash_packets) {
   const std::vector<std::byte> decoded = decode_golden_stream(ENCRYPTED_XXHASH_STREAM, GOLDEN_PASSWORD);
 
-  EXPECT_EQ(decoded, read_golden_input());
+  const std::vector<std::byte> golden_input = read_golden_input();
+  EXPECT_EQ(decoded, golden_input);
 }
 
 TEST(golden_test, should_render_the_frames_of_the_reference_video_with_crc32_packets) {

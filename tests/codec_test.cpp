@@ -92,7 +92,8 @@ TEST(codec_test, should_encode_a_chunk_into_its_packet_count) {
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
   const std::size_t num_source = (input_data.size() + SYMBOL_SIZE_BYTES - 1) / SYMBOL_SIZE_BYTES;
   const auto repair = static_cast<std::size_t>(std::ceil(static_cast<double>(num_source) * REPAIR_OVERHEAD));
-  EXPECT_EQ(packets.size(), num_source + repair);
+  const std::size_t packet_count = packets.size();
+  EXPECT_EQ(packet_count, num_source + repair);
 }
 
 TEST(codec_test, should_start_every_packet_with_the_magic) {
@@ -120,8 +121,9 @@ TEST(codec_test, should_describe_the_input_in_the_manifest) {
   const std::vector<std::byte> input_data = make_test_data(4096);
   const Encoder encoder(make_test_file_id());
   const auto [packets, manifest] = encode_test_data(encoder, input_data, chunk_index);
+  const uint32_t input_size = static_cast<uint32_t>(input_data.size());
   EXPECT_EQ(manifest.chunk_index, chunk_index);
-  EXPECT_EQ(manifest.original_size, static_cast<uint32_t>(input_data.size()));
+  EXPECT_EQ(manifest.original_size, input_size);
 }
 
 TEST(codec_test, should_flag_the_last_chunk) {
@@ -159,7 +161,8 @@ TEST(codec_test, should_parse_a_valid_packet) {
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
 
   const std::optional<ParsedPacket> parsed = parse_packet(packet_span(packets[0]));
-  ASSERT_TRUE(parsed.has_value());
+  const bool parsed_present = parsed.has_value();
+  ASSERT_TRUE(parsed_present);
   EXPECT_EQ(parsed->header.magic, MAGIC_ID);
   EXPECT_EQ(parsed->header.version, VERSION_ID_V2);
 }
@@ -176,7 +179,8 @@ TEST(codec_test, should_reject_a_packet_with_the_wrong_magic) {
   corrupted_packet[3] = std::byte{0};
 
   const std::optional<ParsedPacket> parsed = parse_packet(corrupted_packet);
-  EXPECT_FALSE(parsed.has_value());
+  const bool parsed_present = parsed.has_value();
+  EXPECT_FALSE(parsed_present);
 }
 
 TEST(codec_test, should_reject_a_truncated_packet) {
@@ -188,7 +192,8 @@ TEST(codec_test, should_reject_a_truncated_packet) {
   const std::vector truncated_packet(source_bytes.begin(), source_bytes.begin() + 100);
 
   const std::optional<ParsedPacket> parsed = parse_packet(truncated_packet);
-  EXPECT_FALSE(parsed.has_value());
+  const bool parsed_present = parsed.has_value();
+  EXPECT_FALSE(parsed_present);
 }
 
 TEST(codec_test, should_check_the_checksum_of_a_parsed_packet) {
@@ -197,8 +202,11 @@ TEST(codec_test, should_check_the_checksum_of_a_parsed_packet) {
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
 
   const std::optional<ParsedPacket> parsed = parse_packet(packet_span(packets[0]));
-  ASSERT_TRUE(parsed.has_value());
-  EXPECT_TRUE(verify_packet_checksum(*parsed));
+  const bool parsed_present = parsed.has_value();
+  ASSERT_TRUE(parsed_present);
+
+  const bool checksum_valid = verify_packet_checksum(*parsed);
+  EXPECT_TRUE(checksum_valid);
 }
 
 TEST(codec_test, should_check_the_checksum_of_raw_packet_bytes) {
@@ -230,11 +238,13 @@ TEST(codec_test, should_decode_the_chunk_it_encoded) {
   Decoder decoder;
   const bool decoded = feed_all_packets_to_decoder(decoder, packets);
 
+  const bool chunk_complete = decoder.is_chunk_complete(0);
   EXPECT_TRUE(decoded);
-  EXPECT_TRUE(decoder.is_chunk_complete(0));
+  EXPECT_TRUE(chunk_complete);
 
   const std::optional<std::vector<std::byte>> recovered_chunk = decoder.get_chunk_data(0);
-  ASSERT_TRUE(recovered_chunk.has_value());
+  const bool recovered_chunk_present = recovered_chunk.has_value();
+  ASSERT_TRUE(recovered_chunk_present);
   EXPECT_EQ(*recovered_chunk, original_data);
 }
 
@@ -252,7 +262,8 @@ TEST(codec_test, should_decode_a_chunk_matching_its_sha256) {
     }
   }
 
-  ASSERT_TRUE(decode_result.has_value());
+  const bool decode_result_present = decode_result.has_value();
+  ASSERT_TRUE(decode_result_present);
 
   const std::span original_span(original_data.data(), original_data.size());
   const Sha256Digest expected_digest = sha256(original_span);
@@ -270,7 +281,8 @@ TEST(codec_test, should_decode_a_chunk_with_xxhash_checksums) {
   EXPECT_TRUE(decoded);
 
   const std::optional<std::vector<std::byte>> recovered_chunk = decoder.get_chunk_data(0);
-  ASSERT_TRUE(recovered_chunk.has_value());
+  const bool recovered_chunk_present = recovered_chunk.has_value();
+  ASSERT_TRUE(recovered_chunk_present);
   EXPECT_EQ(*recovered_chunk, original_data);
 }
 
@@ -291,11 +303,14 @@ TEST(codec_test, should_ignore_packets_for_a_decoded_chunk) {
 
   Decoder decoder;
   feed_all_packets_to_decoder(decoder, packets);
-  EXPECT_TRUE(decoder.is_chunk_complete(0));
+
+  const bool chunk_complete = decoder.is_chunk_complete(0);
+  EXPECT_TRUE(chunk_complete);
 
   for (const Packet& packet : packets) {
     auto result = decoder.process_packet(packet_span(packet));
-    EXPECT_FALSE(result.has_value());
+    const bool result_present = result.has_value();
+    EXPECT_FALSE(result_present);
   }
 }
 
@@ -311,14 +326,19 @@ TEST(codec_test, should_decode_several_chunks) {
   feed_all_packets_to_decoder(decoder, packets0);
   feed_all_packets_to_decoder(decoder, packets1);
 
-  EXPECT_EQ(decoder.chunks_completed(), 2u);
-  EXPECT_TRUE(decoder.is_chunk_complete(0));
-  EXPECT_TRUE(decoder.is_chunk_complete(1));
+  const std::size_t chunks_completed = decoder.chunks_completed();
+  const bool first_complete = decoder.is_chunk_complete(0);
+  const bool second_complete = decoder.is_chunk_complete(1);
+  EXPECT_EQ(chunks_completed, 2u);
+  EXPECT_TRUE(first_complete);
+  EXPECT_TRUE(second_complete);
 
   const auto data0 = decoder.get_chunk_data(0);
   const auto data1 = decoder.get_chunk_data(1);
-  ASSERT_TRUE(data0.has_value());
-  ASSERT_TRUE(data1.has_value());
+  const bool data0_present = data0.has_value();
+  const bool data1_present = data1.has_value();
+  ASSERT_TRUE(data0_present);
+  ASSERT_TRUE(data1_present);
   EXPECT_EQ(*data0, chunk0_data);
   EXPECT_EQ(*data1, chunk1_data);
 }
@@ -329,18 +349,26 @@ TEST(codec_test, should_track_which_chunks_are_decoded) {
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
 
   Decoder decoder;
-  EXPECT_EQ(decoder.total_packets_received(), 0u);
-  EXPECT_EQ(decoder.chunks_completed(), 0u);
-  EXPECT_FALSE(decoder.is_chunk_complete(0));
+  const std::size_t initial_packets_received = decoder.total_packets_received();
+  const std::size_t initial_chunks_completed = decoder.chunks_completed();
+  const bool initially_complete = decoder.is_chunk_complete(0);
+  EXPECT_EQ(initial_packets_received, 0u);
+  EXPECT_EQ(initial_chunks_completed, 0u);
+  EXPECT_FALSE(initially_complete);
 
   feed_all_packets_to_decoder(decoder, packets);
 
-  EXPECT_EQ(decoder.total_packets_received(), packets.size());
-  EXPECT_EQ(decoder.chunks_completed(), 1u);
-  EXPECT_TRUE(decoder.is_chunk_complete(0));
+  const std::size_t packets_received = decoder.total_packets_received();
+  const std::size_t packet_count = packets.size();
+  const std::size_t chunks_completed = decoder.chunks_completed();
+  const bool chunk_complete = decoder.is_chunk_complete(0);
+  EXPECT_EQ(packets_received, packet_count);
+  EXPECT_EQ(chunks_completed, 1u);
+  EXPECT_TRUE(chunk_complete);
 
   auto indices = decoder.completed_chunk_indices();
-  ASSERT_EQ(indices.size(), 1u);
+  const std::size_t index_count = indices.size();
+  ASSERT_EQ(index_count, 1u);
   EXPECT_EQ(indices[0], 0u);
 }
 
@@ -352,8 +380,10 @@ TEST(codec_test, should_return_a_copy_of_the_chunk_data) {
   Decoder decoder;
   feed_all_packets_to_decoder(decoder, packets);
 
-  EXPECT_TRUE(decoder.get_chunk_data(0).has_value());
-  EXPECT_TRUE(decoder.get_chunk_data(0).has_value());
+  const bool first_copy_present = decoder.get_chunk_data(0).has_value();
+  const bool second_copy_present = decoder.get_chunk_data(0).has_value();
+  EXPECT_TRUE(first_copy_present);
+  EXPECT_TRUE(second_copy_present);
 }
 
 TEST(codec_test, should_decode_a_chunk_despite_lost_packets) {
@@ -373,8 +403,10 @@ TEST(codec_test, should_decode_a_chunk_despite_lost_packets) {
   }
 
   EXPECT_TRUE(decoded);
+
   const auto recovered = decoder.get_chunk_data(0);
-  ASSERT_TRUE(recovered.has_value());
+  const bool recovered_present = recovered.has_value();
+  ASSERT_TRUE(recovered_present);
   EXPECT_EQ(*recovered, original_data);
 }
 
@@ -389,8 +421,10 @@ TEST(codec_test, should_decode_packets_delivered_out_of_order) {
   const bool decoded = feed_all_packets_to_decoder(decoder, packets);
 
   EXPECT_TRUE(decoded);
+
   const auto recovered = decoder.get_chunk_data(0);
-  ASSERT_TRUE(recovered.has_value());
+  const bool recovered_present = recovered.has_value();
+  ASSERT_TRUE(recovered_present);
   EXPECT_EQ(*recovered, original_data);
 }
 
@@ -402,8 +436,10 @@ TEST(codec_test, should_not_return_an_incomplete_chunk) {
   Decoder decoder;
   (void)decoder.process_packet(packet_span(packets[0]));
 
-  EXPECT_FALSE(decoder.is_chunk_complete(0));
-  EXPECT_FALSE(decoder.get_chunk_data(0).has_value());
+  const bool chunk_complete = decoder.is_chunk_complete(0);
+  const bool chunk_data_present = decoder.get_chunk_data(0).has_value();
+  EXPECT_FALSE(chunk_complete);
+  EXPECT_FALSE(chunk_data_present);
 }
 
 TEST(codec_test, should_checksum_every_packet_of_an_unaligned_chunk) {
@@ -414,9 +450,11 @@ TEST(codec_test, should_checksum_every_packet_of_an_unaligned_chunk) {
   bool saw_partial_symbol = false;
   for (const Packet& packet : packets) {
     const auto parsed = parse_and_verify_packet(packet_span(packet));
-    ASSERT_TRUE(parsed.has_value());
+    const bool parsed_present = parsed.has_value();
+    ASSERT_TRUE(parsed_present);
     saw_partial_symbol |= parsed->header.payload_len < parsed->header.symbol_size;
   }
+
   EXPECT_TRUE(saw_partial_symbol);
 }
 
@@ -429,20 +467,24 @@ TEST(codec_test, should_accept_the_legacy_checksum_of_a_partial_symbol) {
     const auto parsed = parse_packet(packet_span(packet));
     return parsed && parsed->header.payload_len < parsed->header.symbol_size;
   });
-  ASSERT_NE(partial, packets.end());
+  const auto packets_end = packets.end();
+  ASSERT_NE(partial, packets_end);
 
   const PacketHeader header = parse_packet(packet_span(*partial))->header;
   const std::span<std::byte> bytes(partial->bytes);
   write_packet_header(bytes.first(HEADER_SIZE_V2), header, bytes.subspan(HEADER_SIZE_V2, header.payload_len),
                       header.hash_algorithm());
 
-  EXPECT_TRUE(parse_and_verify_packet(packet_span(*partial)).has_value());
+  const bool partial_packet_verified = parse_and_verify_packet(packet_span(*partial)).has_value();
+  EXPECT_TRUE(partial_packet_verified);
 
   Decoder decoder;
   const bool decoded = feed_all_packets_to_decoder(decoder, packets);
   EXPECT_TRUE(decoded);
+
   const auto recovered = decoder.get_chunk_data(0);
-  ASSERT_TRUE(recovered.has_value());
+  const bool recovered_present = recovered.has_value();
+  ASSERT_TRUE(recovered_present);
   EXPECT_EQ(*recovered, input_data);
 }
 
@@ -465,7 +507,8 @@ TEST(codec_test, should_reject_a_packet_shorter_than_the_version_one_header) {
 
   const std::optional<ParsedPacket> parsed = parse_packet(packet.first(HEADER_SIZE - 1));
 
-  EXPECT_FALSE(parsed.has_value());
+  const bool parsed_present = parsed.has_value();
+  EXPECT_FALSE(parsed_present);
 }
 
 TEST(codec_test, should_parse_a_version_one_packet_with_the_chunk_size_as_original_size) {
@@ -475,13 +518,20 @@ TEST(codec_test, should_parse_a_version_one_packet_with_the_chunk_size_as_origin
 
   const std::optional<ParsedPacket> parsed = parse_and_verify_packet(converted);
 
-  ASSERT_TRUE(parsed.has_value());
-  EXPECT_EQ(packet_header_size(VERSION_ID), HEADER_SIZE);
+  const bool parsed_present = parsed.has_value();
+  ASSERT_TRUE(parsed_present);
+
+  const std::size_t header_size = packet_header_size(VERSION_ID);
+  const std::size_t raw_header_size = parsed->raw_header.size();
+  const std::byte* const payload_start = parsed->payload.data();
+  const std::byte* const expected_payload_start = converted.data() + HEADER_SIZE;
+  const uint32_t expected_crc = read_u32_le(converted.data() + CRC_OFF);
+  EXPECT_EQ(header_size, HEADER_SIZE);
   EXPECT_EQ(parsed->header.version, VERSION_ID);
   EXPECT_EQ(parsed->header.original_size, parsed->header.chunk_size);
-  EXPECT_EQ(parsed->raw_header.size(), HEADER_SIZE);
-  EXPECT_EQ(parsed->payload.data(), converted.data() + HEADER_SIZE);
-  EXPECT_EQ(parsed->header.crc, read_u32_le(converted.data() + CRC_OFF));
+  EXPECT_EQ(raw_header_size, HEADER_SIZE);
+  EXPECT_EQ(payload_start, expected_payload_start);
+  EXPECT_EQ(parsed->header.crc, expected_crc);
 }
 
 TEST(codec_test, should_decode_a_chunk_from_version_one_packets) {
@@ -498,8 +548,9 @@ TEST(codec_test, should_decode_a_chunk_from_version_one_packets) {
     }
   }
 
+  const std::optional<std::vector<std::byte>> chunk_data = decoder.get_chunk_data(0);
   EXPECT_TRUE(decoded);
-  EXPECT_EQ(decoder.get_chunk_data(0), input_data);
+  EXPECT_EQ(chunk_data, input_data);
 }
 
 namespace {
@@ -579,10 +630,12 @@ TEST(codec_test, should_return_decoded_data_and_ignore_packets_after_decoding) {
 
   const bool added_after_decoding = decoder.add_packet(parsed.back().header.esi, parsed.back().payload);
 
+  const uint32_t packets_received = decoder.packets_received();
+  const std::vector<std::byte> decoded_data = decoder.get_decoded_data();
   EXPECT_TRUE(decoded);
   EXPECT_TRUE(added_after_decoding);
-  EXPECT_EQ(decoder.packets_received(), received);
-  EXPECT_EQ(decoder.get_decoded_data(), input_data);
+  EXPECT_EQ(packets_received, received);
+  EXPECT_EQ(decoded_data, input_data);
 }
 
 TEST(codec_test, should_refuse_decoded_data_before_the_chunk_is_decoded) {
@@ -608,8 +661,9 @@ TEST(codec_test, should_reject_packets_on_a_moved_from_chunk_decoder) {
   const std::string message = find_runtime_error_message(
       [&] { static_cast<void>(original.add_packet(parsed[0].header.esi, parsed[0].payload)); });
 
+  const uint32_t source_symbol_count = moved.num_source_symbols();
   EXPECT_EQ(message, "codec is null");
-  EXPECT_EQ(moved.num_source_symbols(), parsed[0].header.k);
+  EXPECT_EQ(source_symbol_count, parsed[0].header.k);
 }
 
 TEST(codec_test, should_reject_a_payload_of_the_wrong_size) {
@@ -631,7 +685,8 @@ TEST(codec_test, should_not_assemble_before_any_packet_arrives) {
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(no_chunks);
 
-  EXPECT_FALSE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  EXPECT_FALSE(assembled_present);
 }
 
 TEST(codec_test, should_not_assemble_an_encrypted_file_without_a_key) {
@@ -639,8 +694,10 @@ TEST(codec_test, should_not_assemble_an_encrypted_file_without_a_key) {
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
 
-  EXPECT_TRUE(decoder.is_encrypted());
-  EXPECT_FALSE(assembled.has_value());
+  const bool encrypted = decoder.is_encrypted();
+  const bool assembled_present = assembled.has_value();
+  EXPECT_TRUE(encrypted);
+  EXPECT_FALSE(assembled_present);
 }
 
 TEST(codec_test, should_assemble_an_encrypted_file_with_its_key) {
@@ -659,7 +716,8 @@ TEST(codec_test, should_not_assemble_an_encrypted_file_with_the_wrong_key) {
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
 
-  EXPECT_FALSE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  EXPECT_FALSE(assembled_present);
 }
 
 TEST(codec_test, should_not_assemble_an_encrypted_chunk_without_a_size_header) {
@@ -668,7 +726,8 @@ TEST(codec_test, should_not_assemble_an_encrypted_chunk_without_a_size_header) {
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
 
-  EXPECT_FALSE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  EXPECT_FALSE(assembled_present);
 }
 
 TEST(codec_test, should_not_assemble_an_encrypted_chunk_claiming_more_than_a_chunk) {
@@ -681,7 +740,8 @@ TEST(codec_test, should_not_assemble_an_encrypted_chunk_claiming_more_than_a_chu
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
 
-  EXPECT_FALSE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  EXPECT_FALSE(assembled_present);
 }
 
 TEST(codec_test, should_not_write_an_incomplete_file) {
@@ -691,8 +751,9 @@ TEST(codec_test, should_not_write_an_incomplete_file) {
 
   const bool written = decoder.write_assembled_file(output.string(), two_chunks);
 
+  const bool output_exists = std::filesystem::exists(output.path());
   EXPECT_FALSE(written);
-  EXPECT_FALSE(std::filesystem::exists(output.path()));
+  EXPECT_FALSE(output_exists);
 }
 
 TEST(codec_test, should_not_write_into_a_missing_directory) {
@@ -725,8 +786,9 @@ TEST(codec_test, should_write_an_encrypted_file_with_its_key) {
 
   const bool written = decoder.write_assembled_file(output.string(), 1);
 
+  const std::vector<std::byte> output_bytes = fixtures::read_bytes(output.path());
   EXPECT_TRUE(written);
-  EXPECT_EQ(fixtures::read_bytes(output.path()), plain);
+  EXPECT_EQ(output_bytes, plain);
 }
 
 TEST(codec_test, should_reject_a_chunk_larger_than_the_chunk_size) {

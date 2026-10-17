@@ -102,12 +102,15 @@ TEST(main_gui_test, should_show_the_drive_manager_and_exit_when_its_window_close
   const int exit_code = run_media_storage_gui(argument_count, arguments.data());
 
   const QStringList expected_titles = {WINDOW_TITLE};
+
+  const QString expected_version = QString::fromUtf8(ms_version());
+  const int style_comparison = observed.style_name.compare(STYLE_NAME, Qt::CaseInsensitive);
   EXPECT_EQ(exit_code, SUCCESS_EXIT_CODE);
   EXPECT_EQ(observed.application_name, APPLICATION_NAME);
   EXPECT_EQ(observed.display_name, DISPLAY_NAME);
-  EXPECT_EQ(observed.version, QString::fromUtf8(ms_version()));
+  EXPECT_EQ(observed.version, expected_version);
   EXPECT_EQ(observed.organization_name, ORGANIZATION_NAME);
   EXPECT_EQ(observed.organization_domain, ORGANIZATION_DOMAIN);
-  EXPECT_EQ(observed.style_name.compare(STYLE_NAME, Qt::CaseInsensitive), 0);
+  EXPECT_EQ(style_comparison, 0);
   EXPECT_EQ(observed.visible_window_titles, expected_titles);
 }

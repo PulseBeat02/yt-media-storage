@@ -70,35 +70,51 @@ std::vector<char> read_test_file(const std::string& path) {
 TEST(api_test, should_report_a_version) {
   const char* version = ms_version();
   ASSERT_NE(version, nullptr);
-  EXPECT_GT(std::strlen(version), 0u);
+
+  const std::size_t version_length = std::strlen(version);
+  EXPECT_GT(version_length, 0u);
 }
 
 TEST(api_test, should_describe_every_status) {
-  EXPECT_STREQ(ms_status_string(MS_OK), "success");
-  EXPECT_STREQ(ms_status_string(MS_ERR_INVALID_ARGS), "invalid arguments");
-  EXPECT_STREQ(ms_status_string(MS_ERR_FILE_NOT_FOUND), "file not found");
-  EXPECT_STREQ(ms_status_string(MS_ERR_IO), "I/O error");
-  EXPECT_STREQ(ms_status_string(MS_ERR_ENCODE_FAILED), "encoding failed");
-  EXPECT_STREQ(ms_status_string(MS_ERR_DECODE_FAILED), "decoding failed");
-  EXPECT_STREQ(ms_status_string(MS_ERR_CRYPTO), "encryption/decryption error");
-  EXPECT_STREQ(ms_status_string(MS_ERR_INCOMPLETE), "incomplete data");
+  const char* const ok_text = ms_status_string(MS_OK);
+  const char* const invalid_args_text = ms_status_string(MS_ERR_INVALID_ARGS);
+  const char* const file_not_found_text = ms_status_string(MS_ERR_FILE_NOT_FOUND);
+  const char* const io_text = ms_status_string(MS_ERR_IO);
+  const char* const encode_failed_text = ms_status_string(MS_ERR_ENCODE_FAILED);
+  const char* const decode_failed_text = ms_status_string(MS_ERR_DECODE_FAILED);
+  const char* const crypto_text = ms_status_string(MS_ERR_CRYPTO);
+  const char* const incomplete_text = ms_status_string(MS_ERR_INCOMPLETE);
+  EXPECT_STREQ(ok_text, "success");
+  EXPECT_STREQ(invalid_args_text, "invalid arguments");
+  EXPECT_STREQ(file_not_found_text, "file not found");
+  EXPECT_STREQ(io_text, "I/O error");
+  EXPECT_STREQ(encode_failed_text, "encoding failed");
+  EXPECT_STREQ(decode_failed_text, "decoding failed");
+  EXPECT_STREQ(crypto_text, "encryption/decryption error");
+  EXPECT_STREQ(incomplete_text, "incomplete data");
 }
 
 TEST(api_test, should_describe_an_unknown_status) {
-  EXPECT_STREQ(ms_status_string(static_cast<ms_status_t>(9999)), "unknown error");
+  const char* const unknown_status_text = ms_status_string(static_cast<ms_status_t>(9999));
+  EXPECT_STREQ(unknown_status_text, "unknown error");
 }
 
 TEST(api_test, should_reject_encoding_without_options) {
-  EXPECT_EQ(ms_encode(nullptr, nullptr), MS_ERR_INVALID_ARGS);
+  const ms_status_t encode_status = ms_encode(nullptr, nullptr);
+  EXPECT_EQ(encode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_encoding_without_paths) {
   ms_encode_options_t opts{};
-  EXPECT_EQ(ms_encode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t missing_paths_status = ms_encode(&opts, nullptr);
+  EXPECT_EQ(missing_paths_status, MS_ERR_INVALID_ARGS);
 
   opts.input_path = "foo";
   opts.output_path = nullptr;
-  EXPECT_EQ(ms_encode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t missing_output_status = ms_encode(&opts, nullptr);
+  EXPECT_EQ(missing_output_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_encoding_without_an_input_path) {
@@ -106,7 +122,9 @@ TEST(api_test, should_reject_encoding_without_an_input_path) {
   ms_encode_options_t opts{};
   opts.input_path = nullptr;
   opts.output_path = output.c_str();
-  EXPECT_EQ(ms_encode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t encode_status = ms_encode(&opts, nullptr);
+  EXPECT_EQ(encode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_report_a_missing_input_file_when_encoding) {
@@ -116,7 +134,9 @@ TEST(api_test, should_report_a_missing_input_file_when_encoding) {
   ms_encode_options_t opts{};
   opts.input_path = missing_input.c_str();
   opts.output_path = output.c_str();
-  EXPECT_EQ(ms_encode(&opts, nullptr), MS_ERR_FILE_NOT_FOUND);
+
+  const ms_status_t encode_status = ms_encode(&opts, nullptr);
+  EXPECT_EQ(encode_status, MS_ERR_FILE_NOT_FOUND);
 }
 
 TEST(api_test, should_reject_encrypting_without_a_password) {
@@ -131,16 +151,20 @@ TEST(api_test, should_reject_encrypting_without_a_password) {
   opts.password = nullptr;
   opts.password_len = 0;
 
-  EXPECT_EQ(ms_encode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+  const ms_status_t encode_status = ms_encode(&opts, nullptr);
+  EXPECT_EQ(encode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_decoding_without_options) {
-  EXPECT_EQ(ms_decode(nullptr, nullptr), MS_ERR_INVALID_ARGS);
+  const ms_status_t decode_status = ms_decode(nullptr, nullptr);
+  EXPECT_EQ(decode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_decoding_without_paths) {
   const ms_decode_options_t opts{};
-  EXPECT_EQ(ms_decode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t decode_status = ms_decode(&opts, nullptr);
+  EXPECT_EQ(decode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_decoding_without_an_input_path) {
@@ -148,14 +172,18 @@ TEST(api_test, should_reject_decoding_without_an_input_path) {
   ms_decode_options_t opts{};
   opts.input_path = nullptr;
   opts.output_path = output.c_str();
-  EXPECT_EQ(ms_decode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t decode_status = ms_decode(&opts, nullptr);
+  EXPECT_EQ(decode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_decoding_without_an_output_path) {
   ms_decode_options_t opts{};
   opts.input_path = "any.mkv";
   opts.output_path = nullptr;
-  EXPECT_EQ(ms_decode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t decode_status = ms_decode(&opts, nullptr);
+  EXPECT_EQ(decode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_report_a_missing_input_file_when_decoding) {
@@ -165,27 +193,36 @@ TEST(api_test, should_report_a_missing_input_file_when_decoding) {
   ms_decode_options_t opts{};
   opts.input_path = missing_input.c_str();
   opts.output_path = output.c_str();
-  EXPECT_EQ(ms_decode(&opts, nullptr), MS_ERR_FILE_NOT_FOUND);
+
+  const ms_status_t decode_status = ms_decode(&opts, nullptr);
+  EXPECT_EQ(decode_status, MS_ERR_FILE_NOT_FOUND);
 }
 
 TEST(api_test, should_reject_stream_encoding_without_options) {
-  EXPECT_EQ(ms_stream_encode(nullptr, nullptr), MS_ERR_INVALID_ARGS);
+  const ms_status_t stream_encode_status = ms_stream_encode(nullptr, nullptr);
+  EXPECT_EQ(stream_encode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_stream_encoding_without_fields) {
   ms_stream_encode_options_t opts{};
-  EXPECT_EQ(ms_stream_encode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t missing_fields_status = ms_stream_encode(&opts, nullptr);
+  EXPECT_EQ(missing_fields_status, MS_ERR_INVALID_ARGS);
 
   opts.input_path = "foo";
   opts.stream_url = nullptr;
-  EXPECT_EQ(ms_stream_encode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t missing_url_status = ms_stream_encode(&opts, nullptr);
+  EXPECT_EQ(missing_url_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_stream_encoding_without_an_input_path) {
   ms_stream_encode_options_t opts{};
   opts.input_path = nullptr;
   opts.stream_url = "rtmp://example/live";
-  EXPECT_EQ(ms_stream_encode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t stream_encode_status = ms_stream_encode(&opts, nullptr);
+  EXPECT_EQ(stream_encode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_encrypted_stream_encoding_without_a_password) {
@@ -199,16 +236,20 @@ TEST(api_test, should_reject_encrypted_stream_encoding_without_a_password) {
   opts.password = nullptr;
   opts.password_len = 0;
 
-  EXPECT_EQ(ms_stream_encode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+  const ms_status_t stream_encode_status = ms_stream_encode(&opts, nullptr);
+  EXPECT_EQ(stream_encode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_stream_decoding_without_options) {
-  EXPECT_EQ(ms_stream_decode(nullptr, nullptr), MS_ERR_INVALID_ARGS);
+  const ms_status_t stream_decode_status = ms_stream_decode(nullptr, nullptr);
+  EXPECT_EQ(stream_decode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_stream_decoding_without_fields) {
   const ms_stream_decode_options_t opts{};
-  EXPECT_EQ(ms_stream_decode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t stream_decode_status = ms_stream_decode(&opts, nullptr);
+  EXPECT_EQ(stream_decode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_stream_decoding_without_a_stream_url) {
@@ -216,14 +257,18 @@ TEST(api_test, should_reject_stream_decoding_without_a_stream_url) {
   ms_stream_decode_options_t opts{};
   opts.stream_url = nullptr;
   opts.output_path = output.c_str();
-  EXPECT_EQ(ms_stream_decode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t stream_decode_status = ms_stream_decode(&opts, nullptr);
+  EXPECT_EQ(stream_decode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_reject_stream_decoding_without_an_output_path) {
   ms_stream_decode_options_t opts{};
   opts.stream_url = "rtmp://example/live";
   opts.output_path = nullptr;
-  EXPECT_EQ(ms_stream_decode(&opts, nullptr), MS_ERR_INVALID_ARGS);
+
+  const ms_status_t stream_decode_status = ms_stream_decode(&opts, nullptr);
+  EXPECT_EQ(stream_decode_status, MS_ERR_INVALID_ARGS);
 }
 
 TEST(api_test, should_decode_what_it_encoded) {
@@ -238,7 +283,9 @@ TEST(api_test, should_decode_what_it_encoded) {
   enc_opts.output_path = encoded.c_str();
 
   ms_result_t enc_result{};
-  ASSERT_EQ(ms_encode(&enc_opts, &enc_result), MS_OK);
+
+  const ms_status_t encode_status = ms_encode(&enc_opts, &enc_result);
+  ASSERT_EQ(encode_status, MS_OK);
   EXPECT_GT(enc_result.input_size, 0u);
   EXPECT_GT(enc_result.output_size, 0u);
   EXPECT_GT(enc_result.total_chunks, 0u);
@@ -250,9 +297,13 @@ TEST(api_test, should_decode_what_it_encoded) {
   dec_opts.output_path = decoded.c_str();
 
   ms_result_t dec_result{};
-  ASSERT_EQ(ms_decode(&dec_opts, &dec_result), MS_OK);
 
-  EXPECT_EQ(read_test_file(input.path_str), read_test_file(decoded.path_str));
+  const ms_status_t decode_status = ms_decode(&dec_opts, &dec_result);
+  ASSERT_EQ(decode_status, MS_OK);
+
+  const std::vector<char> input_bytes = read_test_file(input.path_str);
+  const std::vector<char> decoded_bytes = read_test_file(decoded.path_str);
+  EXPECT_EQ(input_bytes, decoded_bytes);
 }
 
 TEST(api_test, should_decode_what_it_encrypted) {
@@ -270,7 +321,8 @@ TEST(api_test, should_decode_what_it_encrypted) {
   enc_opts.password = password.c_str();
   enc_opts.password_len = password.size();
 
-  ASSERT_EQ(ms_encode(&enc_opts, nullptr), MS_OK);
+  const ms_status_t encode_status = ms_encode(&enc_opts, nullptr);
+  ASSERT_EQ(encode_status, MS_OK);
 
   ms_decode_options_t dec_opts{};
   dec_opts.input_path = encoded.c_str();
@@ -278,8 +330,12 @@ TEST(api_test, should_decode_what_it_encrypted) {
   dec_opts.password = password.c_str();
   dec_opts.password_len = password.size();
 
-  ASSERT_EQ(ms_decode(&dec_opts, nullptr), MS_OK);
-  EXPECT_EQ(read_test_file(input.path_str), read_test_file(decoded.path_str));
+  const ms_status_t decode_status = ms_decode(&dec_opts, nullptr);
+  ASSERT_EQ(decode_status, MS_OK);
+
+  const std::vector<char> input_bytes = read_test_file(input.path_str);
+  const std::vector<char> decoded_bytes = read_test_file(decoded.path_str);
+  EXPECT_EQ(input_bytes, decoded_bytes);
 }
 
 TEST(api_test, should_decode_what_it_encoded_with_xxhash_checksums) {
@@ -294,14 +350,19 @@ TEST(api_test, should_decode_what_it_encoded_with_xxhash_checksums) {
   enc_opts.output_path = encoded.c_str();
   enc_opts.hash_algorithm = MS_HASH_XXHASH32;
 
-  ASSERT_EQ(ms_encode(&enc_opts, nullptr), MS_OK);
+  const ms_status_t encode_status = ms_encode(&enc_opts, nullptr);
+  ASSERT_EQ(encode_status, MS_OK);
 
   ms_decode_options_t dec_opts{};
   dec_opts.input_path = encoded.c_str();
   dec_opts.output_path = decoded.c_str();
 
-  ASSERT_EQ(ms_decode(&dec_opts, nullptr), MS_OK);
-  EXPECT_EQ(read_test_file(input.path_str), read_test_file(decoded.path_str));
+  const ms_status_t decode_status = ms_decode(&dec_opts, nullptr);
+  ASSERT_EQ(decode_status, MS_OK);
+
+  const std::vector<char> input_bytes = read_test_file(input.path_str);
+  const std::vector<char> decoded_bytes = read_test_file(decoded.path_str);
+  EXPECT_EQ(input_bytes, decoded_bytes);
 }
 
 TEST(api_test, should_report_encoding_progress) {
@@ -321,8 +382,11 @@ TEST(api_test, should_report_encoding_progress) {
   };
   enc_opts.progress_user = &call_count;
 
-  ASSERT_EQ(ms_encode(&enc_opts, nullptr), MS_OK);
-  EXPECT_GT(call_count.load(), 0);
+  const ms_status_t encode_status = ms_encode(&enc_opts, nullptr);
+  ASSERT_EQ(encode_status, MS_OK);
+
+  const int progress_calls = call_count.load();
+  EXPECT_GT(progress_calls, 0);
 }
 
 TEST(api_test, should_cancel_encoding_from_the_progress_callback) {
@@ -336,12 +400,15 @@ TEST(api_test, should_cancel_encoding_from_the_progress_callback) {
   enc_opts.output_path = encoded.c_str();
   enc_opts.progress = [](uint64_t, uint64_t, void*) -> int { return 1; };
 
-  EXPECT_EQ(ms_encode(&enc_opts, nullptr), MS_ERR_ENCODE_FAILED);
+  const ms_status_t encode_status = ms_encode(&enc_opts, nullptr);
+  EXPECT_EQ(encode_status, MS_ERR_ENCODE_FAILED);
 }
 
 TEST(api_test, should_describe_the_last_failure_and_clear_it_on_success) {
-  EXPECT_EQ(ms_encode(nullptr, nullptr), MS_ERR_INVALID_ARGS);
-  EXPECT_GT(std::strlen(ms_last_error()), 0u);
+  const ms_status_t rejected_status = ms_encode(nullptr, nullptr);
+  const std::size_t last_error_length = std::strlen(ms_last_error());
+  EXPECT_EQ(rejected_status, MS_ERR_INVALID_ARGS);
+  EXPECT_GT(last_error_length, 0u);
 
   const TempFile input("api_last_error_input.bin");
   const TempFile encoded("api_last_error.mkv");
@@ -350,8 +417,12 @@ TEST(api_test, should_describe_the_last_failure_and_clear_it_on_success) {
   ms_encode_options_t opts{};
   opts.input_path = input.c_str();
   opts.output_path = encoded.c_str();
-  ASSERT_EQ(ms_encode(&opts, nullptr), MS_OK);
-  EXPECT_STREQ(ms_last_error(), "");
+
+  const ms_status_t encode_status = ms_encode(&opts, nullptr);
+  ASSERT_EQ(encode_status, MS_OK);
+
+  const char* const last_error = ms_last_error();
+  EXPECT_STREQ(last_error, "");
 }
 
 TEST(api_test, should_report_a_crypto_error_for_the_wrong_password) {
@@ -369,15 +440,20 @@ TEST(api_test, should_report_a_crypto_error_for_the_wrong_password) {
   enc_opts.encrypt = 1;
   enc_opts.password = password.c_str();
   enc_opts.password_len = password.size();
-  ASSERT_EQ(ms_encode(&enc_opts, nullptr), MS_OK);
+
+  const ms_status_t encode_status = ms_encode(&enc_opts, nullptr);
+  ASSERT_EQ(encode_status, MS_OK);
 
   ms_decode_options_t dec_opts{};
   dec_opts.input_path = encoded.c_str();
   dec_opts.output_path = decoded.c_str();
   dec_opts.password = wrong_password.c_str();
   dec_opts.password_len = wrong_password.size();
-  EXPECT_EQ(ms_decode(&dec_opts, nullptr), MS_ERR_CRYPTO);
-  EXPECT_FALSE(std::filesystem::exists(decoded.path_str));
+
+  const ms_status_t decode_status = ms_decode(&dec_opts, nullptr);
+  const bool decoded_exists = std::filesystem::exists(decoded.path_str);
+  EXPECT_EQ(decode_status, MS_ERR_CRYPTO);
+  EXPECT_FALSE(decoded_exists);
 }
 
 TEST(api_test, should_report_a_crypto_error_without_a_password) {
@@ -394,12 +470,16 @@ TEST(api_test, should_report_a_crypto_error_without_a_password) {
   enc_opts.encrypt = 1;
   enc_opts.password = password.c_str();
   enc_opts.password_len = password.size();
-  ASSERT_EQ(ms_encode(&enc_opts, nullptr), MS_OK);
+
+  const ms_status_t encode_status = ms_encode(&enc_opts, nullptr);
+  ASSERT_EQ(encode_status, MS_OK);
 
   ms_decode_options_t dec_opts{};
   dec_opts.input_path = encoded.c_str();
   dec_opts.output_path = decoded.c_str();
-  EXPECT_EQ(ms_decode(&dec_opts, nullptr), MS_ERR_CRYPTO);
+
+  const ms_status_t decode_status = ms_decode(&dec_opts, nullptr);
+  EXPECT_EQ(decode_status, MS_ERR_CRYPTO);
 }
 
 TEST(api_test, should_report_a_directory_as_input_without_throwing) {
@@ -409,5 +489,7 @@ TEST(api_test, should_report_a_directory_as_input_without_throwing) {
   ms_encode_options_t opts{};
   opts.input_path = directory.c_str();
   opts.output_path = output.c_str();
-  EXPECT_NE(ms_encode(&opts, nullptr), MS_OK);
+
+  const ms_status_t encode_status = ms_encode(&opts, nullptr);
+  EXPECT_NE(encode_status, MS_OK);
 }

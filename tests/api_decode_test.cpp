@@ -57,7 +57,8 @@ void write_encoded_pattern(const fixtures::temporary_file& input, const fixtures
   options.input_path = input_path.c_str();
   options.output_path = video_path.c_str();
 
-  ASSERT_EQ(ms_encode(&options, nullptr), MS_OK);
+  const ms_status_t encode_status = ms_encode(&options, nullptr);
+  ASSERT_EQ(encode_status, MS_OK);
 }
 
 void write_video(const std::string& path, const std::vector<Packet>& packets) {
@@ -91,8 +92,9 @@ TEST(api_decode_test, should_stop_decoding_when_the_progress_callback_cancels) {
 
   const ms_status_t status = ms_decode(&options, nullptr);
 
+  const bool output_exists = std::filesystem::exists(output.path());
   EXPECT_EQ(status, MS_ERR_DECODE_FAILED);
-  EXPECT_FALSE(std::filesystem::exists(output.path()));
+  EXPECT_FALSE(output_exists);
 }
 
 TEST(api_decode_test, should_stop_decoding_a_stream_when_the_progress_callback_cancels) {
@@ -109,8 +111,9 @@ TEST(api_decode_test, should_stop_decoding_a_stream_when_the_progress_callback_c
 
   const ms_status_t status = ms_stream_decode(&options, nullptr);
 
+  const bool output_exists = std::filesystem::exists(output.path());
   EXPECT_EQ(status, MS_ERR_DECODE_FAILED);
-  EXPECT_FALSE(std::filesystem::exists(output.path()));
+  EXPECT_FALSE(output_exists);
 }
 
 TEST(api_decode_test, should_fail_to_decode_an_input_that_is_not_a_video) {
@@ -120,8 +123,9 @@ TEST(api_decode_test, should_fail_to_decode_an_input_that_is_not_a_video) {
 
   const ms_status_t status = decode_file(input, output);
 
+  const bool output_exists = std::filesystem::exists(output.path());
   EXPECT_EQ(status, MS_ERR_DECODE_FAILED);
-  EXPECT_FALSE(std::filesystem::exists(output.path()));
+  EXPECT_FALSE(output_exists);
 }
 
 TEST(api_decode_test, should_retry_opening_a_stream_once_a_second_until_the_timeout) {
@@ -149,8 +153,9 @@ TEST(api_decode_test, should_report_a_video_without_packets) {
 
   const ms_status_t status = decode_file(video, output);
 
+  const char* const last_error = ms_last_error();
   EXPECT_EQ(status, MS_ERR_DECODE_FAILED);
-  EXPECT_STREQ(ms_last_error(), "no packets found in input");
+  EXPECT_STREQ(last_error, "no packets found in input");
 }
 
 TEST(api_decode_test, should_report_how_many_chunks_an_incomplete_video_holds) {
@@ -163,7 +168,9 @@ TEST(api_decode_test, should_report_how_many_chunks_an_incomplete_video_holds) {
 
   const ms_status_t status = decode_file(video, output);
 
+  const char* const last_error = ms_last_error();
+  const bool output_exists = std::filesystem::exists(output.path());
   EXPECT_EQ(status, MS_ERR_INCOMPLETE);
-  EXPECT_STREQ(ms_last_error(), "decoded 1 of 2 chunks");
-  EXPECT_FALSE(std::filesystem::exists(output.path()));
+  EXPECT_STREQ(last_error, "decoded 1 of 2 chunks");
+  EXPECT_FALSE(output_exists);
 }

@@ -63,7 +63,8 @@ TEST(integrity_test, should_write_the_sha256_digest_in_hex) {
   const std::vector<std::byte> abc_bytes = bytes_from_string("abc");
   const Sha256Digest digest = sha256(abc_bytes);
   for (const std::string hex_output = digest.hex_value(); const char ch : hex_output) {
-    EXPECT_TRUE(is_hex_char(ch));
+    const bool hex_digit = is_hex_char(ch);
+    EXPECT_TRUE(hex_digit);
   }
 }
 
@@ -132,7 +133,8 @@ TEST(integrity_test, should_accept_a_packet_with_a_valid_checksum) {
   const uint32_t computed_crc = packet_crc32(header, payload, crc_offset);
   write_u32_le(header, crc_offset, computed_crc);
 
-  EXPECT_TRUE(verify_packet_crc32(header, payload, crc_offset));
+  const bool checksum_valid = verify_packet_crc32(header, payload, crc_offset);
+  EXPECT_TRUE(checksum_valid);
 }
 
 TEST(integrity_test, should_reject_a_packet_with_a_corrupted_payload) {
@@ -146,7 +148,8 @@ TEST(integrity_test, should_reject_a_packet_with_a_corrupted_payload) {
   const auto original_byte = static_cast<unsigned char>(payload[0]);
   payload[0] = static_cast<std::byte>(original_byte ^ 0xFFu);
 
-  EXPECT_FALSE(verify_packet_crc32(header, payload, crc_offset));
+  const bool checksum_valid = verify_packet_crc32(header, payload, crc_offset);
+  EXPECT_FALSE(checksum_valid);
 }
 
 TEST(integrity_test, should_compute_the_crc32_of_empty_input) {
@@ -170,8 +173,9 @@ TEST(integrity_test, should_hash_large_input) {
   }
   const Sha256Digest digest = sha256(large_data);
   const Sha256Digest digest_again = sha256(large_data);
+  const std::size_t hex_length = digest.hex_value().size();
   EXPECT_EQ(digest, digest_again);
-  EXPECT_EQ(digest.hex_value().size(), 64u);
+  EXPECT_EQ(hex_length, 64u);
 }
 
 TEST(integrity_test, should_hash_an_empty_payload_with_xxhash) {
@@ -192,7 +196,8 @@ TEST(integrity_test, should_checksum_the_header_bytes_after_the_crc_field) {
 
   const uint32_t crc = packet_crc32(header, payload, crc_offset);
 
-  EXPECT_EQ(crc, crc32_mpeg2_concat(zeroed_header, payload));
+  const uint32_t expected_crc = crc32_mpeg2_concat(zeroed_header, payload);
+  EXPECT_EQ(crc, expected_crc);
 }
 
 TEST(integrity_test, should_hash_the_header_bytes_after_the_hash_field) {
@@ -207,7 +212,8 @@ TEST(integrity_test, should_hash_the_header_bytes_after_the_hash_field) {
 
   const uint32_t hash = packet_xxhash32(header, payload, hash_offset);
 
-  EXPECT_EQ(hash, XXH32(zeroed_packet.data(), zeroed_packet.size(), seed));
+  const XXH32_hash_t expected_hash = XXH32(zeroed_packet.data(), zeroed_packet.size(), seed);
+  EXPECT_EQ(hash, expected_hash);
 }
 
 TEST(integrity_test, should_reject_a_crc_field_that_is_not_four_bytes) {

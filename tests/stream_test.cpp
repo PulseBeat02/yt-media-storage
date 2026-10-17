@@ -67,7 +67,9 @@ struct TempFile {
 
 void write_file(const std::string& path, const std::vector<std::byte>& data) {
   std::ofstream ofs(path, std::ios::binary);
-  ASSERT_TRUE(ofs.is_open());
+  const bool file_open = ofs.is_open();
+  ASSERT_TRUE(file_open);
+
   ofs.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
 }
 
@@ -166,7 +168,9 @@ TEST(stream_test, should_restore_a_small_file_from_1080p_frames) {
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));
-  ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+  const bool flv_exists = std::filesystem::exists(flv.path);
+  ASSERT_TRUE(flv_exists);
 
   const auto decoded = stream_decode_file(flv.path);
   EXPECT_EQ(decoded, original);
@@ -179,7 +183,9 @@ TEST(stream_test, should_restore_a_small_file_from_4k_frames) {
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 35000, 3840, 2160));
-  ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+  const bool flv_exists = std::filesystem::exists(flv.path);
+  ASSERT_TRUE(flv_exists);
 
   const auto decoded = stream_decode_file(flv.path);
   EXPECT_EQ(decoded, original);
@@ -192,7 +198,9 @@ TEST(stream_test, should_restore_a_larger_file_from_1080p_frames) {
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));
-  ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+  const bool flv_exists = std::filesystem::exists(flv.path);
+  ASSERT_TRUE(flv_exists);
 
   const auto decoded = stream_decode_file(flv.path);
   EXPECT_EQ(decoded, original);
@@ -207,7 +215,9 @@ TEST(stream_test, should_restore_an_encrypted_file_from_frames) {
   const std::string password = "test_password_123";
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080, true, password));
-  ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+  const bool flv_exists = std::filesystem::exists(flv.path);
+  ASSERT_TRUE(flv_exists);
 
   const auto decoded = stream_decode_file(flv.path, password);
   EXPECT_EQ(decoded, original);
@@ -220,7 +230,9 @@ TEST(stream_test, should_restore_small_data_from_frames) {
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));
-  ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+  const bool flv_exists = std::filesystem::exists(flv.path);
+  ASSERT_TRUE(flv_exists);
 
   const auto decoded = stream_decode_file(flv.path);
   EXPECT_EQ(decoded, original);
@@ -274,7 +286,8 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
     video_encoder.finalize();
   }
 
-  ASSERT_TRUE(std::filesystem::exists(mkv.path));
+  const bool mkv_exists = std::filesystem::exists(mkv.path);
+  ASSERT_TRUE(mkv_exists);
 
   {
     VideoDecoder video_decoder(mkv.path);
@@ -306,7 +319,8 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
     ASSERT_GE(decoded_chunks, expected);
 
     const auto assembled = decoder.assemble_file(expected);
-    ASSERT_TRUE(assembled.has_value());
+    const bool assembled_present = assembled.has_value();
+    ASSERT_TRUE(assembled_present);
     EXPECT_EQ(*assembled, original);
   }
 }
@@ -332,7 +346,9 @@ TEST(stream_test, should_restore_a_file_with_xxhash_checksums_from_frames) {
     stream_enc.finalize();
   }
 
-  ASSERT_TRUE(std::filesystem::exists(flv.path));
+  const bool flv_exists = std::filesystem::exists(flv.path);
+  ASSERT_TRUE(flv_exists);
+
   const auto decoded = stream_decode_file(flv.path);
   EXPECT_EQ(decoded, original);
 }
@@ -344,7 +360,9 @@ TEST(stream_test, should_restore_a_file_from_720p_frames) {
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 4000, 1280, 720));
-  ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+  const bool flv_exists = std::filesystem::exists(flv.path);
+  ASSERT_TRUE(flv_exists);
 
   const auto decoded = stream_decode_file(flv.path);
   EXPECT_EQ(decoded, original);
@@ -357,7 +375,9 @@ TEST(stream_test, should_restore_a_file_from_sixty_frames_per_second) {
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1280, 720, false, {}, 60));
-  ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+  const bool flv_exists = std::filesystem::exists(flv.path);
+  ASSERT_TRUE(flv_exists);
 
   const auto decoded = stream_decode_file(flv.path);
   EXPECT_EQ(decoded, original);
@@ -370,7 +390,9 @@ TEST(stream_test, should_restore_a_file_from_one_frame_per_second) {
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 4000, 1280, 720, false, {}, 1));
-  ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+  const bool flv_exists = std::filesystem::exists(flv.path);
+  ASSERT_TRUE(flv_exists);
 
   const auto decoded = stream_decode_file(flv.path);
   EXPECT_EQ(decoded, original);
@@ -384,8 +406,9 @@ TEST(stream_test, should_reject_invalid_stream_parameters) {
 
 TEST(stream_test, should_fit_at_least_one_packet_in_a_frame) {
   const int ppf = VideoEncoder::packets_per_frame();
+  const int expected_packet_count = packets_per_frame(compute_frame_layout());
   EXPECT_GT(ppf, 0);
-  EXPECT_EQ(ppf, packets_per_frame(compute_frame_layout()));
+  EXPECT_EQ(ppf, expected_packet_count);
 
   const int stream_ppf = packets_per_frame(compute_frame_layout(FRAME_WIDTH_STREAM, FRAME_HEIGHT_STREAM));
   EXPECT_GT(stream_ppf, 0);
@@ -395,7 +418,8 @@ TEST(stream_test, should_fit_at_least_one_packet_in_a_frame) {
 TEST(stream_test, should_fit_the_packet_bytes_the_layout_holds) {
   const std::size_t max_bytes = max_packet_bytes_per_frame();
   const FrameLayout layout = compute_frame_layout();
-  EXPECT_EQ(max_bytes, static_cast<std::size_t>(layout.bytes_per_frame));
+  const std::size_t layout_bytes = static_cast<std::size_t>(layout.bytes_per_frame);
+  EXPECT_EQ(max_bytes, layout_bytes);
 }
 
 TEST(stream_test, should_restore_a_file_of_several_chunks_from_frames) {
@@ -405,7 +429,9 @@ TEST(stream_test, should_restore_a_file_of_several_chunks_from_frames) {
   write_file(input.path, original);
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));
-  ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+  const bool flv_exists = std::filesystem::exists(flv.path);
+  ASSERT_TRUE(flv_exists);
 
   const auto decoded = stream_decode_file(flv.path);
   EXPECT_EQ(decoded, original);
@@ -421,13 +447,16 @@ TEST(stream_test, should_restore_a_file_from_every_frame_of_a_video) {
 
   VideoDecoder video_decoder(flv.path);
   const auto all_packets = video_decoder.decode_all_frames();
-  EXPECT_GT(all_packets.size(), 0u);
+  const std::size_t all_packet_count = all_packets.size();
+  EXPECT_GT(all_packet_count, 0u);
 
   Decoder decoder;
   for (const auto& pkt_data : all_packets) {
     (void)decoder.process_packet(std::span(pkt_data.data(), pkt_data.size()), false);
   }
-  EXPECT_GE(decoder.chunks_completed(), 1u);
+
+  const std::size_t chunks_completed = decoder.chunks_completed();
+  EXPECT_GE(chunks_completed, 1u);
 }
 
 TEST(stream_test, should_restore_an_empty_file_from_frames) {
@@ -436,8 +465,11 @@ TEST(stream_test, should_restore_an_empty_file_from_frames) {
   write_file(input.path, {});
 
   ASSERT_NO_THROW(stream_encode_file(input.path, flv.path, 8000, 1920, 1080));
-  ASSERT_TRUE(std::filesystem::exists(flv.path));
+
+  const bool flv_exists = std::filesystem::exists(flv.path);
+  ASSERT_TRUE(flv_exists);
 
   const auto decoded = stream_decode_file(flv.path);
-  EXPECT_TRUE(decoded.empty());
+  const bool decoded_empty = decoded.empty();
+  EXPECT_TRUE(decoded_empty);
 }

@@ -70,10 +70,12 @@ TEST(roundtrip_test, should_restore_a_single_chunk) {
 
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
-  EXPECT_EQ(decoder.chunks_completed(), 1u);
+  const std::size_t chunks_completed = decoder.chunks_completed();
+  EXPECT_EQ(chunks_completed, 1u);
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 }
 
@@ -92,10 +94,12 @@ TEST(roundtrip_test, should_restore_several_chunks) {
     encode_and_feed(encoder, decoder, chunk, chunk_index, is_last);
   }
 
-  EXPECT_EQ(decoder.chunks_completed(), num_chunks);
+  const std::size_t chunks_completed = decoder.chunks_completed();
+  EXPECT_EQ(chunks_completed, num_chunks);
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(num_chunks);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 }
 
@@ -107,7 +111,8 @@ TEST(roundtrip_test, should_restore_small_data) {
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 }
 
@@ -126,11 +131,14 @@ TEST(roundtrip_test, should_restore_encrypted_data) {
     (void)decoder.process_packet(packet_span(packet), false);
   }
 
-  EXPECT_TRUE(decoder.is_encrypted());
+  const bool encrypted = decoder.is_encrypted();
+  EXPECT_TRUE(encrypted);
+
   decoder.set_decrypt_key(encryption_key);
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 
   decoder.clear_decrypt_key();
@@ -145,7 +153,8 @@ TEST(roundtrip_test, should_restore_data_with_xxhash_checksums) {
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(1);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 }
 
@@ -157,7 +166,8 @@ TEST(roundtrip_test, should_not_assemble_a_file_with_incomplete_chunks) {
   encode_and_feed(encoder, decoder, original_data, 0, false);
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(2);
-  EXPECT_FALSE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  EXPECT_FALSE(assembled_present);
 }
 
 TEST(roundtrip_test, should_restore_data_matching_the_sha256_of_its_manifest) {
@@ -184,7 +194,8 @@ TEST(roundtrip_test, should_restore_data_matching_the_sha256_of_its_manifest) {
   }
 
   const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(num_chunks);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 }
 
@@ -202,11 +213,14 @@ TEST(roundtrip_test, should_restore_encrypted_data_with_xxhash_checksums) {
     (void)decoder.process_packet(packet_span(packet), false);
   }
 
-  EXPECT_TRUE(decoder.is_encrypted());
+  const bool decoder_encrypted = decoder.is_encrypted();
+  EXPECT_TRUE(decoder_encrypted);
+
   decoder.set_decrypt_key(key);
 
   const auto assembled = decoder.assemble_file(1);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 
   decoder.clear_decrypt_key();
@@ -221,8 +235,10 @@ TEST(roundtrip_test, should_restore_empty_data) {
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
   const auto assembled = decoder.assemble_file(1);
-  ASSERT_TRUE(assembled.has_value());
-  EXPECT_TRUE(assembled->empty());
+  const bool assembled_present = assembled.has_value();
+  const bool assembled_empty = assembled->empty();
+  ASSERT_TRUE(assembled_present);
+  EXPECT_TRUE(assembled_empty);
 }
 
 TEST(roundtrip_test, should_restore_data_of_one_chunk_size) {
@@ -233,7 +249,8 @@ TEST(roundtrip_test, should_restore_data_of_one_chunk_size) {
   encode_and_feed(encoder, decoder, original_data, 0, true);
 
   const auto assembled = decoder.assemble_file(1);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 }
 
@@ -252,7 +269,8 @@ TEST(roundtrip_test, should_restore_data_of_two_chunk_sizes) {
   }
 
   const auto assembled = decoder.assemble_file(num_chunks);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 }
 
@@ -271,7 +289,8 @@ TEST(roundtrip_test, should_restore_many_chunks) {
   }
 
   const auto assembled = decoder.assemble_file(num_chunks);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 }
 
@@ -288,7 +307,8 @@ TEST(roundtrip_test, should_restore_data_from_packets_out_of_order) {
   }
 
   const auto assembled = decoder.assemble_file(1);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 }
 
@@ -307,9 +327,12 @@ TEST(roundtrip_test, should_restore_data_despite_lost_packets) {
     (void)decoder.process_packet(packet_span(packets[i]), false);
   }
 
-  EXPECT_TRUE(decoder.is_chunk_complete(0));
+  const bool chunk_complete = decoder.is_chunk_complete(0);
+  EXPECT_TRUE(chunk_complete);
+
   const auto assembled = decoder.assemble_file(1);
-  ASSERT_TRUE(assembled.has_value());
+  const bool assembled_present = assembled.has_value();
+  ASSERT_TRUE(assembled_present);
   EXPECT_EQ(*assembled, original_data);
 }
 
@@ -325,13 +348,16 @@ TEST(roundtrip_test, should_write_the_assembled_file) {
   EXPECT_TRUE(success);
 
   std::ifstream ifs(output_path, std::ios::binary | std::ios::ate);
-  ASSERT_TRUE(ifs.is_open());
+  const bool file_open = ifs.is_open();
+  ASSERT_TRUE(file_open);
+
   const auto file_size = ifs.tellg();
   ifs.seekg(0);
   std::vector<std::byte> file_data(file_size);
   ifs.read(reinterpret_cast<char*>(file_data.data()), file_size);
 
   EXPECT_EQ(file_data, original_data);
+
   ifs.close();
   std::filesystem::remove(output_path);
 }

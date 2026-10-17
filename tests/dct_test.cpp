@@ -82,7 +82,9 @@ TEST(dct_test, should_sum_a_dot_product_of_ones) {
     a[i] = 1.0f;
     b[i] = 1.0f;
   }
-  EXPECT_FLOAT_EQ(dot_product_64(a, b), 64.0f);
+
+  const float product = dot_product_64(a, b);
+  EXPECT_FLOAT_EQ(product, 64.0f);
 }
 
 TEST(dct_test, should_compute_the_dot_product_of_a_linear_sequence) {
@@ -93,7 +95,9 @@ TEST(dct_test, should_compute_the_dot_product_of_a_linear_sequence) {
     a[i] = static_cast<float>(i);
     b[i] = 1.0f;
   }
-  EXPECT_FLOAT_EQ(dot_product_64(a, b), 2016.0f);
+
+  const float product = dot_product_64(a, b);
+  EXPECT_FLOAT_EQ(product, 2016.0f);
 }
 
 TEST(dct_test, should_compute_a_zero_dot_product_for_orthogonal_vectors) {
@@ -105,7 +109,8 @@ TEST(dct_test, should_compute_a_zero_dot_product_for_orthogonal_vectors) {
   for (int i = 32; i < 64; ++i)
     b[i] = 1.0f;
 
-  EXPECT_FLOAT_EQ(dot_product_64(a, b), 0.0f);
+  const float product = dot_product_64(a, b);
+  EXPECT_FLOAT_EQ(product, 0.0f);
 }
 
 TEST(dct_test, should_build_the_same_cosine_table_every_time) {
@@ -141,6 +146,7 @@ TEST(dct_test, should_produce_a_different_block_for_each_pattern) {
       }
     }
   }
+
   EXPECT_TRUE(any_differ);
 }
 
@@ -160,7 +166,8 @@ TEST(dct_test, should_fill_the_margins_a_frame_width_leaves_beside_whole_blocks)
   for (int y = 0; y < frame_height; ++y) {
     const int first_neutral = y < data_rows ? block_width : 0;
     for (int x = first_neutral; x < frame_width; ++x) {
-      EXPECT_EQ(plane[static_cast<std::size_t>(y) * frame_width + x], neutral);
+      const uint8_t sample = plane[static_cast<std::size_t>(y) * frame_width + x];
+      EXPECT_EQ(sample, neutral);
     }
   }
 }

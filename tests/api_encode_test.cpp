@@ -64,8 +64,12 @@ TEST(api_encode_test, should_round_trip_more_chunks_than_threads_through_pipelin
   ms_decode_options_t decode_options{};
   decode_options.input_path = video_path.c_str();
   decode_options.output_path = output_path.c_str();
-  ASSERT_EQ(ms_decode(&decode_options, nullptr), MS_OK);
-  EXPECT_EQ(fixtures::read_bytes(output.path()), data);
+
+  const ms_status_t decode_status = ms_decode(&decode_options, nullptr);
+  ASSERT_EQ(decode_status, MS_OK);
+
+  const std::vector<std::byte> output_bytes = fixtures::read_bytes(output.path());
+  EXPECT_EQ(output_bytes, data);
 }
 
 TEST(api_encode_test, should_report_an_input_that_cannot_be_memory_mapped) {
@@ -81,6 +85,7 @@ TEST(api_encode_test, should_report_an_input_that_cannot_be_memory_mapped) {
 
   const ms_status_t status = ms_encode(&options, nullptr);
 
+  const bool video_exists = std::filesystem::exists(video.path());
   EXPECT_EQ(status, MS_ERR_IO);
-  EXPECT_FALSE(std::filesystem::exists(video.path()));
+  EXPECT_FALSE(video_exists);
 }

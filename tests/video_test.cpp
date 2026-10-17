@@ -144,7 +144,9 @@ void write_one_packet_stream(const std::string& path, const Packet& packet) {
 
 void write_undecodable_video(const std::string& path) {
   AVFormatContext* context = nullptr;
-  ASSERT_GE(avformat_alloc_output_context2(&context, nullptr, nullptr, path.c_str()), 0);
+  const int context_status = avformat_alloc_output_context2(&context, nullptr, nullptr, path.c_str());
+  ASSERT_GE(context_status, 0);
+
   AVStream* const stream = avformat_new_stream(context, nullptr);
   stream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
   stream->codecpar->codec_tag = UNKNOWN_CODEC_TAG;
@@ -181,11 +183,13 @@ std::vector<std::byte> read_last_frame_data(const std::string& path) {
 
 void break_the_slice_chain_of_the_last_frame(const std::filesystem::path& path) {
   const std::vector<std::byte> last_frame = read_last_frame_data(path.string());
-  ASSERT_GT(last_frame.size(), SLICE_SIZE_BYTES + SLICE_STATUS_AND_CRC_BYTES);
+  const std::size_t last_frame_size = last_frame.size();
+  ASSERT_GT(last_frame_size, SLICE_SIZE_BYTES + SLICE_STATUS_AND_CRC_BYTES);
 
   std::vector<std::byte> video = fixtures::read_bytes(path);
   const auto found = std::search(video.begin(), video.end(), last_frame.begin(), last_frame.end());
-  ASSERT_NE(found, video.end());
+  const auto video_end = video.end();
+  ASSERT_NE(found, video_end);
 
   const std::size_t slice_size_offset = last_frame.size() - SLICE_STATUS_AND_CRC_BYTES - SLICE_SIZE_BYTES;
   const auto slice_size = found + static_cast<std::ptrdiff_t>(slice_size_offset);
@@ -206,7 +210,10 @@ codec_pointer open_h264_encoder(const int width, const int height) {
   encoder->pix_fmt = AV_PIX_FMT_YUV420P;
   encoder->time_base = AVRational{1, FRAME_FPS};
   encoder->max_b_frames = 0;
-  EXPECT_EQ(avcodec_open2(encoder.get(), codec, nullptr), 0);
+
+  const int open_status = avcodec_open2(encoder.get(), codec, nullptr);
+  EXPECT_EQ(open_status, 0);
+
   return encoder;
 }
 
@@ -232,16 +239,22 @@ void write_frames_of_size(std::ofstream& output, const int width, const int heig
   frame.get()->format = AV_PIX_FMT_YUV420P;
   frame.get()->width = width;
   frame.get()->height = height;
-  ASSERT_EQ(av_frame_get_buffer(frame.get(), 0), 0);
+
+  const int buffer_status = av_frame_get_buffer(frame.get(), 0);
+  ASSERT_EQ(buffer_status, 0);
+
   fill_with_mid_gray(*frame.get());
 
   for (int i = 0; i < FRAMES_PER_SIZE; ++i) {
     frame.get()->pts = i;
-    ASSERT_EQ(avcodec_send_frame(encoder.get(), frame.get()), 0);
+    const int send_status = avcodec_send_frame(encoder.get(), frame.get());
+    ASSERT_EQ(send_status, 0);
     write_encoded_packets(encoder.get(), packet.get(), output);
   }
 
-  ASSERT_EQ(avcodec_send_frame(encoder.get(), nullptr), 0);
+  const int flush_status = avcodec_send_frame(encoder.get(), nullptr);
+  ASSERT_EQ(flush_status, 0);
+
   write_encoded_packets(encoder.get(), packet.get(), output);
 }
 
@@ -260,18 +273,29 @@ TEST(av_utils_test, should_give_a_shared_frame_its_own_buffer_of_the_same_shape)
   frame.get()->format = AV_PIX_FMT_GRAY8;
   frame.get()->width = SMALL_FRAME_WIDTH;
   frame.get()->height = SMALL_FRAME_HEIGHT;
-  ASSERT_EQ(av_frame_get_buffer(frame.get(), 0), 0);
-  ASSERT_EQ(av_frame_ref(reference.get(), frame.get()), 0);
+
+  const int buffer_status = av_frame_get_buffer(frame.get(), 0);
+  ASSERT_EQ(buffer_status, 0);
+
+  const int reference_status = av_frame_ref(reference.get(), frame.get());
+  ASSERT_EQ(reference_status, 0);
+
   const uint8_t* const shared_plane = frame.get()->data[0];
 
   ensure_fresh_writable_frame(frame.get());
 
-  EXPECT_TRUE(av_frame_is_writable(frame.get()));
-  EXPECT_NE(frame.get()->data[0], shared_plane);
-  EXPECT_EQ(reference.get()->data[0], shared_plane);
-  EXPECT_EQ(frame.get()->format, AV_PIX_FMT_GRAY8);
-  EXPECT_EQ(frame.get()->width, SMALL_FRAME_WIDTH);
-  EXPECT_EQ(frame.get()->height, SMALL_FRAME_HEIGHT);
+  const int writable = av_frame_is_writable(frame.get());
+  uint8_t* const fresh_plane = frame.get()->data[0];
+  uint8_t* const reference_plane = reference.get()->data[0];
+  const int frame_format = frame.get()->format;
+  const int frame_width = frame.get()->width;
+  const int frame_height = frame.get()->height;
+  EXPECT_TRUE(writable);
+  EXPECT_NE(fresh_plane, shared_plane);
+  EXPECT_EQ(reference_plane, shared_plane);
+  EXPECT_EQ(frame_format, AV_PIX_FMT_GRAY8);
+  EXPECT_EQ(frame_width, SMALL_FRAME_WIDTH);
+  EXPECT_EQ(frame_height, SMALL_FRAME_HEIGHT);
 }
 
 TEST(av_utils_test, should_keep_the_buffer_of_a_frame_that_is_already_writable) {
@@ -279,12 +303,16 @@ TEST(av_utils_test, should_keep_the_buffer_of_a_frame_that_is_already_writable) 
   frame.get()->format = AV_PIX_FMT_GRAY8;
   frame.get()->width = SMALL_FRAME_WIDTH;
   frame.get()->height = SMALL_FRAME_HEIGHT;
-  ASSERT_EQ(av_frame_get_buffer(frame.get(), 0), 0);
+
+  const int buffer_status = av_frame_get_buffer(frame.get(), 0);
+  ASSERT_EQ(buffer_status, 0);
+
   const uint8_t* const plane = frame.get()->data[0];
 
   ensure_fresh_writable_frame(frame.get());
 
-  EXPECT_EQ(frame.get()->data[0], plane);
+  uint8_t* const kept_plane = frame.get()->data[0];
+  EXPECT_EQ(kept_plane, plane);
 }
 
 TEST(video_encoder_test, should_reject_an_output_path_without_a_known_container) {
@@ -292,8 +320,9 @@ TEST(video_encoder_test, should_reject_an_output_path_without_a_known_container)
 
   const std::string message = fixtures::find_error_message([&output] { VideoEncoder encoder(output.string()); });
 
+  const bool output_exists = std::filesystem::exists(output.path());
   EXPECT_EQ(message, "Failed to create output context");
-  EXPECT_FALSE(std::filesystem::exists(output.path()));
+  EXPECT_FALSE(output_exists);
 }
 
 TEST(video_encoder_test, should_fail_to_open_an_output_file_in_a_missing_directory) {
@@ -302,7 +331,8 @@ TEST(video_encoder_test, should_fail_to_open_an_output_file_in_a_missing_directo
 
   const std::string message = fixtures::find_error_message([&output] { VideoEncoder encoder(output.string()); });
 
-  EXPECT_TRUE(message.starts_with("Failed to open output file: ")) << message;
+  const bool reports_open_failure = message.starts_with("Failed to open output file: ");
+  EXPECT_TRUE(reports_open_failure) << message;
 }
 
 TEST(video_encoder_test, should_fail_to_write_the_header_of_a_container_that_cannot_hold_ffv1) {
@@ -310,7 +340,8 @@ TEST(video_encoder_test, should_fail_to_write_the_header_of_a_container_that_can
 
   const std::string message = fixtures::find_error_message([&output] { VideoEncoder encoder(output.string()); });
 
-  EXPECT_TRUE(message.starts_with("Failed to write header: ")) << message;
+  const bool reports_header_failure = message.starts_with("Failed to write header: ");
+  EXPECT_TRUE(reports_header_failure) << message;
 }
 
 TEST(video_encoder_test, should_reject_a_packet_after_finalizing) {
@@ -320,8 +351,9 @@ TEST(video_encoder_test, should_reject_a_packet_after_finalizing) {
 
   const std::string message = fixtures::find_error_message([&encoder] { encoder.add_packet(make_framed_packet(0)); });
 
+  const int64_t frames_written = encoder.frames_written();
   EXPECT_EQ(message, "Encoder already finalized");
-  EXPECT_EQ(encoder.frames_written(), 0);
+  EXPECT_EQ(frames_written, 0);
 }
 
 TEST(video_encoder_test, should_report_a_failed_frame_write_when_the_disk_is_full) {
@@ -338,7 +370,8 @@ TEST(video_encoder_test, should_report_a_failed_frame_write_when_the_disk_is_ful
     encoder.finalize();
   });
 
-  EXPECT_TRUE(message.starts_with("Error writing frame: ")) << message;
+  const bool reports_frame_failure = message.starts_with("Error writing frame: ");
+  EXPECT_TRUE(reports_frame_failure) << message;
 }
 
 TEST(video_encoder_test, should_report_a_failed_trailer_when_the_disk_is_full) {
@@ -353,7 +386,8 @@ TEST(video_encoder_test, should_report_a_failed_trailer_when_the_disk_is_full) {
 
   const std::string message = fixtures::find_error_message([&encoder] { encoder.finalize(); });
 
-  EXPECT_TRUE(message.starts_with("Error writing trailer: ")) << message;
+  const bool reports_trailer_failure = message.starts_with("Error writing trailer: ");
+  EXPECT_TRUE(reports_trailer_failure) << message;
 }
 
 TEST(video_encoder_test, should_not_throw_from_its_destructor_when_finalizing_fails) {
@@ -405,9 +439,11 @@ TEST(video_decoder_test, should_count_frames_from_the_frame_count_of_the_contain
   const VideoDecoder::PacketList packets = decoder.decode_all_frames();
 
   const std::size_t expected_packets = static_cast<std::size_t>(packets_spanning_frames(FRAMES_TO_WRITE));
+  const std::size_t packet_count = packets.size();
+  const int64_t frames_read = decoder.frames_read();
   EXPECT_EQ(total_frames, FRAMES_TO_WRITE);
-  EXPECT_EQ(packets.size(), expected_packets);
-  EXPECT_EQ(decoder.frames_read(), FRAMES_TO_WRITE);
+  EXPECT_EQ(packet_count, expected_packets);
+  EXPECT_EQ(frames_read, FRAMES_TO_WRITE);
 }
 
 TEST(video_decoder_test, should_estimate_frames_from_the_duration_of_the_stream) {
@@ -429,8 +465,10 @@ TEST(video_decoder_test, should_hold_back_a_magic_number_that_ends_the_last_fram
 
   const VideoDecoder::PacketList packets = decoder.decode_all_frames();
 
-  EXPECT_TRUE(packets.empty());
-  EXPECT_EQ(decoder.frames_read(), 1);
+  const bool packets_empty = packets.empty();
+  const int64_t frames_read = decoder.frames_read();
+  EXPECT_TRUE(packets_empty);
+  EXPECT_EQ(frames_read, 1);
 }
 
 TEST(video_decoder_test, should_size_a_packet_of_an_unknown_version_like_version_one) {
@@ -443,8 +481,10 @@ TEST(video_decoder_test, should_size_a_packet_of_an_unknown_version_like_version
 
   const VideoDecoder::PacketList packets = decoder.decode_all_frames();
 
-  ASSERT_EQ(packets.size(), 1U);
-  EXPECT_EQ(packets[0].size(), HEADER_SIZE + SYMBOL_SIZE_BYTES);
+  const std::size_t packet_count = packets.size();
+  const std::size_t packet_size = packets[0].size();
+  ASSERT_EQ(packet_count, 1U);
+  EXPECT_EQ(packet_size, HEADER_SIZE + SYMBOL_SIZE_BYTES);
   EXPECT_EQ(packets[0][VERSION_OFF], std::byte{UNKNOWN_VERSION});
 }
 
@@ -456,20 +496,27 @@ TEST(video_decoder_test, should_skip_a_frame_whose_slices_cannot_be_found) {
 
   const VideoDecoder::PacketList packets = decoder.decode_all_frames();
 
-  EXPECT_EQ(packets.size(), static_cast<std::size_t>(VideoEncoder::packets_per_frame()));
-  EXPECT_EQ(decoder.frames_read(), FRAMES_TO_WRITE - 1);
-  EXPECT_TRUE(decoder.is_eof());
+  const std::size_t packet_count = packets.size();
+  const std::size_t expected_packet_count = static_cast<std::size_t>(VideoEncoder::packets_per_frame());
+  const int64_t frames_read = decoder.frames_read();
+  const bool at_end = decoder.is_eof();
+  EXPECT_EQ(packet_count, expected_packet_count);
+  EXPECT_EQ(frames_read, FRAMES_TO_WRITE - 1);
+  EXPECT_TRUE(at_end);
 }
 
 TEST(video_decoder_test, should_read_every_frame_of_a_stream_whose_resolution_changes) {
   const fixtures::temporary_file stream(H264_EXTENSION);
   ASSERT_NO_FATAL_FAILURE(write_resizing_stream(stream.string()));
+
   VideoDecoder decoder(stream.string());
 
   const VideoDecoder::PacketList packets = decoder.decode_all_frames();
 
-  EXPECT_TRUE(packets.empty());
-  EXPECT_EQ(decoder.frames_read(), FRAME_SIZES * FRAMES_PER_SIZE);
+  const bool packets_empty = packets.empty();
+  const int64_t frames_read = decoder.frames_read();
+  EXPECT_TRUE(packets_empty);
+  EXPECT_EQ(frames_read, FRAME_SIZES * FRAMES_PER_SIZE);
 }
 
 TEST(stream_encoder_test, should_reject_a_packet_after_finalizing) {
@@ -490,7 +537,8 @@ TEST(stream_encoder_test, should_report_a_frame_width_that_libx264_cannot_encode
     StreamEncoder encoder(output.string(), STREAM_BITRATE_KBPS, ODD_FRAME_WIDTH, ONE_PACKET_FRAME_HEIGHT, FRAME_FPS);
   });
 
-  EXPECT_TRUE(message.starts_with("Failed to open libx264 codec: ")) << message;
+  const bool reports_codec_failure = message.starts_with("Failed to open libx264 codec: ");
+  EXPECT_TRUE(reports_codec_failure) << message;
 }
 
 TEST(stream_encoder_test, should_report_a_failed_frame_write_when_the_disk_is_full) {
@@ -505,7 +553,8 @@ TEST(stream_encoder_test, should_report_a_failed_frame_write_when_the_disk_is_fu
     encoder.finalize();
   });
 
-  EXPECT_TRUE(message.starts_with("Error writing frame to stream: ")) << message;
+  const bool reports_frame_failure = message.starts_with("Error writing frame to stream: ");
+  EXPECT_TRUE(reports_frame_failure) << message;
 }
 
 TEST(stream_encoder_test, should_report_a_failed_trailer_when_the_disk_is_full) {
@@ -519,7 +568,8 @@ TEST(stream_encoder_test, should_report_a_failed_trailer_when_the_disk_is_full) 
 
   const std::string message = fixtures::find_error_message([&encoder] { encoder.finalize(); });
 
-  EXPECT_TRUE(message.starts_with("Error writing stream trailer: ")) << message;
+  const bool reports_trailer_failure = message.starts_with("Error writing stream trailer: ");
+  EXPECT_TRUE(reports_trailer_failure) << message;
 }
 
 TEST(stream_encoder_test, should_not_throw_from_its_destructor_when_finalizing_fails) {

@@ -65,7 +65,10 @@ frame_pointer make_frame(const AVPixelFormat format, const int width, const int 
   frame->format = format;
   frame->width = width;
   frame->height = height;
-  EXPECT_EQ(av_frame_get_buffer(frame.get(), DEFAULT_ALIGNMENT), 0);
+
+  const int buffer_status = av_frame_get_buffer(frame.get(), DEFAULT_ALIGNMENT);
+  EXPECT_EQ(buffer_status, 0);
+
   return frame;
 }
 
@@ -106,7 +109,9 @@ bool matches_table(const AVFrame& source, const AVFrame& gray, const gray_lookup
 TEST(gray_lookup_test, should_convert_unseen_frames_like_the_scaler_it_was_calibrated_against) {
   const scaler_pointer scaler = make_gray_scaler(AV_PIX_FMT_YUV420P, FRAME_WIDTH_STREAM, FRAME_HEIGHT_STREAM);
   const std::optional<gray_lookup_table> table = calibrate_stream_table(scaler.get());
-  ASSERT_TRUE(table.has_value());
+  const bool table_present = table.has_value();
+  ASSERT_TRUE(table_present);
+
   const frame_pointer source = make_frame(AV_PIX_FMT_YUV420P, FRAME_WIDTH_STREAM, FRAME_HEIGHT_STREAM);
   const frame_pointer gray = make_frame(AV_PIX_FMT_GRAY8, FRAME_WIDTH_STREAM, FRAME_HEIGHT_STREAM);
   fill_with_pattern(*source);
@@ -124,9 +129,13 @@ TEST(gray_lookup_test, should_stretch_limited_range_luma_to_full_range_gray) {
 
   const std::optional<gray_lookup_table> table = calibrate_stream_table(scaler.get());
 
-  ASSERT_TRUE(table.has_value());
-  EXPECT_EQ(table->at(LIMITED_RANGE_BLACK), FULL_RANGE_BLACK);
-  EXPECT_EQ(table->at(LIMITED_RANGE_WHITE), FULL_RANGE_WHITE);
+  const bool table_present = table.has_value();
+  ASSERT_TRUE(table_present);
+
+  const uint8_t mapped_black = table->at(LIMITED_RANGE_BLACK);
+  const uint8_t mapped_white = table->at(LIMITED_RANGE_WHITE);
+  EXPECT_EQ(mapped_black, FULL_RANGE_BLACK);
+  EXPECT_EQ(mapped_white, FULL_RANGE_WHITE);
 }
 
 TEST(gray_lookup_test, should_find_no_table_when_gray_depends_on_more_than_one_byte) {
@@ -135,7 +144,8 @@ TEST(gray_lookup_test, should_find_no_table_when_gray_depends_on_more_than_one_b
   const std::optional<gray_lookup_table> table =
       calibrate_gray_lookup_table(scaler.get(), AV_PIX_FMT_RGB24, SQUARE_FRAME_SIZE, SQUARE_FRAME_SIZE);
 
-  EXPECT_FALSE(table.has_value());
+  const bool table_present = table.has_value();
+  EXPECT_FALSE(table_present);
 }
 
 TEST(gray_lookup_test, should_find_no_table_when_the_frame_is_too_small_to_hold_every_luma_value) {
@@ -145,7 +155,8 @@ TEST(gray_lookup_test, should_find_no_table_when_the_frame_is_too_small_to_hold_
   const std::optional<gray_lookup_table> table = calibrate_gray_lookup_table(
       scaler.get(), AV_PIX_FMT_YUV420P, FRAME_SIZE_WITHOUT_EVERY_LUMA_VALUE, FRAME_SIZE_WITHOUT_EVERY_LUMA_VALUE);
 
-  EXPECT_FALSE(table.has_value());
+  const bool table_present = table.has_value();
+  EXPECT_FALSE(table_present);
 }
 
 TEST(gray_lookup_test, should_find_no_table_when_the_frame_cannot_be_allocated) {
@@ -154,7 +165,8 @@ TEST(gray_lookup_test, should_find_no_table_when_the_frame_cannot_be_allocated) 
   const std::optional<gray_lookup_table> table =
       calibrate_gray_lookup_table(scaler.get(), AV_PIX_FMT_NONE, SQUARE_FRAME_SIZE, SQUARE_FRAME_SIZE);
 
-  EXPECT_FALSE(table.has_value());
+  const bool table_present = table.has_value();
+  EXPECT_FALSE(table_present);
 }
 
 TEST(gray_lookup_test, should_find_no_table_when_the_scaler_rejects_the_frame) {
@@ -163,5 +175,6 @@ TEST(gray_lookup_test, should_find_no_table_when_the_scaler_rejects_the_frame) {
   const std::optional<gray_lookup_table> table =
       calibrate_gray_lookup_table(scaler.get(), AV_PIX_FMT_YUV420P, SQUARE_FRAME_SIZE, FRAME_HEIGHT_BEYOND_THE_SCALER);
 
-  EXPECT_FALSE(table.has_value());
+  const bool table_present = table.has_value();
+  EXPECT_FALSE(table_present);
 }
