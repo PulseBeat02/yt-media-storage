@@ -24,6 +24,7 @@ add_executable(media_storage_tests
         test_dct.cpp
         test_api.cpp
         cli_test.cpp
+        video_test.cpp
 )
 
 target_link_libraries(media_storage_tests PRIVATE
