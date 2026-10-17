@@ -34,70 +34,75 @@ extern "C" {
 
 class StreamEncoder {
 public:
-    explicit StreamEncoder(const std::string &rtmp_url, int bitrate_kbps = FRAME_BITRATE,
-                           int width = FRAME_WIDTH_STREAM, int height = FRAME_HEIGHT_STREAM,
-                           int fps = FRAME_FPS);
+  explicit StreamEncoder(const std::string& rtmp_url, int bitrate_kbps = FRAME_BITRATE, int width = FRAME_WIDTH_STREAM,
+                         int height = FRAME_HEIGHT_STREAM, int fps = FRAME_FPS);
 
-    ~StreamEncoder();
+  ~StreamEncoder();
 
-    StreamEncoder(const StreamEncoder &) = delete;
+  StreamEncoder(const StreamEncoder&) = delete;
 
-    StreamEncoder &operator=(const StreamEncoder &) = delete;
+  StreamEncoder& operator=(const StreamEncoder&) = delete;
 
-    StreamEncoder(StreamEncoder &&) = delete;
+  StreamEncoder(StreamEncoder&&) = delete;
 
-    StreamEncoder &operator=(StreamEncoder &&) = delete;
+  StreamEncoder& operator=(StreamEncoder&&) = delete;
 
-    void add_packet(const Packet &packet);
+  void add_packet(const Packet& packet);
 
-    void encode_packets(const std::vector<Packet> &packets);
+  void encode_packets(const std::vector<Packet>& packets);
 
-    void finalize();
+  void finalize();
 
-    [[nodiscard]] int64_t frames_written() const { return frame_index_; }
+  [[nodiscard]] int64_t frames_written() const {
+    return frame_index_;
+  }
 
-    [[nodiscard]] int packets_per_frame() const { return ::packets_per_frame(layout_); }
+  [[nodiscard]] int packets_per_frame() const {
+    return ::packets_per_frame(layout_);
+  }
 
-    [[nodiscard]] const FrameLayout &layout() const { return layout_; }
+  [[nodiscard]] const FrameLayout& layout() const {
+    return layout_;
+  }
 
 private:
-    AVFormatContext *format_ctx_ = nullptr;
+  AVFormatContext* format_ctx_ = nullptr;
 
-    AVCodecContext *video_codec_ctx_ = nullptr;
-    AVStream *video_stream_ = nullptr;
-    AVFrame *frame_ = nullptr;
+  AVCodecContext* video_codec_ctx_ = nullptr;
+  AVStream* video_stream_ = nullptr;
+  AVFrame* frame_ = nullptr;
 
-    AVCodecContext *audio_codec_ctx_ = nullptr;
-    AVStream *audio_stream_ = nullptr;
-    AVFrame *audio_frame_ = nullptr;
-    int64_t audio_pts_ = 0;
+  AVCodecContext* audio_codec_ctx_ = nullptr;
+  AVStream* audio_stream_ = nullptr;
+  AVFrame* audio_frame_ = nullptr;
+  int64_t audio_pts_ = 0;
 
-    AVPacket *av_packet_ = nullptr;
+  AVPacket* av_packet_ = nullptr;
 
-    int width_;
-    int height_;
-    int fps_;
+  int width_;
+  int height_;
+  int fps_;
 
-    std::vector<std::byte> frame_data_buffer_;
-    FrameLayout layout_{};
-    int64_t frame_index_ = 0;
-    bool finalized_ = false;
+  std::vector<std::byte> frame_data_buffer_;
+  FrameLayout layout_{};
+  int64_t frame_index_ = 0;
+  bool finalized_ = false;
 
-    void init_stream(const std::string &rtmp_url, int bitrate_kbps);
+  void init_stream(const std::string& rtmp_url, int bitrate_kbps);
 
-    void init_video_encoder(int bitrate_kbps);
+  void init_video_encoder(int bitrate_kbps);
 
-    void init_audio_encoder();
+  void init_audio_encoder();
 
-    void release();
+  void release();
 
-    void write_pending_packets(AVCodecContext *codec_ctx, const AVStream *stream, bool ignore_errors);
+  void write_pending_packets(AVCodecContext* codec_ctx, const AVStream* stream, bool ignore_errors);
 
-    void write_audio_up_to(int64_t video_pts);
+  void write_audio_up_to(int64_t video_pts);
 
-    void encode_frame();
+  void encode_frame();
 
-    void flush_frame_buffer();
+  void flush_frame_buffer();
 
-    void flush_encoders();
+  void flush_encoders();
 };

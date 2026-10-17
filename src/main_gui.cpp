@@ -20,21 +20,21 @@
 #include "drive_manager_ui.h"
 #include "media_storage.h"
 
-int main(int argc, char *argv[]) {
-    QApplication app(argc, argv);
+int main(int argc, char* argv[]) {
+  QApplication app(argc, argv);
 
-    QApplication::setApplicationName("YouTube Media Storage");
-    QApplication::setApplicationDisplayName("Drive Manager");
-    QApplication::setApplicationVersion(ms_version());
-    QApplication::setOrganizationName("Media Storage");
-    QApplication::setOrganizationDomain("brandonli.me");
+  QApplication::setApplicationName("YouTube Media Storage");
+  QApplication::setApplicationDisplayName("Drive Manager");
+  QApplication::setApplicationVersion(ms_version());
+  QApplication::setOrganizationName("Media Storage");
+  QApplication::setOrganizationDomain("brandonli.me");
 
-    if (QStyleFactory::keys().contains("Fusion")) {
-        QApplication::setStyle("Fusion");
-    }
+  if (QStyleFactory::keys().contains("Fusion")) {
+    QApplication::setStyle("Fusion");
+  }
 
-    DriveManagerUI window;
-    window.show();
+  DriveManagerUI window;
+  window.show();
 
-    return QApplication::exec();
+  return QApplication::exec();
 }

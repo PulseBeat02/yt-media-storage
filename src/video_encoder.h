@@ -33,49 +33,51 @@ extern "C" {
 
 class VideoEncoder {
 public:
-    explicit VideoEncoder(const std::string &output_path);
+  explicit VideoEncoder(const std::string& output_path);
 
-    ~VideoEncoder();
+  ~VideoEncoder();
 
-    VideoEncoder(const VideoEncoder &) = delete;
+  VideoEncoder(const VideoEncoder&) = delete;
 
-    VideoEncoder &operator=(const VideoEncoder &) = delete;
+  VideoEncoder& operator=(const VideoEncoder&) = delete;
 
-    VideoEncoder(VideoEncoder &&) = delete;
+  VideoEncoder(VideoEncoder&&) = delete;
 
-    VideoEncoder &operator=(VideoEncoder &&) = delete;
+  VideoEncoder& operator=(VideoEncoder&&) = delete;
 
-    void add_packet(const Packet &packet);
+  void add_packet(const Packet& packet);
 
-    void encode_packets(const std::vector<Packet> &packets);
+  void encode_packets(const std::vector<Packet>& packets);
 
-    void finalize();
+  void finalize();
 
-    [[nodiscard]] int64_t frames_written() const { return frame_index_; }
+  [[nodiscard]] int64_t frames_written() const {
+    return frame_index_;
+  }
 
-    [[nodiscard]] static int packets_per_frame();
+  [[nodiscard]] static int packets_per_frame();
 
 private:
-    AVFormatContext *format_ctx_ = nullptr;
-    AVCodecContext *codec_ctx_ = nullptr;
-    AVStream *stream_ = nullptr;
-    AVFrame *frame_ = nullptr;
-    AVPacket *av_packet_ = nullptr;
+  AVFormatContext* format_ctx_ = nullptr;
+  AVCodecContext* codec_ctx_ = nullptr;
+  AVStream* stream_ = nullptr;
+  AVFrame* frame_ = nullptr;
+  AVPacket* av_packet_ = nullptr;
 
-    std::vector<std::byte> frame_data_buffer_;
-    FrameLayout layout_{};
-    int64_t frame_index_ = 0;
-    bool finalized_ = false;
+  std::vector<std::byte> frame_data_buffer_;
+  FrameLayout layout_{};
+  int64_t frame_index_ = 0;
+  bool finalized_ = false;
 
-    void init_encoder(const std::string &output_path);
+  void init_encoder(const std::string& output_path);
 
-    void release();
+  void release();
 
-    void write_pending_packets();
+  void write_pending_packets();
 
-    void encode_frame();
+  void encode_frame();
 
-    void flush_frame_buffer();
+  void flush_frame_buffer();
 
-    void flush_encoder();
+  void flush_encoder();
 };

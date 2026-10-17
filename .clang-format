@@ -1,0 +1,5 @@
+BasedOnStyle: LLVM
+ColumnLimit: 120
+FixNamespaceComments: false
+PointerAlignment: Left
+AllowShortFunctionsOnASingleLine: None

@@ -111,9 +111,8 @@ public:
   }
 
   [[nodiscard]] bool has_message(const QString& title, const QString& text) const {
-    return std::ranges::any_of(messages_, [&](const shown_message& message) {
-      return message.title == title && message.text.contains(text);
-    });
+    return std::ranges::any_of(
+        messages_, [&](const shown_message& message) { return message.title == title && message.text.contains(text); });
   }
 
   void clear() {
@@ -187,21 +186,16 @@ bool wait_until(const std::function<bool()>& condition) {
 
 struct worker_recorder {
   explicit worker_recorder(WorkerThread& worker) {
-    QObject::connect(&worker, &WorkerThread::progressUpdated, &context, [this](const int value) {
-      progress.push_back(value);
-    });
-    QObject::connect(&worker, &WorkerThread::logMessage, &context, [this](const QString& message) {
-      logs.append(message);
-    });
-    QObject::connect(&worker, &WorkerThread::operationCompleted, &context, [this](const bool succeeded) {
-      success = succeeded;
-    });
+    QObject::connect(&worker, &WorkerThread::progressUpdated, &context,
+                     [this](const int value) { progress.push_back(value); });
+    QObject::connect(&worker, &WorkerThread::logMessage, &context,
+                     [this](const QString& message) { logs.append(message); });
+    QObject::connect(&worker, &WorkerThread::operationCompleted, &context,
+                     [this](const bool succeeded) { success = succeeded; });
   }
 
   [[nodiscard]] bool wait_for_completion() const {
-    return wait_until([this] {
-      return success.has_value();
-    });
+    return wait_until([this] { return success.has_value(); });
   }
 
   QObject context;
@@ -316,9 +310,7 @@ protected:
   }
 
   bool wait_for_message(const QString& title, const QString& text) const {
-    return wait_until([&] {
-      return driver_.has_message(title, text);
-    });
+    return wait_until([&] { return driver_.has_message(title, text); });
   }
 
   void encode_input_to_video(const bool encrypt) {
@@ -604,9 +596,7 @@ TEST_F(drive_manager_ui_test, should_report_progress_while_running) {
   select_files(to_qstring(input_), to_qstring(video_));
   QProgressBar* const progress = group("Status")->findChild<QProgressBar*>();
   std::vector<int> values;
-  QObject::connect(progress, &QProgressBar::valueChanged, [&](const int value) {
-    values.push_back(value);
-  });
+  QObject::connect(progress, &QProgressBar::valueChanged, [&](const int value) { values.push_back(value); });
 
   button("File Operations", "Encode to Video")->click();
 

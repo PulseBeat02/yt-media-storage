@@ -40,199 +40,196 @@
 #include "media_storage.h"
 
 struct WorkerRequest {
-    enum class Operation {
-        Encode,
-        Decode,
-        StreamEncode,
-        StreamDecode
-    };
+  enum class Operation { Encode, Decode, StreamEncode, StreamDecode };
 
-    Operation operation = Operation::Encode;
-    QString inputPath;
-    QString outputPath;
-    QString streamUrl;
-    bool encrypt = false;
-    QString password;
-    int bitrateKbps = FRAME_BITRATE;
-    int width = FRAME_WIDTH_STREAM;
-    int height = FRAME_HEIGHT_STREAM;
-    int fps = FRAME_FPS;
+  Operation operation = Operation::Encode;
+  QString inputPath;
+  QString outputPath;
+  QString streamUrl;
+  bool encrypt = false;
+  QString password;
+  int bitrateKbps = FRAME_BITRATE;
+  int width = FRAME_WIDTH_STREAM;
+  int height = FRAME_HEIGHT_STREAM;
+  int fps = FRAME_FPS;
 };
 
 class WorkerThread : public QThread {
-    Q_OBJECT
+  Q_OBJECT
 
 public:
-    explicit WorkerThread(WorkerRequest request, QObject *parent = nullptr);
+  explicit WorkerThread(WorkerRequest request, QObject* parent = nullptr);
 
-    void requestCancel() { cancelRequested = true; }
+  void requestCancel() {
+    cancelRequested = true;
+  }
 
 signals:
-    void progressUpdated(int percentage);
+  void progressUpdated(int percentage);
 
-    void statusUpdated(const QString &status);
+  void statusUpdated(const QString& status);
 
-    void operationCompleted(bool success, const QString &message);
+  void operationCompleted(bool success, const QString& message);
 
-    void logMessage(const QString &message);
+  void logMessage(const QString& message);
 
 protected:
-    void run() override;
+  void run() override;
 
 private:
-    struct ProgressRange {
-        int start;
-        int span;
-    };
+  struct ProgressRange {
+    int start;
+    int span;
+  };
 
-    WorkerRequest request;
-    std::atomic<bool> cancelRequested{false};
-    ProgressRange progressRange{0, 100};
+  WorkerRequest request;
+  std::atomic<bool> cancelRequested{false};
+  ProgressRange progressRange{0, 100};
 
-    static int progressCallback(uint64_t current, uint64_t total, void *user);
+  static int progressCallback(uint64_t current, uint64_t total, void* user);
 
-    void runEncode(const std::string &input, const std::string &output, const std::string &password);
+  void runEncode(const std::string& input, const std::string& output, const std::string& password);
 
-    void runDecode(const std::string &input, const std::string &output, const std::string &password);
+  void runDecode(const std::string& input, const std::string& output, const std::string& password);
 
-    void runStreamEncode(const std::string &input, const std::string &url, const std::string &password);
+  void runStreamEncode(const std::string& input, const std::string& url, const std::string& password);
 
-    void runStreamDecode(const std::string &url, const std::string &output, const std::string &password);
+  void runStreamDecode(const std::string& url, const std::string& output, const std::string& password);
 
-    void finish(ms_status_t status, const QString &successMessage, const QString &failurePrefix);
+  void finish(ms_status_t status, const QString& successMessage, const QString& failurePrefix);
 };
 
 class DriveManagerUI : public QMainWindow {
-    Q_OBJECT
+  Q_OBJECT
 
 public:
-    explicit DriveManagerUI(QWidget *parent = nullptr);
+  explicit DriveManagerUI(QWidget* parent = nullptr);
 
-    ~DriveManagerUI() override;
+  ~DriveManagerUI() override;
 
 private slots:
-    void selectInputFile();
+  void selectInputFile();
 
-    void selectOutputFile();
+  void selectOutputFile();
 
-    void addBatchFiles();
+  void addBatchFiles();
 
-    void selectBatchOutputDirectory();
+  void selectBatchOutputDirectory();
 
-    void startEncode();
+  void startEncode();
 
-    void startDecode();
+  void startDecode();
 
-    void startBatchEncode();
+  void startBatchEncode();
 
-    void startStreamEncode();
+  void startStreamEncode();
 
-    void startStreamDecode();
+  void startStreamDecode();
 
-    void onPlatformChanged(int index) const;
+  void onPlatformChanged(int index) const;
 
-    void onResolutionChanged(int index) const;
+  void onResolutionChanged(int index) const;
 
-    void clearLogs() const;
+  void clearLogs() const;
 
-    void onOperationCompleted(bool success, const QString &message);
+  void onOperationCompleted(bool success, const QString& message);
 
-    void onProgressUpdated(int percentage) const;
+  void onProgressUpdated(int percentage) const;
 
-    void onStatusUpdated(const QString &status) const;
+  void onStatusUpdated(const QString& status) const;
 
-    void updateFileList() const;
+  void updateFileList() const;
 
-    void removeSelectedFiles() const;
+  void removeSelectedFiles() const;
 
-    void clearFileList() const;
+  void clearFileList() const;
 
-    void togglePasswordVisibility() const;
+  void togglePasswordVisibility() const;
 
 private:
-    void setupUI();
+  void setupUI();
 
-    void setupMenuBar();
+  void setupMenuBar();
 
-    void setupStatusBar();
+  void setupStatusBar();
 
-    void connectSignals();
+  void connectSignals();
 
-    void startWorker(const WorkerRequest &request, const QString &operationName);
+  void startWorker(const WorkerRequest& request, const QString& operationName);
 
-    void startNextBatchItem();
+  void startNextBatchItem();
 
-    void finishBatch();
+  void finishBatch();
 
-    void setOperationRunning(bool running);
+  void setOperationRunning(bool running);
 
-    void resetProgress();
+  void resetProgress();
 
-    void logMessage(const QString &message) const;
+  void logMessage(const QString& message) const;
 
-    void loadSettings();
+  void loadSettings();
 
-    void saveSettings() const;
+  void saveSettings() const;
 
-    bool warnIfBusy();
+  bool warnIfBusy();
 
-    bool validateInputFile();
+  bool validateInputFile();
 
-    bool validateOutputFile();
+  bool validateOutputFile();
 
-    bool validatePassword();
+  bool validatePassword();
 
-    QWidget *centralWidget = nullptr;
-    QSplitter *mainSplitter = nullptr;
+  QWidget* centralWidget = nullptr;
+  QSplitter* mainSplitter = nullptr;
 
-    QGroupBox *fileOperationsGroup = nullptr;
-    QLineEdit *inputFileEdit = nullptr;
-    QLineEdit *outputFileEdit = nullptr;
-    QPushButton *selectInputButton = nullptr;
-    QPushButton *selectOutputButton = nullptr;
-    QCheckBox *encryptCheckBox = nullptr;
-    QLineEdit *passwordEdit = nullptr;
-    QPushButton *passwordVisibilityButton = nullptr;
-    QPushButton *encodeButton = nullptr;
-    QPushButton *decodeButton = nullptr;
+  QGroupBox* fileOperationsGroup = nullptr;
+  QLineEdit* inputFileEdit = nullptr;
+  QLineEdit* outputFileEdit = nullptr;
+  QPushButton* selectInputButton = nullptr;
+  QPushButton* selectOutputButton = nullptr;
+  QCheckBox* encryptCheckBox = nullptr;
+  QLineEdit* passwordEdit = nullptr;
+  QPushButton* passwordVisibilityButton = nullptr;
+  QPushButton* encodeButton = nullptr;
+  QPushButton* decodeButton = nullptr;
 
-    QGroupBox *batchGroup = nullptr;
-    QListWidget *fileListWidget = nullptr;
-    QPushButton *addFilesButton = nullptr;
-    QPushButton *removeFilesButton = nullptr;
-    QPushButton *clearFilesButton = nullptr;
-    QPushButton *batchEncodeButton = nullptr;
-    QLineEdit *batchOutputDirEdit = nullptr;
-    QPushButton *batchOutputButton = nullptr;
+  QGroupBox* batchGroup = nullptr;
+  QListWidget* fileListWidget = nullptr;
+  QPushButton* addFilesButton = nullptr;
+  QPushButton* removeFilesButton = nullptr;
+  QPushButton* clearFilesButton = nullptr;
+  QPushButton* batchEncodeButton = nullptr;
+  QLineEdit* batchOutputDirEdit = nullptr;
+  QPushButton* batchOutputButton = nullptr;
 
-    QGroupBox *streamGroup = nullptr;
-    QComboBox *platformCombo = nullptr;
-    QLineEdit *streamUrlEdit = nullptr;
-    QLineEdit *streamKeyEdit = nullptr;
-    QSpinBox *bitrateSpinBox = nullptr;
-    QSpinBox *fpsSpinBox = nullptr;
-    QComboBox *resolutionCombo = nullptr;
-    QPushButton *streamEncodeButton = nullptr;
-    QPushButton *streamDecodeButton = nullptr;
+  QGroupBox* streamGroup = nullptr;
+  QComboBox* platformCombo = nullptr;
+  QLineEdit* streamUrlEdit = nullptr;
+  QLineEdit* streamKeyEdit = nullptr;
+  QSpinBox* bitrateSpinBox = nullptr;
+  QSpinBox* fpsSpinBox = nullptr;
+  QComboBox* resolutionCombo = nullptr;
+  QPushButton* streamEncodeButton = nullptr;
+  QPushButton* streamDecodeButton = nullptr;
 
-    QGroupBox *statusGroup = nullptr;
-    QProgressBar *progressBar = nullptr;
-    QLabel *statusLabel = nullptr;
-    QLabel *progressLabel = nullptr;
+  QGroupBox* statusGroup = nullptr;
+  QProgressBar* progressBar = nullptr;
+  QLabel* statusLabel = nullptr;
+  QLabel* progressLabel = nullptr;
 
-    QGroupBox *logsGroup = nullptr;
-    QTextEdit *logTextEdit = nullptr;
-    QPushButton *clearLogsButton = nullptr;
+  QGroupBox* logsGroup = nullptr;
+  QTextEdit* logTextEdit = nullptr;
+  QPushButton* clearLogsButton = nullptr;
 
-    QLabel *permanentStatus = nullptr;
+  QLabel* permanentStatus = nullptr;
 
-    std::unique_ptr<WorkerThread> workerThread;
+  std::unique_ptr<WorkerThread> workerThread;
 
-    bool isOperationRunning = false;
-    QString currentOperation;
+  bool isOperationRunning = false;
+  QString currentOperation;
 
-    bool batchRunning = false;
-    QStringList batchQueue;
-    int batchSucceeded = 0;
-    int batchFailed = 0;
+  bool batchRunning = false;
+  QStringList batchQueue;
+  int batchSucceeded = 0;
+  int batchFailed = 0;
 };

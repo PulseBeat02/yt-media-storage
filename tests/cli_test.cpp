@@ -17,8 +17,8 @@
 #include <gtest/gtest.h>
 
 #include <array>
-#include <memory>
 #include <cstdio>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -192,8 +192,7 @@ TEST_F(cli_test, should_require_input_and_url_for_stream_encode) {
   const cli_result missing_url = run_cli("stream-encode --input " + quote(input_.string()));
 
   EXPECT_EQ(missing_url.exit_code, FAILURE_EXIT_CODE);
-  EXPECT_NE(missing_url.output.find("Error: --input and --url must be specified for stream-encode"),
-            std::string::npos);
+  EXPECT_NE(missing_url.output.find("Error: --input and --url must be specified for stream-encode"), std::string::npos);
 
   const cli_result missing_input = run_cli("stream-encode --url " + quote(video_.string()));
 
@@ -252,8 +251,8 @@ TEST_F(cli_test, should_report_a_missing_input_file_on_stream_encode) {
 }
 
 TEST_F(cli_test, should_round_trip_a_file_through_encode_and_decode) {
-  const cli_result encoded = run_cli("encode --input " + quote(input_.string()) + " --output " +
-                                     quote(video_.string()) + " --hash crc32");
+  const cli_result encoded =
+      run_cli("encode --input " + quote(input_.string()) + " --output " + quote(video_.string()) + " --hash crc32");
 
   EXPECT_EQ(encoded.exit_code, SUCCESS_EXIT_CODE);
   EXPECT_NE(encoded.output.find("Encoding chunk 1/1..."), std::string::npos);
@@ -327,8 +326,7 @@ TEST_F(cli_test, should_report_a_stream_decode_without_the_password) {
 
   EXPECT_EQ(encoded.exit_code, SUCCESS_EXIT_CODE);
 
-  const cli_result decoded =
-      run_cli("stream-decode -u " + quote(stream.string()) + " -o " + quote(output_.string()));
+  const cli_result decoded = run_cli("stream-decode -u " + quote(stream.string()) + " -o " + quote(output_.string()));
 
   EXPECT_EQ(decoded.exit_code, FAILURE_EXIT_CODE);
   EXPECT_NE(decoded.output.find("Error: encryption/decryption error"), std::string::npos);

@@ -22,10 +22,10 @@
 #include <stdexcept>
 
 void ensure_wirehair_initialized() {
-    static std::once_flag init_flag;
-    std::call_once(init_flag, [] {
-        if (wirehair_init() != Wirehair_Success) {
-            throw std::runtime_error("wirehair_init failed");
-        }
-    });
+  static std::once_flag init_flag;
+  std::call_once(init_flag, [] {
+    if (wirehair_init() != Wirehair_Success) {
+      throw std::runtime_error("wirehair_init failed");
+    }
+  });
 }

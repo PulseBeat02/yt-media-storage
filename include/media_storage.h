@@ -27,19 +27,19 @@ extern "C" {
 #endif
 
 #ifdef _WIN32
-#   ifdef MEDIA_STORAGE_BUILD_SHARED
-#       define MS_API __declspec(dllexport)
-#   elif defined(MEDIA_STORAGE_SHARED)
-#       define MS_API __declspec(dllimport)
-#   else
-#       define MS_API
-#   endif
+#ifdef MEDIA_STORAGE_BUILD_SHARED
+#define MS_API __declspec(dllexport)
+#elif defined(MEDIA_STORAGE_SHARED)
+#define MS_API __declspec(dllimport)
 #else
-#   if defined(MEDIA_STORAGE_BUILD_SHARED) && defined(__GNUC__)
-#       define MS_API __attribute__((visibility("default")))
-#   else
-#       define MS_API
-#   endif
+#define MS_API
+#endif
+#else
+#if defined(MEDIA_STORAGE_BUILD_SHARED) && defined(__GNUC__)
+#define MS_API __attribute__((visibility("default")))
+#else
+#define MS_API
+#endif
 #endif
 
 #define MS_VERSION_MAJOR 1
@@ -48,19 +48,19 @@ extern "C" {
 #define MS_VERSION_STRING "1.0.0"
 
 typedef enum {
-    MS_OK = 0,
-    MS_ERR_INVALID_ARGS = 1,
-    MS_ERR_FILE_NOT_FOUND = 2,
-    MS_ERR_IO = 3,
-    MS_ERR_ENCODE_FAILED = 4,
-    MS_ERR_DECODE_FAILED = 5,
-    MS_ERR_CRYPTO = 6,
-    MS_ERR_INCOMPLETE = 7,
+  MS_OK = 0,
+  MS_ERR_INVALID_ARGS = 1,
+  MS_ERR_FILE_NOT_FOUND = 2,
+  MS_ERR_IO = 3,
+  MS_ERR_ENCODE_FAILED = 4,
+  MS_ERR_DECODE_FAILED = 5,
+  MS_ERR_CRYPTO = 6,
+  MS_ERR_INCOMPLETE = 7,
 } ms_status_t;
 
 typedef enum {
-    MS_HASH_CRC32 = 0,
-    MS_HASH_XXHASH32 = 1,
+  MS_HASH_CRC32 = 0,
+  MS_HASH_XXHASH32 = 1,
 } ms_hash_algorithm_t;
 
 /**
@@ -71,70 +71,70 @@ typedef enum {
  * @param user     User-supplied context pointer.
  * @return         0 to continue, non-zero to cancel.
  */
-typedef int (*ms_progress_fn)(uint64_t current, uint64_t total, void *user);
+typedef int (*ms_progress_fn)(uint64_t current, uint64_t total, void* user);
 
 typedef struct {
-    const char *input_path;
-    const char *output_path;
+  const char* input_path;
+  const char* output_path;
 
-    int encrypt;
-    const char *password;
-    size_t password_len;
+  int encrypt;
+  const char* password;
+  size_t password_len;
 
-    ms_hash_algorithm_t hash_algorithm;
+  ms_hash_algorithm_t hash_algorithm;
 
-    ms_progress_fn progress;
-    void *progress_user;
+  ms_progress_fn progress;
+  void* progress_user;
 } ms_encode_options_t;
 
 typedef struct {
-    const char *input_path;
-    const char *output_path;
+  const char* input_path;
+  const char* output_path;
 
-    const char *password;
-    size_t password_len;
+  const char* password;
+  size_t password_len;
 
-    ms_progress_fn progress;
-    void *progress_user;
+  ms_progress_fn progress;
+  void* progress_user;
 } ms_decode_options_t;
 
 typedef struct {
-    const char *input_path;
-    const char *stream_url;
+  const char* input_path;
+  const char* stream_url;
 
-    int encrypt;
-    const char *password;
-    size_t password_len;
+  int encrypt;
+  const char* password;
+  size_t password_len;
 
-    ms_hash_algorithm_t hash_algorithm;
-    int bitrate_kbps;
-    int width;
-    int height;
-    int fps;
+  ms_hash_algorithm_t hash_algorithm;
+  int bitrate_kbps;
+  int width;
+  int height;
+  int fps;
 
-    ms_progress_fn progress;
-    void *progress_user;
+  ms_progress_fn progress;
+  void* progress_user;
 } ms_stream_encode_options_t;
 
 typedef struct {
-    const char *stream_url;
-    const char *output_path;
+  const char* stream_url;
+  const char* output_path;
 
-    const char *password;
-    size_t password_len;
+  const char* password;
+  size_t password_len;
 
-    int timeout_sec;
+  int timeout_sec;
 
-    ms_progress_fn progress;
-    void *progress_user;
+  ms_progress_fn progress;
+  void* progress_user;
 } ms_stream_decode_options_t;
 
 typedef struct {
-    uint64_t input_size;
-    uint64_t output_size;
-    uint64_t total_chunks;
-    uint64_t total_packets;
-    uint64_t total_frames;
+  uint64_t input_size;
+  uint64_t output_size;
+  uint64_t total_chunks;
+  uint64_t total_packets;
+  uint64_t total_frames;
 } ms_result_t;
 
 /**
@@ -144,7 +144,7 @@ typedef struct {
  * @param result   Optional pointer to receive statistics about the operation.
  * @return         MS_OK on success, or an error code.
  */
-MS_API ms_status_t ms_encode(const ms_encode_options_t *options, ms_result_t *result);
+MS_API ms_status_t ms_encode(const ms_encode_options_t* options, ms_result_t* result);
 
 /**
  * Decode a video back into the original file.
@@ -153,7 +153,7 @@ MS_API ms_status_t ms_encode(const ms_encode_options_t *options, ms_result_t *re
  * @param result   Optional pointer to receive statistics about the operation.
  * @return         MS_OK on success, or an error code.
  */
-MS_API ms_status_t ms_decode(const ms_decode_options_t *options, ms_result_t *result);
+MS_API ms_status_t ms_decode(const ms_decode_options_t* options, ms_result_t* result);
 
 /**
  * Encode a file and stream it via RTMP to Twitch/YouTube/etc.
@@ -162,7 +162,7 @@ MS_API ms_status_t ms_decode(const ms_decode_options_t *options, ms_result_t *re
  * @param result   Optional pointer to receive statistics about the operation.
  * @return         MS_OK on success, or an error code.
  */
-MS_API ms_status_t ms_stream_encode(const ms_stream_encode_options_t *options, ms_result_t *result);
+MS_API ms_status_t ms_stream_encode(const ms_stream_encode_options_t* options, ms_result_t* result);
 
 /**
  * Decode a live stream back into the original file.
@@ -171,20 +171,20 @@ MS_API ms_status_t ms_stream_encode(const ms_stream_encode_options_t *options, m
  * @param result   Optional pointer to receive statistics about the operation.
  * @return         MS_OK on success, or an error code.
  */
-MS_API ms_status_t ms_stream_decode(const ms_stream_decode_options_t *options, ms_result_t *result);
+MS_API ms_status_t ms_stream_decode(const ms_stream_decode_options_t* options, ms_result_t* result);
 
 /**
  * Return a human-readable string for the given status code.
  * The returned pointer is valid for the lifetime of the program.
  */
-MS_API const char *ms_status_string(ms_status_t status);
+MS_API const char* ms_status_string(ms_status_t status);
 
-MS_API const char *ms_last_error(void);
+MS_API const char* ms_last_error(void);
 
 /**
  * Return the library version string (e.g. "1.0.0").
  */
-MS_API const char *ms_version(void);
+MS_API const char* ms_version(void);
 
 #ifdef __cplusplus
 }

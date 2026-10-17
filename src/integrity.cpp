@@ -31,131 +31,118 @@
 #include <cstring>
 
 namespace {
-    constexpr char HEX_DIGITS[] = "0123456789ABCDEF";
+constexpr char HEX_DIGITS[] = "0123456789ABCDEF";
 
-    std::string bytes_to_hex(const std::span<const std::byte> input) {
-        std::string hex(input.size() * 2, '\0');
-        char *out = hex.data();
-        for (const std::byte b: input) {
-            const auto value = std::to_integer<unsigned char>(b);
-            *out++ = HEX_DIGITS[value >> 4];
-            *out++ = HEX_DIGITS[value & 0x0F];
-        }
-        return hex;
-    }
+std::string bytes_to_hex(const std::span<const std::byte> input) {
+  std::string hex(input.size() * 2, '\0');
+  char* out = hex.data();
+  for (const std::byte b : input) {
+    const auto value = std::to_integer<unsigned char>(b);
+    *out++ = HEX_DIGITS[value >> 4];
+    *out++ = HEX_DIGITS[value & 0x0F];
+  }
+  return hex;
+}
 
-    const CRC::Table<uint32_t, 32> &crc_table() {
-        static const CRC::Table<uint32_t, 32> table = CRC::CRC_32_MPEG2().MakeTable();
-        return table;
-    }
+const CRC::Table<uint32_t, 32>& crc_table() {
+  static const CRC::Table<uint32_t, 32> table = CRC::CRC_32_MPEG2().MakeTable();
+  return table;
+}
 
-    uint32_t read_u32_le(const std::span<const std::byte> buffer, const std::size_t offset) {
-        uint32_t value = 0;
-        if (offset + sizeof(value) <= buffer.size()) {
-            std::memcpy(&value, buffer.data() + offset, sizeof(value));
-        }
-        return value;
-    }
+uint32_t read_u32_le(const std::span<const std::byte> buffer, const std::size_t offset) {
+  uint32_t value = 0;
+  if (offset + sizeof(value) <= buffer.size()) {
+    std::memcpy(&value, buffer.data() + offset, sizeof(value));
+  }
+  return value;
+}
 }
 
 std::string Sha256Digest::hex_value() const {
-    return bytes_to_hex(bytes);
+  return bytes_to_hex(bytes);
 }
 
 Sha256Digest sha256(const std::span<const std::byte> data) {
-    Sha256Digest digest;
-    const auto *begin = reinterpret_cast<const uint8_t *>(data.data());
-    std::array<unsigned char, SHA256_HASH_SIZE> hash{};
+  Sha256Digest digest;
+  const auto* begin = reinterpret_cast<const uint8_t*>(data.data());
+  std::array<unsigned char, SHA256_HASH_SIZE> hash{};
 #if defined(__APPLE__)
-    CC_SHA256_CTX ctx;
-    CC_SHA256_Init(&ctx);
-    for (std::size_t offset = 0; offset < data.size();) {
-        const auto step = static_cast<CC_LONG>(std::min<std::size_t>(data.size() - offset, 1u << 30));
-        CC_SHA256_Update(&ctx, begin + offset, step);
-        offset += step;
-    }
-    CC_SHA256_Final(hash.data(), &ctx);
+  CC_SHA256_CTX ctx;
+  CC_SHA256_Init(&ctx);
+  for (std::size_t offset = 0; offset < data.size();) {
+    const auto step = static_cast<CC_LONG>(std::min<std::size_t>(data.size() - offset, 1u << 30));
+    CC_SHA256_Update(&ctx, begin + offset, step);
+    offset += step;
+  }
+  CC_SHA256_Final(hash.data(), &ctx);
 #else
-    picosha2::hash256(begin, begin + data.size(), hash.begin(), hash.end());
+  picosha2::hash256(begin, begin + data.size(), hash.begin(), hash.end());
 #endif
-    for (std::size_t i = 0; i < SHA256_HASH_SIZE; ++i) {
-        digest.bytes[i] = std::byte{hash[i]};
-    }
-    return digest;
+  for (std::size_t i = 0; i < SHA256_HASH_SIZE; ++i) {
+    digest.bytes[i] = std::byte{hash[i]};
+  }
+  return digest;
 }
 
 uint32_t crc32_mpeg2(const std::span<const std::byte> data, const uint32_t seed) {
-    if (seed == 0) {
-        return CRC::Calculate(data.data(), data.size(), crc_table());
-    }
-    const uint8_t seed_bytes[4] = {
-        static_cast<uint8_t>(seed & 0xFFu),
-        static_cast<uint8_t>((seed >> 8) & 0xFFu),
-        static_cast<uint8_t>((seed >> 16) & 0xFFu),
-        static_cast<uint8_t>((seed >> 24) & 0xFFu)
-    };
-    const uint32_t crc = CRC::Calculate(seed_bytes, sizeof(seed_bytes), crc_table());
-    return CRC::Calculate(data.data(), data.size(), crc_table(), crc);
+  if (seed == 0) {
+    return CRC::Calculate(data.data(), data.size(), crc_table());
+  }
+  const uint8_t seed_bytes[4] = {static_cast<uint8_t>(seed & 0xFFu), static_cast<uint8_t>((seed >> 8) & 0xFFu),
+                                 static_cast<uint8_t>((seed >> 16) & 0xFFu),
+                                 static_cast<uint8_t>((seed >> 24) & 0xFFu)};
+  const uint32_t crc = CRC::Calculate(seed_bytes, sizeof(seed_bytes), crc_table());
+  return CRC::Calculate(data.data(), data.size(), crc_table(), crc);
 }
 
-uint32_t crc32_mpeg2_concat(const std::span<const std::byte> first,
-                            const std::span<const std::byte> second) {
-    const uint32_t crc = CRC::Calculate(first.data(), first.size(), crc_table());
-    return CRC::Calculate(second.data(), second.size(), crc_table(), crc);
+uint32_t crc32_mpeg2_concat(const std::span<const std::byte> first, const std::span<const std::byte> second) {
+  const uint32_t crc = CRC::Calculate(first.data(), first.size(), crc_table());
+  return CRC::Calculate(second.data(), second.size(), crc_table(), crc);
 }
 
-uint32_t packet_crc32(const std::span<const std::byte> header,
-                      const std::span<const std::byte> payload,
-                      const std::size_t crc_offset,
-                      const std::size_t crc_size) {
-    const auto &table = crc_table();
-    uint32_t crc = CRC::Calculate(header.data(), crc_offset, table);
-    if (crc_size == 4) {
-        constexpr uint8_t zeros[4] = {0, 0, 0, 0};
-        crc = CRC::Calculate(zeros, sizeof(zeros), table, crc);
-    }
-    if (const std::size_t after_crc = crc_offset + crc_size; after_crc < header.size()) {
-        crc = CRC::Calculate(header.data() + after_crc, header.size() - after_crc, table, crc);
-    }
-    return CRC::Calculate(payload.data(), payload.size(), table, crc);
+uint32_t packet_crc32(const std::span<const std::byte> header, const std::span<const std::byte> payload,
+                      const std::size_t crc_offset, const std::size_t crc_size) {
+  const auto& table = crc_table();
+  uint32_t crc = CRC::Calculate(header.data(), crc_offset, table);
+  if (crc_size == 4) {
+    constexpr uint8_t zeros[4] = {0, 0, 0, 0};
+    crc = CRC::Calculate(zeros, sizeof(zeros), table, crc);
+  }
+  if (const std::size_t after_crc = crc_offset + crc_size; after_crc < header.size()) {
+    crc = CRC::Calculate(header.data() + after_crc, header.size() - after_crc, table, crc);
+  }
+  return CRC::Calculate(payload.data(), payload.size(), table, crc);
 }
 
-uint32_t packet_xxhash32(const std::span<const std::byte> header,
-                         const std::span<const std::byte> payload,
-                         const std::size_t crc_offset,
-                         const std::size_t crc_size) {
-    XXH32_state_t state;
-    XXH32_reset(&state, 0);
-    XXH32_update(&state, header.data(), crc_offset);
-    if (crc_size == 4) {
-        constexpr uint8_t zeros[4] = {0, 0, 0, 0};
-        XXH32_update(&state, zeros, sizeof(zeros));
-    }
-    if (const std::size_t after_crc = crc_offset + crc_size; after_crc < header.size()) {
-        XXH32_update(&state, header.data() + after_crc, header.size() - after_crc);
-    }
-    XXH32_update(&state, payload.data(), payload.size());
-    return XXH32_digest(&state);
+uint32_t packet_xxhash32(const std::span<const std::byte> header, const std::span<const std::byte> payload,
+                         const std::size_t crc_offset, const std::size_t crc_size) {
+  XXH32_state_t state;
+  XXH32_reset(&state, 0);
+  XXH32_update(&state, header.data(), crc_offset);
+  if (crc_size == 4) {
+    constexpr uint8_t zeros[4] = {0, 0, 0, 0};
+    XXH32_update(&state, zeros, sizeof(zeros));
+  }
+  if (const std::size_t after_crc = crc_offset + crc_size; after_crc < header.size()) {
+    XXH32_update(&state, header.data() + after_crc, header.size() - after_crc);
+  }
+  XXH32_update(&state, payload.data(), payload.size());
+  return XXH32_digest(&state);
 }
 
-uint32_t packet_checksum(const std::span<const std::byte> header,
-                         const std::span<const std::byte> payload,
-                         const std::size_t crc_offset,
-                         const HashAlgorithm algo,
-                         const std::size_t crc_size) {
-    if (algo == HashAlgorithm::XXHash32) {
-        return packet_xxhash32(header, payload, crc_offset, crc_size);
-    }
-    return packet_crc32(header, payload, crc_offset, crc_size);
+uint32_t packet_checksum(const std::span<const std::byte> header, const std::span<const std::byte> payload,
+                         const std::size_t crc_offset, const HashAlgorithm algo, const std::size_t crc_size) {
+  if (algo == HashAlgorithm::XXHash32) {
+    return packet_xxhash32(header, payload, crc_offset, crc_size);
+  }
+  return packet_crc32(header, payload, crc_offset, crc_size);
 }
 
-bool verify_packet_crc32(const std::span<const std::byte> header,
-                         const std::span<const std::byte> payload,
-                         const std::size_t crc_offset,
-                         const std::size_t crc_size) {
-    if (crc_size != 4 || crc_offset + 4 > header.size()) {
-        return false;
-    }
-    const uint32_t stored = read_u32_le(header, crc_offset);
-    return stored == packet_crc32(header, payload, crc_offset, crc_size);
+bool verify_packet_crc32(const std::span<const std::byte> header, const std::span<const std::byte> payload,
+                         const std::size_t crc_offset, const std::size_t crc_size) {
+  if (crc_size != 4 || crc_offset + 4 > header.size()) {
+    return false;
+  }
+  const uint32_t stored = read_u32_le(header, crc_offset);
+  return stored == packet_crc32(header, payload, crc_offset, crc_size);
 }

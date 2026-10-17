@@ -43,18 +43,18 @@ constexpr double COEFFICIENT_STRENGTH = 500.0;
 // =============================================================================
 
 // the decoder assumes a codec that preserves Y-plane bytes exactly.
-inline constexpr const char *VIDEO_CODEC = "ffv1";
+inline constexpr const char* VIDEO_CODEC = "ffv1";
 
 constexpr std::size_t CRYPTO_PLAIN_SIZE_HEADER = 4;
 constexpr std::size_t CRYPTO_AEAD_TAG_BYTES = 16;
 constexpr std::size_t CHUNK_SIZE_PLAIN_MAX_ENCRYPTED =
-        CHUNK_SIZE_BYTES - CRYPTO_PLAIN_SIZE_HEADER - CRYPTO_AEAD_TAG_BYTES;
+    CHUNK_SIZE_BYTES - CRYPTO_PLAIN_SIZE_HEADER - CRYPTO_AEAD_TAG_BYTES;
 
 enum PacketFlag : uint8_t {
-    FLAG_REPAIR_SYMBOL = 1 << 0,
-    FLAG_LAST_CHUNK = 1 << 1,
-    FLAG_ENCRYPTED = 1 << 2,
-    FLAG_USE_XXHASH = 1 << 3,
+  FLAG_REPAIR_SYMBOL = 1 << 0,
+  FLAG_LAST_CHUNK = 1 << 1,
+  FLAG_ENCRYPTED = 1 << 2,
+  FLAG_USE_XXHASH = 1 << 3,
 };
 
 constexpr uint32_t MAGIC_ID = 0x59544653;

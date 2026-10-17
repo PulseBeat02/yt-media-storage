@@ -38,60 +38,60 @@
 #endif
 
 // simd dot product
-inline float dot_product_64(const float *a, const float *b) {
+inline float dot_product_64(const float* a, const float* b) {
 #if defined(DCT_USE_AVX)
-    __m256 sum0 = _mm256_setzero_ps();
-    __m256 sum1 = _mm256_setzero_ps();
-    for (int i = 0; i < 64; i += 16) {
-        sum0 = _mm256_add_ps(sum0, _mm256_mul_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
-        sum1 = _mm256_add_ps(sum1, _mm256_mul_ps(_mm256_loadu_ps(a + i + 8), _mm256_loadu_ps(b + i + 8)));
-    }
-    sum0 = _mm256_add_ps(sum0, sum1);
-    const __m128 hi = _mm256_extractf128_ps(sum0, 1);
-    const __m128 lo = _mm256_castps256_ps128(sum0);
-    __m128 r = _mm_add_ps(lo, hi);
-    r = _mm_add_ps(r, _mm_movehl_ps(r, r));
-    r = _mm_add_ss(r, _mm_movehdup_ps(r));
-    return _mm_cvtss_f32(r);
+  __m256 sum0 = _mm256_setzero_ps();
+  __m256 sum1 = _mm256_setzero_ps();
+  for (int i = 0; i < 64; i += 16) {
+    sum0 = _mm256_add_ps(sum0, _mm256_mul_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
+    sum1 = _mm256_add_ps(sum1, _mm256_mul_ps(_mm256_loadu_ps(a + i + 8), _mm256_loadu_ps(b + i + 8)));
+  }
+  sum0 = _mm256_add_ps(sum0, sum1);
+  const __m128 hi = _mm256_extractf128_ps(sum0, 1);
+  const __m128 lo = _mm256_castps256_ps128(sum0);
+  __m128 r = _mm_add_ps(lo, hi);
+  r = _mm_add_ps(r, _mm_movehl_ps(r, r));
+  r = _mm_add_ss(r, _mm_movehdup_ps(r));
+  return _mm_cvtss_f32(r);
 
 #elif defined(DCT_USE_SSE2)
-    __m128 sum0 = _mm_setzero_ps();
-    __m128 sum1 = _mm_setzero_ps();
-    __m128 sum2 = _mm_setzero_ps();
-    __m128 sum3 = _mm_setzero_ps();
-    for (int i = 0; i < 64; i += 16) {
-        sum0 = _mm_add_ps(sum0, _mm_mul_ps(_mm_loadu_ps(a + i), _mm_loadu_ps(b + i)));
-        sum1 = _mm_add_ps(sum1, _mm_mul_ps(_mm_loadu_ps(a + i + 4), _mm_loadu_ps(b + i + 4)));
-        sum2 = _mm_add_ps(sum2, _mm_mul_ps(_mm_loadu_ps(a + i + 8), _mm_loadu_ps(b + i + 8)));
-        sum3 = _mm_add_ps(sum3, _mm_mul_ps(_mm_loadu_ps(a + i + 12), _mm_loadu_ps(b + i + 12)));
-    }
-    sum0 = _mm_add_ps(_mm_add_ps(sum0, sum1), _mm_add_ps(sum2, sum3));
-    __m128 shuf = _mm_shuffle_ps(sum0, sum0, _MM_SHUFFLE(2, 3, 0, 1));
-    sum0 = _mm_add_ps(sum0, shuf);
-    shuf = _mm_movehl_ps(shuf, sum0);
-    sum0 = _mm_add_ss(sum0, shuf);
-    return _mm_cvtss_f32(sum0);
+  __m128 sum0 = _mm_setzero_ps();
+  __m128 sum1 = _mm_setzero_ps();
+  __m128 sum2 = _mm_setzero_ps();
+  __m128 sum3 = _mm_setzero_ps();
+  for (int i = 0; i < 64; i += 16) {
+    sum0 = _mm_add_ps(sum0, _mm_mul_ps(_mm_loadu_ps(a + i), _mm_loadu_ps(b + i)));
+    sum1 = _mm_add_ps(sum1, _mm_mul_ps(_mm_loadu_ps(a + i + 4), _mm_loadu_ps(b + i + 4)));
+    sum2 = _mm_add_ps(sum2, _mm_mul_ps(_mm_loadu_ps(a + i + 8), _mm_loadu_ps(b + i + 8)));
+    sum3 = _mm_add_ps(sum3, _mm_mul_ps(_mm_loadu_ps(a + i + 12), _mm_loadu_ps(b + i + 12)));
+  }
+  sum0 = _mm_add_ps(_mm_add_ps(sum0, sum1), _mm_add_ps(sum2, sum3));
+  __m128 shuf = _mm_shuffle_ps(sum0, sum0, _MM_SHUFFLE(2, 3, 0, 1));
+  sum0 = _mm_add_ps(sum0, shuf);
+  shuf = _mm_movehl_ps(shuf, sum0);
+  sum0 = _mm_add_ss(sum0, shuf);
+  return _mm_cvtss_f32(sum0);
 
 #elif defined(DCT_USE_NEON)
-    float32x4_t sum0 = vdupq_n_f32(0.0f);
-    float32x4_t sum1 = vdupq_n_f32(0.0f);
-    float32x4_t sum2 = vdupq_n_f32(0.0f);
-    float32x4_t sum3 = vdupq_n_f32(0.0f);
-    for (int i = 0; i < 64; i += 16) {
-        sum0 = vmlaq_f32(sum0, vld1q_f32(a + i), vld1q_f32(b + i));
-        sum1 = vmlaq_f32(sum1, vld1q_f32(a + i + 4), vld1q_f32(b + i + 4));
-        sum2 = vmlaq_f32(sum2, vld1q_f32(a + i + 8), vld1q_f32(b + i + 8));
-        sum3 = vmlaq_f32(sum3, vld1q_f32(a + i + 12), vld1q_f32(b + i + 12));
-    }
-    sum0 = vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3));
-    return vaddvq_f32(sum0);
+  float32x4_t sum0 = vdupq_n_f32(0.0f);
+  float32x4_t sum1 = vdupq_n_f32(0.0f);
+  float32x4_t sum2 = vdupq_n_f32(0.0f);
+  float32x4_t sum3 = vdupq_n_f32(0.0f);
+  for (int i = 0; i < 64; i += 16) {
+    sum0 = vmlaq_f32(sum0, vld1q_f32(a + i), vld1q_f32(b + i));
+    sum1 = vmlaq_f32(sum1, vld1q_f32(a + i + 4), vld1q_f32(b + i + 4));
+    sum2 = vmlaq_f32(sum2, vld1q_f32(a + i + 8), vld1q_f32(b + i + 8));
+    sum3 = vmlaq_f32(sum3, vld1q_f32(a + i + 12), vld1q_f32(b + i + 12));
+  }
+  sum0 = vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3));
+  return vaddvq_f32(sum0);
 
 #else
-    // Scalar fallback
-    float sum = 0.0f;
-    for (int i = 0; i < 64; ++i)
-        sum += a[i] * b[i];
-    return sum;
+  // Scalar fallback
+  float sum = 0.0f;
+  for (int i = 0; i < 64; ++i)
+    sum += a[i] * b[i];
+  return sum;
 #endif
 }
 
@@ -109,95 +109,93 @@ static_assert(BITS_PER_BLOCK >= 1 && BITS_PER_BLOCK <= static_cast<int>(std::siz
 static_assert(8 % BITS_PER_BLOCK == 0, "BITS_PER_BLOCK must divide 8");
 
 struct CosineTable {
-    float data[8][8];
+  float data[8][8];
 };
 
-inline const CosineTable &get_cosine_table() {
-    static const CosineTable table = [] {
-        CosineTable cosine_table{};
-        for (int i = 0; i < 8; ++i) {
-            for (int j = 0; j < 8; ++j) {
-                cosine_table.data[i][j] = std::cos(
-                    (2.0f * static_cast<float>(i) + 1.0f) * static_cast<float>(j) * PI_F / 16.0f);
-            }
-        }
-        return cosine_table;
-    }();
-    return table;
+inline const CosineTable& get_cosine_table() {
+  static const CosineTable table = [] {
+    CosineTable cosine_table{};
+    for (int i = 0; i < 8; ++i) {
+      for (int j = 0; j < 8; ++j) {
+        cosine_table.data[i][j] =
+            std::cos((2.0f * static_cast<float>(i) + 1.0f) * static_cast<float>(j) * PI_F / 16.0f);
+      }
+    }
+    return cosine_table;
+  }();
+  return table;
 }
 
 constexpr float alpha_f(const int u) {
-    return u == 0 ? 0.70710678118654752f : 1.0f;
+  return u == 0 ? 0.70710678118654752f : 1.0f;
 }
 
 struct PrecomputedBlocks {
-    static constexpr int NUM_PATTERNS = 1 << BITS_PER_BLOCK;
-    uint8_t patterns[NUM_PATTERNS][8][8];
+  static constexpr int NUM_PATTERNS = 1 << BITS_PER_BLOCK;
+  uint8_t patterns[NUM_PATTERNS][8][8];
 };
 
-inline const PrecomputedBlocks &get_precomputed_blocks() {
-    static const PrecomputedBlocks blocks = [] {
-        PrecomputedBlocks result{};
-        const auto &[data] = get_cosine_table();
+inline const PrecomputedBlocks& get_precomputed_blocks() {
+  static const PrecomputedBlocks blocks = [] {
+    PrecomputedBlocks result{};
+    const auto& [data] = get_cosine_table();
 
-        constexpr float dc_value = 0.25f * alpha_f(0) * alpha_f(0) * 64.0f * 128.0f;
+    constexpr float dc_value = 0.25f * alpha_f(0) * alpha_f(0) * 64.0f * 128.0f;
 
-        float dc_image[8][8];
+    float dc_image[8][8];
+    for (int x = 0; x < 8; ++x) {
+      for (int y = 0; y < 8; ++y) {
+        dc_image[x][y] = 0.25f * alpha_f(0) * alpha_f(0) * dc_value * data[x][0] * data[y][0];
+      }
+    }
+
+    float embed_basis[4][8][8]{};
+    for (int b = 0; b < BITS_PER_BLOCK; ++b) {
+      const auto [u, v] = EMBED_POSITIONS[b];
+      const float scale = 0.25f * alpha_f(u) * alpha_f(v) * static_cast<float>(COEFFICIENT_STRENGTH);
+      for (int x = 0; x < 8; ++x) {
+        for (int y = 0; y < 8; ++y) {
+          embed_basis[b][x][y] = scale * data[x][u] * data[y][v];
+        }
+      }
+    }
+
+    for (int pattern = 0; pattern < PrecomputedBlocks::NUM_PATTERNS; ++pattern) {
+      for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
-            for (int y = 0; y < 8; ++y) {
-                dc_image[x][y] = 0.25f * alpha_f(0) * alpha_f(0) * dc_value
-                                 * data[x][0] * data[y][0];
-            }
+          float val = dc_image[y][x];
+          for (int b = 0; b < BITS_PER_BLOCK; ++b) {
+            const int bit = (pattern >> (BITS_PER_BLOCK - 1 - b)) & 1;
+            val += (bit ? 1.0f : -1.0f) * embed_basis[b][y][x];
+          }
+          val = std::clamp(val, 0.0f, 255.0f);
+          result.patterns[pattern][y][x] = static_cast<uint8_t>(val);
         }
+      }
+    }
 
-        float embed_basis[4][8][8]{};
-        for (int b = 0; b < BITS_PER_BLOCK; ++b) {
-            const auto [u, v] = EMBED_POSITIONS[b];
-            const float scale = 0.25f * alpha_f(u) * alpha_f(v)
-                                * static_cast<float>(COEFFICIENT_STRENGTH);
-            for (int x = 0; x < 8; ++x) {
-                for (int y = 0; y < 8; ++y) {
-                    embed_basis[b][x][y] = scale * data[x][u] * data[y][v];
-                }
-            }
-        }
-
-        for (int pattern = 0; pattern < PrecomputedBlocks::NUM_PATTERNS; ++pattern) {
-            for (int y = 0; y < 8; ++y) {
-                for (int x = 0; x < 8; ++x) {
-                    float val = dc_image[y][x];
-                    for (int b = 0; b < BITS_PER_BLOCK; ++b) {
-                        const int bit = (pattern >> (BITS_PER_BLOCK - 1 - b)) & 1;
-                        val += (bit ? 1.0f : -1.0f) * embed_basis[b][y][x];
-                    }
-                    val = std::clamp(val, 0.0f, 255.0f);
-                    result.patterns[pattern][y][x] = static_cast<uint8_t>(val);
-                }
-            }
-        }
-
-        return result;
-    }();
-    return blocks;
+    return result;
+  }();
+  return blocks;
 }
 
 struct DecoderProjections {
-    alignas(32) float vectors[4][64];
+  alignas(32) float vectors[4][64];
 };
 
-inline const DecoderProjections &get_decoder_projections() {
-    static const DecoderProjections proj = [] {
-        DecoderProjections decoder_projections{};
-        const auto &[data] = get_cosine_table();
-        for (int b = 0; b < BITS_PER_BLOCK; ++b) {
-            const auto [u, v] = EMBED_POSITIONS[b];
-            for (int x = 0; x < 8; ++x) {
-                for (int y = 0; y < 8; ++y) {
-                    decoder_projections.vectors[b][x * 8 + y] = data[x][u] * data[y][v];
-                }
-            }
+inline const DecoderProjections& get_decoder_projections() {
+  static const DecoderProjections proj = [] {
+    DecoderProjections decoder_projections{};
+    const auto& [data] = get_cosine_table();
+    for (int b = 0; b < BITS_PER_BLOCK; ++b) {
+      const auto [u, v] = EMBED_POSITIONS[b];
+      for (int x = 0; x < 8; ++x) {
+        for (int y = 0; y < 8; ++y) {
+          decoder_projections.vectors[b][x * 8 + y] = data[x][u] * data[y][v];
         }
-        return decoder_projections;
-    }();
-    return proj;
+      }
+    }
+    return decoder_projections;
+  }();
+  return proj;
 }

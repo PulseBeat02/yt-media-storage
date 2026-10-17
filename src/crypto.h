@@ -34,25 +34,20 @@ using CryptoKey = std::array<std::byte, CRYPTO_KEY_BYTES>;
 
 [[nodiscard]] uint32_t read_plain_size_from_header(std::span<const std::byte> chunk);
 
-[[nodiscard]] CryptoKey derive_key(std::span<const std::byte> password,
-                                   std::span<const std::byte, FILE_ID_SIZE> salt);
+[[nodiscard]] CryptoKey derive_key(std::span<const std::byte> password, std::span<const std::byte, FILE_ID_SIZE> salt);
 
-[[nodiscard]] std::vector<std::byte> encrypt_chunk(
-    std::span<const std::byte> plain,
-    std::span<const std::byte, CRYPTO_KEY_BYTES> key,
-    std::span<const std::byte, FILE_ID_SIZE> file_id,
-    uint32_t chunk_index);
+[[nodiscard]] std::vector<std::byte> encrypt_chunk(std::span<const std::byte> plain,
+                                                   std::span<const std::byte, CRYPTO_KEY_BYTES> key,
+                                                   std::span<const std::byte, FILE_ID_SIZE> file_id,
+                                                   uint32_t chunk_index);
 
-[[nodiscard]] std::vector<std::byte> decrypt_chunk(
-    std::span<const std::byte> chunk_from_decoder,
-    std::span<const std::byte, CRYPTO_KEY_BYTES> key,
-    std::span<const std::byte, FILE_ID_SIZE> file_id,
-    uint32_t chunk_index);
+[[nodiscard]] std::vector<std::byte> decrypt_chunk(std::span<const std::byte> chunk_from_decoder,
+                                                   std::span<const std::byte, CRYPTO_KEY_BYTES> key,
+                                                   std::span<const std::byte, FILE_ID_SIZE> file_id,
+                                                   uint32_t chunk_index);
 
-void decrypt_chunk_into(std::span<std::byte> out,
-                        std::span<const std::byte> chunk_from_decoder,
+void decrypt_chunk_into(std::span<std::byte> out, std::span<const std::byte> chunk_from_decoder,
                         std::span<const std::byte, CRYPTO_KEY_BYTES> key,
-                        std::span<const std::byte, FILE_ID_SIZE> file_id,
-                        uint32_t chunk_index);
+                        std::span<const std::byte, FILE_ID_SIZE> file_id, uint32_t chunk_index);
 
 void secure_zero(std::span<std::byte> data);
