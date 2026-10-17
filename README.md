@@ -104,6 +104,8 @@ This produces two executables and one shared library:
 - `media_storage_gui` — Graphical user interface
 - `libmedia_storage.so` / `media_storage.dll` — Embeddable shared library
 
+The build type defaults to `Release`. Pass `-DCMAKE_BUILD_TYPE=Debug` for a debug build.
+
 By default the core is compiled for the build machine's CPU (`-march=native` / `/arch:AVX2`). Pass
 `-DMEDIA_STORAGE_NATIVE_ARCH=OFF` to produce binaries that run on any CPU of the target architecture.
 
