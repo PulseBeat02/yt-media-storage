@@ -36,6 +36,7 @@ constexpr const char* PLATFORM_VARIABLE = "QT_QPA_PLATFORM";
 constexpr const char* HEADLESS_PLATFORM = "offscreen";
 
 constexpr const char* PROGRAM_NAME = "media_storage_gui";
+constexpr int ARGUMENT_COUNT = 1;
 
 constexpr const char* APPLICATION_NAME = "YouTube Media Storage";
 constexpr const char* DISPLAY_NAME = "Drive Manager";
@@ -96,8 +97,8 @@ TEST(main_gui_test, should_show_the_drive_manager_and_exit_when_its_window_close
   QStandardPaths::setTestModeEnabled(true);
   qAddPreRoutine(schedule_inspection);
   std::string program_name = PROGRAM_NAME;
-  std::array<char*, 2> arguments = {program_name.data(), nullptr};
-  int argument_count = 1;
+  std::array<char*, ARGUMENT_COUNT + 1> arguments = {program_name.data(), nullptr};
+  int argument_count = ARGUMENT_COUNT;
 
   const int exit_code = run_media_storage_gui(argument_count, arguments.data());
 
