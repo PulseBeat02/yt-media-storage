@@ -175,7 +175,6 @@ void VideoDecoder::extract_data_into(std::vector<std::byte> &dest) const {
     if constexpr (BITS_PER_BLOCK == 1) {
         static constexpr int16_t PROJ[4] = {8035, 6811, 4551, 1598};
 
-#pragma omp parallel for schedule(static)
         for (int byte_idx = 0; byte_idx < total_bytes; ++byte_idx) {
             uint8_t current_byte = 0;
             for (int sub = 0; sub < 8; ++sub) {
@@ -215,7 +214,6 @@ void VideoDecoder::extract_data_into(std::vector<std::byte> &dest) const {
         const auto &projections = get_decoder_projections();
         const auto &vectors = projections.vectors;
 
-#pragma omp parallel for schedule(static)
         for (int byte_idx = 0; byte_idx < total_bytes; ++byte_idx) {
             uint8_t current_byte = 0;
             for (int sub = 0; sub < blocks_per_byte; ++sub) {

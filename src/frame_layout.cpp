@@ -69,7 +69,6 @@ void embed_data_into_plane(uint8_t *plane, const int stride, const FrameLayout &
         std::memset(plane + y * stride, 128, layout.frame_width);
     }
 
-#pragma omp parallel for schedule(static)
     for (int block_idx = 0; block_idx < active_blocks; ++block_idx) {
         const int base_x = (block_idx % blocks_per_row) * 8;
         const int base_y = (block_idx / blocks_per_row) * 8;
