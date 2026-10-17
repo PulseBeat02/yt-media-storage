@@ -134,7 +134,7 @@ void print_statistics(const ms_result_t& result) {
             << "  Frames: " << result.total_frames << "\n";
 }
 
-int do_encode(const cli_options& cli) {
+int run_encode_command(const cli_options& cli) {
   std::cout << INPUT_LABEL << cli.input_path << "\n";
   std::cout << OUTPUT_LABEL << cli.output_path << "\n";
 
@@ -160,7 +160,7 @@ int do_encode(const cli_options& cli) {
   return EXIT_SUCCESS;
 }
 
-int do_decode(const cli_options& cli) {
+int run_decode_command(const cli_options& cli) {
   std::cout << INPUT_LABEL << cli.input_path << "\n";
   std::cout << OUTPUT_LABEL << cli.output_path << "\n";
 
@@ -184,7 +184,7 @@ int do_decode(const cli_options& cli) {
   return EXIT_SUCCESS;
 }
 
-int do_stream_encode(const cli_options& cli) {
+int run_stream_encode_command(const cli_options& cli) {
   std::cout << INPUT_LABEL << cli.input_path << "\n";
   std::cout << STREAM_URL_LABEL << cli.stream_url << "\n";
   std::cout << "Resolution: " << cli.width << "x" << cli.height << " (" << cli.frames_per_second << " fps)\n";
@@ -214,7 +214,7 @@ int do_stream_encode(const cli_options& cli) {
   return EXIT_SUCCESS;
 }
 
-int do_stream_decode(const cli_options& cli) {
+int run_stream_decode_command(const cli_options& cli) {
   std::cout << STREAM_URL_LABEL << cli.stream_url << "\n";
   std::cout << OUTPUT_LABEL << cli.output_path << "\n";
   std::cout << "Waiting for stream...\n";
@@ -375,16 +375,16 @@ int main(const int argc, char* argv[]) {
   }
 
   if (command == ENCODE_COMMAND) {
-    return do_encode(*cli);
+    return run_encode_command(*cli);
   }
 
   if (command == DECODE_COMMAND) {
-    return do_decode(*cli);
+    return run_decode_command(*cli);
   }
 
   if (command == STREAM_ENCODE_COMMAND) {
-    return do_stream_encode(*cli);
+    return run_stream_encode_command(*cli);
   }
 
-  return do_stream_decode(*cli);
+  return run_stream_decode_command(*cli);
 }
