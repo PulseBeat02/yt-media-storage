@@ -41,6 +41,8 @@ constexpr std::size_t INPUT_SIZE = 4096;
 constexpr std::size_t SMALL_INPUT_SIZE = SYMBOL_SIZE_BYTES * 4;
 constexpr std::size_t UNALIGNED_INPUT_SIZE = SYMBOL_SIZE_BYTES * 16 + 100;
 
+constexpr std::byte INVERTED_BITS{0xFF};
+
 uint32_t read_uint32_little_endian(const std::byte* source) {
   uint32_t value = 0;
   std::memcpy(&value, source, sizeof(value));
@@ -214,9 +216,24 @@ TEST(codec_test, should_detect_a_corrupted_payload) {
   const auto [packets, manifest] = encode_test_data(encoder, input_data);
 
   std::vector corrupted_packet(packets[0].bytes.begin(), packets[0].bytes.end());
-  corrupted_packet[HEADER_SIZE_V2] ^= std::byte{0xFF};
+  corrupted_packet[HEADER_SIZE_V2] ^= INVERTED_BITS;
 
   const bool crc_valid = parse_and_verify_packet(corrupted_packet).has_value();
+  EXPECT_FALSE(crc_valid);
+}
+
+TEST(codec_test, should_detect_a_corrupted_payload_of_a_partial_symbol) {
+  const std::vector<std::byte> input_data = fixtures::make_counting_data(UNALIGNED_INPUT_SIZE);
+  const encoder encoder(fixtures::make_test_file_id());
+  auto [packets, manifest] = encode_test_data(encoder, input_data);
+
+  const auto partial = std::ranges::find_if(packets, carries_a_partial_symbol);
+  const auto packets_end = packets.end();
+  ASSERT_NE(partial, packets_end);
+
+  partial->bytes[HEADER_SIZE_V2] ^= INVERTED_BITS;
+
+  const bool crc_valid = parse_and_verify_packet(fixtures::packet_span(*partial)).has_value();
   EXPECT_FALSE(crc_valid);
 }
 
@@ -364,6 +381,50 @@ TEST(codec_test, should_track_which_chunks_are_decoded) {
   EXPECT_EQ(indices[0], 0u);
 }
 
+TEST(codec_test, should_track_chunks_decoded_out_of_order) {
+  const std::vector<std::byte> first_data = fixtures::make_counting_data(INPUT_SIZE);
+  const std::vector<std::byte> second_data = fixtures::make_counting_data(SMALL_INPUT_SIZE);
+  const encoder encoder(fixtures::make_test_file_id());
+  const auto [first_packets, first_manifest] = encode_test_data(encoder, first_data);
+  const auto [second_packets, second_manifest] = encode_test_data(encoder, second_data, 1, chunk_position::LAST);
+  constexpr uint32_t two_chunks = 2;
+  decoder decoder;
+
+  feed_all_packets_to_decoder(decoder, second_packets);
+
+  const bool first_complete = decoder.is_chunk_complete(0);
+  const std::vector<uint32_t> indices = decoder.completed_chunk_indices();
+  const std::vector<uint32_t> expected_indices = {1};
+  EXPECT_FALSE(first_complete);
+  EXPECT_EQ(indices, expected_indices);
+
+  feed_all_packets_to_decoder(decoder, first_packets);
+
+  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(two_chunks);
+  std::vector<std::byte> expected = first_data;
+  expected.insert(expected.end(), second_data.begin(), second_data.end());
+  EXPECT_EQ(assembled, expected);
+}
+
+TEST(codec_test, should_not_assemble_a_file_with_a_chunk_beyond_the_expected_count) {
+  const std::vector<std::byte> data = fixtures::make_counting_data(SMALL_INPUT_SIZE);
+  const encoder encoder(fixtures::make_test_file_id());
+  constexpr uint32_t third_chunk = 2;
+  constexpr uint32_t two_chunks = 2;
+  const auto [first_packets, first_manifest] = encode_test_data(encoder, data);
+  const auto [third_packets, third_manifest] = encode_test_data(encoder, data, third_chunk, chunk_position::LAST);
+  decoder decoder;
+  feed_all_packets_to_decoder(decoder, first_packets);
+  feed_all_packets_to_decoder(decoder, third_packets);
+
+  const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(two_chunks);
+
+  const std::size_t chunks_completed = decoder.chunks_completed();
+  const bool assembled_present = assembled.has_value();
+  EXPECT_EQ(chunks_completed, two_chunks);
+  EXPECT_FALSE(assembled_present);
+}
+
 TEST(codec_test, should_return_a_copy_of_the_chunk_data) {
   const std::vector<std::byte> input_data = fixtures::make_counting_data(INPUT_SIZE);
   const encoder encoder(fixtures::make_test_file_id());
@@ -496,6 +557,17 @@ TEST(codec_test, should_reject_a_packet_shorter_than_the_version_one_header) {
   const std::span<const std::byte> packet = fixtures::packet_span(packets[0]);
 
   const std::optional<parsed_packet> parsed = parse_packet(packet.first(HEADER_SIZE - 1));
+
+  const bool parsed_present = parsed.has_value();
+  EXPECT_FALSE(parsed_present);
+}
+
+TEST(codec_test, should_reject_a_version_two_packet_shorter_than_its_header) {
+  const encoder encoder(fixtures::make_test_file_id());
+  const auto [packets, manifest] = encode_test_data(encoder, fixtures::make_counting_data(SYMBOL_SIZE_BYTES));
+  const std::span<const std::byte> packet = fixtures::packet_span(packets[0]);
+
+  const std::optional<parsed_packet> parsed = parse_packet(packet.first(HEADER_SIZE_V2 - 1));
 
   const bool parsed_present = parsed.has_value();
   EXPECT_FALSE(parsed_present);
