@@ -32,6 +32,7 @@ extern "C" {
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -76,6 +77,9 @@ constexpr uint32_t UNKNOWN_CODEC_TAG = MKTAG('Z', 'Z', 'Z', 'Z');
 constexpr std::size_t SLICE_SIZE_BYTES = 3;
 constexpr std::size_t SLICE_STATUS_AND_CRC_BYTES = 5;
 constexpr std::byte BROKEN_SLICE_SIZE{0xFF};
+
+constexpr std::size_t NAL_UNIT_SIZE_BYTES = 4;
+constexpr std::byte BROKEN_NAL_UNIT_SIZE{0xFF};
 
 constexpr const char* H264_EXTENSION = ".h264";
 constexpr const char* H264_ENCODER = "libx264";
@@ -145,6 +149,13 @@ void write_one_packet_stream(const std::string& path, const packet& packet) {
   encoder.finalize();
 }
 
+void write_one_packet_per_frame_stream(const std::string& path, const int frame_count) {
+  stream_encoder encoder(path, STREAM_BITRATE_KILOBITS_PER_SECOND, ONE_PACKET_FRAME_WIDTH, ONE_PACKET_FRAME_HEIGHT,
+                         FRAMES_PER_SECOND);
+  add_framed_packets(encoder, frame_count);
+  encoder.finalize();
+}
+
 void write_undecodable_video(const std::string& path) {
   AVFormatContext* context = nullptr;
   const int context_status = avformat_alloc_output_context2(&context, nullptr, nullptr, path.c_str());
@@ -185,20 +196,33 @@ std::vector<std::byte> read_last_frame_data(const std::string& path) {
   return last_frame;
 }
 
-void break_the_slice_chain_of_the_last_frame(const std::filesystem::path& path) {
+template <typename DamageType> void damage_the_last_frame(const std::filesystem::path& path, const DamageType& damage) {
   const std::vector<std::byte> last_frame = read_last_frame_data(path.string());
-  const std::size_t last_frame_size = last_frame.size();
-  ASSERT_GT(last_frame_size, SLICE_SIZE_BYTES + SLICE_STATUS_AND_CRC_BYTES);
-
   std::vector<std::byte> video = fixtures::read_bytes(path);
   const auto found = std::search(video.begin(), video.end(), last_frame.begin(), last_frame.end());
   const auto video_end = video.end();
   ASSERT_NE(found, video_end);
 
-  const std::size_t slice_size_offset = last_frame.size() - SLICE_STATUS_AND_CRC_BYTES - SLICE_SIZE_BYTES;
-  const auto slice_size = found + static_cast<std::ptrdiff_t>(slice_size_offset);
-  std::fill_n(slice_size, SLICE_SIZE_BYTES, BROKEN_SLICE_SIZE);
+  const std::span<std::byte> frame(found, last_frame.size());
+  damage(frame);
   fixtures::write_bytes(path, video);
+}
+
+void break_the_slice_chain(const std::span<std::byte> frame) {
+  const std::size_t frame_size = frame.size();
+  ASSERT_GT(frame_size, SLICE_SIZE_BYTES + SLICE_STATUS_AND_CRC_BYTES);
+
+  const std::span<std::byte> slice_trailer = frame.last(SLICE_SIZE_BYTES + SLICE_STATUS_AND_CRC_BYTES);
+  const std::span<std::byte> slice_size = slice_trailer.first(SLICE_SIZE_BYTES);
+  std::ranges::fill(slice_size, BROKEN_SLICE_SIZE);
+}
+
+void break_the_first_nal_unit_size(const std::span<std::byte> frame) {
+  const std::size_t frame_size = frame.size();
+  ASSERT_GT(frame_size, NAL_UNIT_SIZE_BYTES);
+
+  const std::span<std::byte> nal_unit_size = frame.first(NAL_UNIT_SIZE_BYTES);
+  std::ranges::fill(nal_unit_size, BROKEN_NAL_UNIT_SIZE);
 }
 
 int stream_packets_per_frame() {
@@ -514,7 +538,7 @@ TEST(video_decoder_test, should_size_a_packet_of_an_unknown_version_like_version
 TEST(video_decoder_test, should_skip_a_frame_whose_slices_cannot_be_found) {
   const fixtures::temporary_file video(MATROSKA_EXTENSION);
   write_video(video.string(), FRAMES_TO_WRITE);
-  break_the_slice_chain_of_the_last_frame(video.path());
+  damage_the_last_frame(video.path(), break_the_slice_chain);
   video_decoder decoder(video.string());
 
   const video_decoder::packet_list packets = decoder.decode_all_frames();
@@ -524,6 +548,22 @@ TEST(video_decoder_test, should_skip_a_frame_whose_slices_cannot_be_found) {
   const int64_t frames_read = decoder.frames_read();
   const bool at_end = decoder.is_eof();
   EXPECT_EQ(packet_count, expected_packet_count);
+  EXPECT_EQ(frames_read, FRAMES_TO_WRITE - 1);
+  EXPECT_TRUE(at_end);
+}
+
+TEST(video_decoder_test, should_skip_a_stream_frame_whose_nal_units_cannot_be_split) {
+  const fixtures::temporary_file stream(FLV_EXTENSION);
+  write_one_packet_per_frame_stream(stream.string(), FRAMES_TO_WRITE);
+  damage_the_last_frame(stream.path(), break_the_first_nal_unit_size);
+  video_decoder decoder(stream.string());
+
+  const video_decoder::packet_list packets = decoder.decode_all_frames();
+
+  const std::size_t packet_count = packets.size();
+  const int64_t frames_read = decoder.frames_read();
+  const bool at_end = decoder.is_eof();
+  EXPECT_EQ(packet_count, 1U);
   EXPECT_EQ(frames_read, FRAMES_TO_WRITE - 1);
   EXPECT_TRUE(at_end);
 }
