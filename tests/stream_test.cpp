@@ -96,46 +96,64 @@ void stream_encode_file(const std::string& input_path, const std::string& output
   }
 }
 
-std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std::string& password = {}) {
-  video_decoder video_decoder(flv_path);
-  decoder decoder;
+struct stream_decode_progress {
   std::size_t total_extracted = 0;
   std::size_t decoded_chunks = 0;
   uint32_t maximum_chunk_index = 0;
   bool found_last_chunk = false;
   uint32_t last_chunk_index = 0;
+};
 
+void note_chunk_header(const std::vector<std::byte>& packet_data, stream_decode_progress& progress) {
+  if (packet_data.size() < HEADER_SIZE) {
+    return;
+  }
+
+  const uint8_t flags = static_cast<uint8_t>(packet_data[FLAGS_OFFSET]);
+  uint32_t chunk_index = 0;
+  std::memcpy(&chunk_index, packet_data.data() + CHUNK_INDEX_OFFSET, sizeof(chunk_index));
+  if (chunk_index > progress.maximum_chunk_index) {
+    progress.maximum_chunk_index = chunk_index;
+  }
+  if (flags & FLAG_LAST_CHUNK) {
+    progress.found_last_chunk = true;
+    progress.last_chunk_index = chunk_index;
+  }
+}
+
+void feed_packet(const std::vector<std::byte>& packet_data, decoder& decoder, stream_decode_progress& progress) {
+  ++progress.total_extracted;
+  note_chunk_header(packet_data, progress);
+  const std::span<const std::byte> data(packet_data.data(), packet_data.size());
+  if (std::optional<chunk_decode_result> chunk_result = decoder.process_packet(data, sha256_computation::SKIP);
+      chunk_result && chunk_result->success) {
+    ++progress.decoded_chunks;
+  }
+}
+
+stream_decode_progress feed_every_frame(video_decoder& video_decoder, decoder& decoder) {
+  stream_decode_progress progress;
   while (!video_decoder.is_eof()) {
     std::vector<std::vector<std::byte>> frame_packets = video_decoder.decode_next_frame();
     for (std::vector<std::byte>& packet_data : frame_packets) {
-      ++total_extracted;
-      if (packet_data.size() >= HEADER_SIZE) {
-        const uint8_t flags = static_cast<uint8_t>(packet_data[FLAGS_OFFSET]);
-        uint32_t chunk_index = 0;
-        std::memcpy(&chunk_index, packet_data.data() + CHUNK_INDEX_OFFSET, sizeof(chunk_index));
-        if (chunk_index > maximum_chunk_index) {
-          maximum_chunk_index = chunk_index;
-        }
-        if (flags & FLAG_LAST_CHUNK) {
-          found_last_chunk = true;
-          last_chunk_index = chunk_index;
-        }
-      }
-      const std::span<const std::byte> data(packet_data.data(), packet_data.size());
-      if (std::optional<chunk_decode_result> chunk_result = decoder.process_packet(data, sha256_computation::SKIP);
-          chunk_result && chunk_result->success) {
-        ++decoded_chunks;
-      }
+      feed_packet(packet_data, decoder, progress);
     }
   }
+  return progress;
+}
 
-  if (total_extracted == 0) {
+std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std::string& password = {}) {
+  video_decoder video_decoder(flv_path);
+  decoder decoder;
+  const stream_decode_progress progress = feed_every_frame(video_decoder, decoder);
+  if (progress.total_extracted == 0) {
     return {};
   }
 
-  const uint32_t expected_chunks = found_last_chunk ? last_chunk_index + 1 : maximum_chunk_index + 1;
+  const uint32_t expected_chunks =
+      progress.found_last_chunk ? progress.last_chunk_index + 1 : progress.maximum_chunk_index + 1;
 
-  if (decoded_chunks < expected_chunks) {
+  if (progress.decoded_chunks < expected_chunks) {
     return {};
   }
 
@@ -294,33 +312,11 @@ TEST(stream_test, should_restore_a_file_from_a_matroska_video) {
   {
     video_decoder video_decoder(mkv.string());
     decoder decoder;
-    std::size_t decoded_chunks = 0;
-    uint32_t last_chunk_index = 0;
-    bool found_last = false;
+    const stream_decode_progress progress = feed_every_frame(video_decoder, decoder);
 
-    while (!video_decoder.is_eof()) {
-      std::vector<std::vector<std::byte>> frame_packets = video_decoder.decode_next_frame();
-      for (std::vector<std::byte>& packet_data : frame_packets) {
-        if (packet_data.size() >= HEADER_SIZE) {
-          const uint8_t flags = static_cast<uint8_t>(packet_data[FLAGS_OFFSET]);
-          uint32_t chunk_index = 0;
-          std::memcpy(&chunk_index, packet_data.data() + CHUNK_INDEX_OFFSET, sizeof(chunk_index));
-          if (flags & FLAG_LAST_CHUNK) {
-            found_last = true;
-            last_chunk_index = chunk_index;
-          }
-        }
-        if (std::optional<chunk_decode_result> chunk_result =
-                decoder.process_packet(std::span(packet_data.data(), packet_data.size()), sha256_computation::SKIP);
-            chunk_result && chunk_result->success) {
-          ++decoded_chunks;
-        }
-      }
-    }
-
-    ASSERT_TRUE(found_last);
-    const uint32_t expected = last_chunk_index + 1;
-    ASSERT_GE(decoded_chunks, expected);
+    ASSERT_TRUE(progress.found_last_chunk);
+    const uint32_t expected = progress.last_chunk_index + 1;
+    ASSERT_GE(progress.decoded_chunks, expected);
 
     const std::optional<std::vector<std::byte>> assembled = decoder.assemble_file(expected);
     const bool assembled_present = assembled.has_value();

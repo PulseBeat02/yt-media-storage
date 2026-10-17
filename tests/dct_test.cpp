@@ -24,7 +24,28 @@
 #include <climits>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <vector>
+
+namespace {
+
+void expect_block_in_pixel_range(const uint8_t (&block)[BLOCK_SIZE][BLOCK_SIZE]) {
+  for (int y = 0; y < BLOCK_SIZE; ++y) {
+    for (int x = 0; x < BLOCK_SIZE; ++x) {
+      EXPECT_LE(block[y][x], 255u);
+    }
+  }
+}
+
+void flatten_block(const uint8_t (&block)[BLOCK_SIZE][BLOCK_SIZE], float (&block_flat)[BLOCK_AREA]) {
+  for (int y = 0; y < BLOCK_SIZE; ++y) {
+    for (int x = 0; x < BLOCK_SIZE; ++x) {
+      block_flat[y * BLOCK_SIZE + x] = static_cast<float>(block[y][x]);
+    }
+  }
+}
+
+}
 
 TEST(dct_test, should_precompute_one_block_per_bit_pattern) {
   constexpr int expected_patterns = 1 << BITS_PER_BLOCK;
@@ -34,11 +55,7 @@ TEST(dct_test, should_precompute_one_block_per_bit_pattern) {
 TEST(dct_test, should_keep_precomputed_blocks_in_the_pixel_range) {
   const auto& [patterns] = get_precomputed_blocks();
   for (int pattern = 0; pattern < precomputed_blocks::PATTERN_COUNT; ++pattern) {
-    for (int y = 0; y < BLOCK_SIZE; ++y) {
-      for (int x = 0; x < BLOCK_SIZE; ++x) {
-        EXPECT_LE(patterns[pattern][y][x], 255u);
-      }
-    }
+    expect_block_in_pixel_range(patterns[pattern]);
   }
 }
 
@@ -59,11 +76,7 @@ TEST(dct_test, should_extract_every_embedded_bit_pattern) {
 
   for (int pattern = 0; pattern < precomputed_blocks::PATTERN_COUNT; ++pattern) {
     alignas(VECTOR_ALIGNMENT) float block_flat[BLOCK_AREA];
-    for (int y = 0; y < BLOCK_SIZE; ++y) {
-      for (int x = 0; x < BLOCK_SIZE; ++x) {
-        block_flat[y * BLOCK_SIZE + x] = static_cast<float>(patterns[pattern][y][x]);
-      }
-    }
+    flatten_block(patterns[pattern], block_flat);
 
     int recovered = 0;
     for (int bit_index = 0; bit_index < BITS_PER_BLOCK; ++bit_index) {
@@ -142,15 +155,7 @@ TEST(dct_test, should_produce_a_different_block_for_each_pattern) {
   }
 
   const auto& [patterns] = get_precomputed_blocks();
-  bool any_differ = false;
-  for (int y = 0; y < BLOCK_SIZE && !any_differ; ++y) {
-    for (int x = 0; x < BLOCK_SIZE && !any_differ; ++x) {
-      if (patterns[0][y][x] != patterns[1][y][x]) {
-        any_differ = true;
-      }
-    }
-  }
-
+  const bool any_differ = std::memcmp(patterns[0], patterns[1], sizeof(patterns[0])) != 0;
   EXPECT_TRUE(any_differ);
 }
 
