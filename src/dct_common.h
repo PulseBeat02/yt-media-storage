@@ -64,7 +64,6 @@ inline constexpr int FLOATS_PER_STEP = 4 * FLOATS_PER_VECTOR;
 inline constexpr int SWAP_ADJACENT_LANES = _MM_SHUFFLE(2, 3, 0, 1);
 #endif
 
-// simd dot product
 inline float dot_product_64(const float* left, const float* right) {
 #if defined(DCT_USE_AVX)
   __m256 sum0 = _mm256_setzero_ps();
@@ -118,7 +117,6 @@ inline float dot_product_64(const float* left, const float* right) {
   return vaddvq_f32(sum0);
 
 #else
-  // Scalar fallback
   float sum = 0.0f;
   for (int i = 0; i < BLOCK_AREA; ++i)
     sum += left[i] * right[i];

@@ -66,7 +66,7 @@ std::vector<std::byte> make_patterned_data(const std::size_t byte_count, const u
   return data;
 }
 
-} // namespace
+}
 
 TEST(crypto_test, should_generate_distinct_file_ids) {
   const file_id_type first = generate_file_id();

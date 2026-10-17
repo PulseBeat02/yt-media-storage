@@ -68,7 +68,7 @@ void encode_and_feed(const encoder& encoder, decoder& decoder, const std::span<c
     (void)decoder.process_packet(packet_span(packet), false);
   }
 }
-} // namespace
+}
 
 TEST(roundtrip_test, should_restore_a_single_chunk) {
   const std::vector<std::byte> original_data = make_test_data(INPUT_SIZE);

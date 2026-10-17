@@ -53,7 +53,7 @@ bool is_hexadecimal_character(const char character) {
   return (character >= '0' && character <= '9') || (character >= 'A' && character <= 'F');
 }
 
-} // namespace
+}
 
 TEST(integrity_test, should_hash_empty_input_to_the_known_sha256_digest) {
   const std::vector<std::byte> empty_input;

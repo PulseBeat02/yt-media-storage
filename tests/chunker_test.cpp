@@ -58,7 +58,7 @@ void expect_chunks_cover_data(const chunked_storage_data& chunked, const std::ve
   EXPECT_EQ(chunked.storage, original);
 }
 
-} // namespace
+}
 
 TEST(chunker_test, should_chunk_empty_data_into_no_chunks) {
   const std::vector<std::byte> empty_data;

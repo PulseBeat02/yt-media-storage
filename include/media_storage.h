@@ -190,4 +190,4 @@ MS_API const char* ms_version(void);
 }
 #endif
 
-#endif /* MEDIA_STORAGE_H */
+#endif

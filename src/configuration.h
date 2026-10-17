@@ -23,27 +23,23 @@
 #include <cstddef>
 #include <cstdint>
 
-// =============================================================================
-// ADJUSTABLE OPTIONS (YOU CAN CHANGE)
-// =============================================================================
+// settings you may change
 constexpr int FRAME_WIDTH = 3840;
 constexpr int FRAME_HEIGHT = 2160;
 constexpr int FRAMES_PER_SECOND = 30;
 constexpr int FRAME_BITRATE = 35000;
 constexpr int FRAME_WIDTH_STREAM = FRAME_WIDTH / 2;
 constexpr int FRAME_HEIGHT_STREAM = FRAME_HEIGHT / 2;
-constexpr std::size_t CHUNK_SIZE_BYTES = 1024ull * 1024ull; // 1 MiB
+constexpr std::size_t CHUNK_SIZE_BYTES = 1024ull * 1024ull;
 constexpr std::size_t SYMBOL_SIZE_BYTES = 256;
 constexpr double REPAIR_OVERHEAD = 0.25;
 constexpr bool INCLUDE_SOURCE = true;
 constexpr int BITS_PER_BLOCK = 1;
 constexpr double COEFFICIENT_STRENGTH = 500.0;
 
-// =============================================================================
-// FIXED ARGUMENTS (DO NOT CHANGE)
-// =============================================================================
+// fixed by the video format
 
-// the decoder assumes a codec that preserves Y-plane bytes exactly.
+// the decoder assumes a codec that preserves Y-plane bytes exactly
 inline constexpr const char* VIDEO_CODEC = "ffv1";
 
 constexpr std::size_t CRYPTO_PLAIN_SIZE_HEADER = 4;
@@ -88,7 +84,7 @@ constexpr std::size_t PAYLOAD_LENGTH_OFFSET = ESI_OFFSET + ESI_SIZE;
 constexpr std::size_t CRC_OFFSET = PAYLOAD_LENGTH_OFFSET + PAYLOAD_LENGTH_SIZE;
 constexpr std::size_t HEADER_SIZE = CRC_OFFSET + CRC_SIZE;
 
-// V2 header: original_size inserted between PAYLOAD_LEN and CRC (fixes small-file padding)
+// version 2 stores the original size before the crc, so decoding drops the padding of small files
 constexpr std::size_t ORIGINAL_SIZE_OFFSET = PAYLOAD_LENGTH_OFFSET + PAYLOAD_LENGTH_SIZE;
 constexpr std::size_t CRC_OFFSET_V2 = ORIGINAL_SIZE_OFFSET + ORIGINAL_SIZE_SIZE;
 constexpr std::size_t HEADER_SIZE_V2 = CRC_OFFSET_V2 + CRC_SIZE;

@@ -91,7 +91,7 @@ bool feed_all_packets_to_decoder(decoder& decoder, const std::vector<packet>& pa
   }
   return any_decoded;
 }
-} // namespace
+}
 
 TEST(codec_test, should_encode_a_chunk_into_its_packet_count) {
   const std::vector<std::byte> input_data = make_test_data(INPUT_SIZE);

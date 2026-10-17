@@ -155,7 +155,7 @@ std::vector<std::byte> stream_decode_file(const std::string& flv_path, const std
     decoder.clear_decrypt_key();
   return assembled.value_or(std::vector<std::byte>{});
 }
-} // namespace
+}
 
 TEST(stream_test, should_restore_a_small_file_from_1080p_frames) {
   const auto original = fixtures::make_pattern(INPUT_SIZE);
