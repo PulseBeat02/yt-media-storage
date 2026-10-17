@@ -41,6 +41,7 @@ constexpr int SINGLE_THREAD = 1;
 constexpr int CANCEL_OPERATION = 1;
 
 constexpr uint64_t CHUNKS_IN_ONE_CHUNK_AND_A_BYTE = 2;
+constexpr uint64_t CHUNKS_IN_AN_EMPTY_FILE = 1;
 
 int request_cancellation(uint64_t, uint64_t, void*) {
   return CANCEL_OPERATION;
@@ -102,6 +103,66 @@ TEST(api_encode_test, should_round_trip_more_chunks_than_threads_through_a_strea
 
   ASSERT_EQ(encode_status, MS_OK);
   EXPECT_EQ(result.total_chunks, CHUNKS_IN_ONE_CHUNK_AND_A_BYTE);
+
+  ms_stream_decode_options_t decode_options{};
+  decode_options.stream_url = stream_path.c_str();
+  decode_options.output_path = output_path.c_str();
+
+  const ms_status_t decode_status = ms_stream_decode(&decode_options, nullptr);
+  ASSERT_EQ(decode_status, MS_OK);
+
+  const std::vector<std::byte> output_bytes = fixtures::read_bytes(output.path());
+  EXPECT_EQ(output_bytes, data);
+}
+
+TEST(api_encode_test, should_round_trip_an_empty_file) {
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file video(MATROSKA_EXTENSION);
+  const fixtures::temporary_file output(BINARY_EXTENSION);
+  const std::vector<std::byte> data;
+  fixtures::write_bytes(input.path(), data);
+  const std::string input_path = input.string();
+  const std::string video_path = video.string();
+  const std::string output_path = output.string();
+  ms_encode_options_t encode_options{};
+  encode_options.input_path = input_path.c_str();
+  encode_options.output_path = video_path.c_str();
+  ms_result_t result{};
+
+  const ms_status_t encode_status = ms_encode(&encode_options, &result);
+
+  ASSERT_EQ(encode_status, MS_OK);
+  EXPECT_EQ(result.total_chunks, CHUNKS_IN_AN_EMPTY_FILE);
+
+  ms_decode_options_t decode_options{};
+  decode_options.input_path = video_path.c_str();
+  decode_options.output_path = output_path.c_str();
+
+  const ms_status_t decode_status = ms_decode(&decode_options, nullptr);
+  ASSERT_EQ(decode_status, MS_OK);
+
+  const std::vector<std::byte> output_bytes = fixtures::read_bytes(output.path());
+  EXPECT_EQ(output_bytes, data);
+}
+
+TEST(api_encode_test, should_round_trip_an_empty_file_through_a_stream) {
+  const fixtures::temporary_file input(BINARY_EXTENSION);
+  const fixtures::temporary_file stream(FLV_EXTENSION);
+  const fixtures::temporary_file output(BINARY_EXTENSION);
+  const std::vector<std::byte> data;
+  fixtures::write_bytes(input.path(), data);
+  const std::string input_path = input.string();
+  const std::string stream_path = stream.string();
+  const std::string output_path = output.string();
+  ms_stream_encode_options_t encode_options{};
+  encode_options.input_path = input_path.c_str();
+  encode_options.stream_url = stream_path.c_str();
+  ms_result_t result{};
+
+  const ms_status_t encode_status = ms_stream_encode(&encode_options, &result);
+
+  ASSERT_EQ(encode_status, MS_OK);
+  EXPECT_EQ(result.total_chunks, CHUNKS_IN_AN_EMPTY_FILE);
 
   ms_stream_decode_options_t decode_options{};
   decode_options.stream_url = stream_path.c_str();
