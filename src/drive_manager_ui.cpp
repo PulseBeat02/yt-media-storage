@@ -31,6 +31,8 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <initializer_list>
+#include <optional>
 #include <string>
 
 namespace {
@@ -131,6 +133,16 @@ QString describe_failure(const QString& prefix, const ms_status_t status) {
   }
 
   return message;
+}
+
+std::optional<QString> find_first_problem(const std::initializer_list<std::optional<QString>> problems) {
+  for (const std::optional<QString>& problem : problems) {
+    if (problem) {
+      return problem;
+    }
+  }
+
+  return std::nullopt;
 }
 }
 
@@ -608,44 +620,68 @@ void drive_manager_ui::select_batch_output_directory() {
   }
 }
 
-bool drive_manager_ui::warn_if_busy() {
+std::optional<QString> drive_manager_ui::find_busy_problem() const {
   if (operation_running_) {
-    QMessageBox::warning(this, WARNING_TITLE, "An operation is already in progress");
+    return "An operation is already in progress";
   }
 
-  return operation_running_;
+  return std::nullopt;
 }
 
-bool drive_manager_ui::validate_input_file() {
+std::optional<QString> drive_manager_ui::find_input_file_problem() const {
   if (input_file_edit_->text().isEmpty()) {
-    QMessageBox::warning(this, WARNING_TITLE, "Please select an input file");
-    return false;
+    return "Please select an input file";
   }
 
   if (!QFile::exists(input_file_edit_->text())) {
-    QMessageBox::warning(this, WARNING_TITLE, "Input file does not exist");
-    return false;
+    return "Input file does not exist";
   }
 
-  return true;
+  return std::nullopt;
 }
 
-bool drive_manager_ui::validate_output_file() {
+std::optional<QString> drive_manager_ui::find_output_file_problem() const {
   if (output_file_edit_->text().isEmpty()) {
-    QMessageBox::warning(this, WARNING_TITLE, "Please select an output file");
-    return false;
+    return "Please select an output file";
   }
 
-  return true;
+  return std::nullopt;
 }
 
-bool drive_manager_ui::validate_password() {
+std::optional<QString> drive_manager_ui::find_password_problem() const {
   if (encrypt_check_box_->isChecked() && password_edit_->text().isEmpty()) {
-    QMessageBox::warning(this, WARNING_TITLE, "Password required when encrypting");
-    return false;
+    return "Password required when encrypting";
   }
 
-  return true;
+  return std::nullopt;
+}
+
+std::optional<QString> drive_manager_ui::find_batch_problem() const {
+  if (file_list_widget_->count() == 0) {
+    return "No files in batch list";
+  }
+
+  if (batch_output_directory_edit_->text().isEmpty()) {
+    return "Please select an output directory";
+  }
+
+  return std::nullopt;
+}
+
+std::optional<QString> drive_manager_ui::find_stream_key_problem() const {
+  if (stream_key_edit_->text().isEmpty()) {
+    return "Please enter your stream key";
+  }
+
+  return std::nullopt;
+}
+
+std::optional<QString> drive_manager_ui::find_stream_url_problem() const {
+  if (stream_url_edit_->text().isEmpty()) {
+    return "Please enter a stream URL to decode from";
+  }
+
+  return std::nullopt;
 }
 
 void drive_manager_ui::start_worker(const worker_request& request, const QString& operation_name) {
@@ -670,7 +706,10 @@ void drive_manager_ui::set_operation_running(const bool running) {
 }
 
 void drive_manager_ui::start_encode() {
-  if (warn_if_busy() || !validate_input_file() || !validate_output_file() || !validate_password()) {
+  const std::optional<QString> problem = find_first_problem(
+      {find_busy_problem(), find_input_file_problem(), find_output_file_problem(), find_password_problem()});
+  if (problem) {
+    QMessageBox::warning(this, WARNING_TITLE, *problem);
     return;
   }
 
@@ -684,7 +723,10 @@ void drive_manager_ui::start_encode() {
 }
 
 void drive_manager_ui::start_decode() {
-  if (warn_if_busy() || !validate_input_file() || !validate_output_file()) {
+  const std::optional<QString> problem =
+      find_first_problem({find_busy_problem(), find_input_file_problem(), find_output_file_problem()});
+  if (problem) {
+    QMessageBox::warning(this, WARNING_TITLE, *problem);
     return;
   }
 
@@ -697,21 +739,10 @@ void drive_manager_ui::start_decode() {
 }
 
 void drive_manager_ui::start_batch_encode() {
-  if (warn_if_busy()) {
-    return;
-  }
-
-  if (file_list_widget_->count() == 0) {
-    QMessageBox::warning(this, WARNING_TITLE, "No files in batch list");
-    return;
-  }
-
-  if (batch_output_directory_edit_->text().isEmpty()) {
-    QMessageBox::warning(this, WARNING_TITLE, "Please select an output directory");
-    return;
-  }
-
-  if (!validate_password()) {
+  const std::optional<QString> problem =
+      find_first_problem({find_busy_problem(), find_batch_problem(), find_password_problem()});
+  if (problem) {
+    QMessageBox::warning(this, WARNING_TITLE, *problem);
     return;
   }
 
@@ -773,16 +804,10 @@ void drive_manager_ui::on_resolution_changed(const int index) const {
 }
 
 void drive_manager_ui::start_stream_encode() {
-  if (warn_if_busy() || !validate_input_file()) {
-    return;
-  }
-
-  if (stream_key_edit_->text().isEmpty()) {
-    QMessageBox::warning(this, WARNING_TITLE, "Please enter your stream key");
-    return;
-  }
-
-  if (!validate_password()) {
+  const std::optional<QString> problem = find_first_problem(
+      {find_busy_problem(), find_input_file_problem(), find_stream_key_problem(), find_password_problem()});
+  if (problem) {
+    QMessageBox::warning(this, WARNING_TITLE, *problem);
     return;
   }
 
@@ -801,12 +826,10 @@ void drive_manager_ui::start_stream_encode() {
 }
 
 void drive_manager_ui::start_stream_decode() {
-  if (warn_if_busy() || !validate_output_file()) {
-    return;
-  }
-
-  if (stream_url_edit_->text().isEmpty()) {
-    QMessageBox::warning(this, WARNING_TITLE, "Please enter a stream URL to decode from");
+  const std::optional<QString> problem =
+      find_first_problem({find_busy_problem(), find_output_file_problem(), find_stream_url_problem()});
+  if (problem) {
+    QMessageBox::warning(this, WARNING_TITLE, *problem);
     return;
   }
 

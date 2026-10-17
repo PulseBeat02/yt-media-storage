@@ -36,6 +36,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 #include "configuration.h"
 #include "media_storage.h"
@@ -176,13 +177,19 @@ private:
 
   void save_settings() const;
 
-  bool warn_if_busy();
+  std::optional<QString> find_busy_problem() const;
 
-  bool validate_input_file();
+  std::optional<QString> find_input_file_problem() const;
 
-  bool validate_output_file();
+  std::optional<QString> find_output_file_problem() const;
 
-  bool validate_password();
+  std::optional<QString> find_password_problem() const;
+
+  std::optional<QString> find_batch_problem() const;
+
+  std::optional<QString> find_stream_key_problem() const;
+
+  std::optional<QString> find_stream_url_problem() const;
 
   QWidget* central_widget_ = nullptr;
   QSplitter* main_splitter_ = nullptr;
