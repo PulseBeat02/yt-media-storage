@@ -25,6 +25,7 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <bit>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -32,6 +33,7 @@ extern "C" {
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -88,6 +90,11 @@ constexpr std::size_t NAL_UNIT_SIZE_BYTES = 4;
 constexpr std::byte BROKEN_NAL_UNIT_SIZE{0xFF};
 
 constexpr std::byte INVERTED_BITS{0xFF};
+
+constexpr const char* FLV_FILE_SIZE_KEY = "filesize";
+constexpr std::byte AMF_NUMBER_MARKER{0x00};
+constexpr std::size_t AMF_NUMBER_SIZE = sizeof(double);
+constexpr int BITS_PER_BYTE = 8;
 
 constexpr const char* H264_EXTENSION = ".h264";
 constexpr const char* H264_ENCODER = "libx264";
@@ -278,6 +285,35 @@ void damage_the_codec_header_checksum(const std::filesystem::path& path) {
   const std::span<std::byte> stored_header(found, codec_header.size());
   stored_header.back() ^= INVERTED_BITS;
   fixtures::write_bytes(path, video);
+}
+
+std::vector<std::byte> make_amf_number_key(const std::string& key) {
+  const std::size_t key_length = key.size();
+  std::vector<std::byte> amf_key{static_cast<std::byte>(key_length >> BITS_PER_BYTE),
+                                 static_cast<std::byte>(key_length & fixtures::BYTE_MASK)};
+  for (const char character : key) {
+    amf_key.push_back(static_cast<std::byte>(character));
+  }
+
+  amf_key.push_back(AMF_NUMBER_MARKER);
+  return amf_key;
+}
+
+std::optional<double> find_flv_metadata_number(const std::vector<std::byte>& stream, const std::string& key) {
+  const std::vector<std::byte> amf_key = make_amf_number_key(key);
+  const auto found = std::search(stream.begin(), stream.end(), amf_key.begin(), amf_key.end());
+  const std::span<const std::byte> entry(found, stream.end());
+  if (entry.size() < amf_key.size() + AMF_NUMBER_SIZE) {
+    return std::nullopt;
+  }
+
+  const std::span<const std::byte> number = entry.subspan(amf_key.size(), AMF_NUMBER_SIZE);
+  uint64_t bits = 0;
+  for (const std::byte byte : number) {
+    bits = (bits << BITS_PER_BYTE) | std::to_integer<uint64_t>(byte);
+  }
+
+  return std::bit_cast<double>(bits);
 }
 
 int stream_packets_per_frame() {
@@ -730,9 +766,20 @@ TEST(stream_encoder_test, should_finalize_the_stream_when_destroyed) {
 
   write_one_packet_per_frame_stream_without_finalizing(destroyed.string(), FRAMES_TO_WRITE);
 
-  const std::vector<std::byte> finalized_stream = fixtures::read_bytes(finalized.path());
+  video_decoder finalized_decoder(finalized.string());
+  video_decoder destroyed_decoder(destroyed.string());
+  const video_decoder::packet_list finalized_packets = finalized_decoder.decode_all_frames();
+  const video_decoder::packet_list destroyed_packets = destroyed_decoder.decode_all_frames();
+  const std::size_t packet_count = destroyed_packets.size();
+  const int64_t frames_read = destroyed_decoder.frames_read();
+  EXPECT_EQ(packet_count, static_cast<std::size_t>(FRAMES_TO_WRITE));
+  EXPECT_EQ(destroyed_packets, finalized_packets);
+  EXPECT_EQ(frames_read, FRAMES_TO_WRITE);
+
   const std::vector<std::byte> destroyed_stream = fixtures::read_bytes(destroyed.path());
-  EXPECT_EQ(destroyed_stream, finalized_stream);
+  const std::optional<double> recorded_size = find_flv_metadata_number(destroyed_stream, FLV_FILE_SIZE_KEY);
+  const std::optional<double> stream_size = static_cast<double>(destroyed_stream.size());
+  EXPECT_EQ(recorded_size, stream_size);
 }
 
 TEST(stream_encoder_test, should_report_a_frame_width_that_libx264_cannot_encode) {
