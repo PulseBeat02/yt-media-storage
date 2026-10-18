@@ -109,7 +109,9 @@ std::string build_command(const std::vector<std::string>& arguments) {
 cli_result run_cli(const std::vector<std::string>& arguments) {
   const std::string command = build_command(arguments);
 #ifdef _WIN32
-  FILE* const pipe = _popen(command.c_str(), READ_MODE);
+  // cmd /c drops the first and last quote
+  const std::string quoted_command = quote(command);
+  FILE* const pipe = _popen(quoted_command.c_str(), READ_MODE);
 #else
   FILE* const pipe = popen(command.c_str(), READ_MODE);
 #endif
