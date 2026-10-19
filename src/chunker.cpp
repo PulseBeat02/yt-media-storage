@@ -117,18 +117,18 @@ file_chunk_reader::file_chunk_reader(const char* path, const std::size_t chunk_s
 
 void file_chunk_reader::map_file(const char* path) {
 #if defined(_WIN32)
-  HANDLE file =
+  const HANDLE file =
       CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (file == INVALID_HANDLE_VALUE) {
     return;
   }
-  HANDLE mapping =
+  const HANDLE mapping =
       CreateFileMappingA(file, nullptr, PAGE_READONLY, MAPPING_SIZE_OF_FILE, MAPPING_SIZE_OF_FILE, nullptr);
   if (!mapping) {
     CloseHandle(file);
     return;
   }
-  const void* view = MapViewOfFile(mapping, FILE_MAP_READ, FILE_START_OFFSET, FILE_START_OFFSET, WHOLE_MAPPING);
+  const void* const view = MapViewOfFile(mapping, FILE_MAP_READ, FILE_START_OFFSET, FILE_START_OFFSET, WHOLE_MAPPING);
   if (!view) {
     CloseHandle(mapping);
     CloseHandle(file);

@@ -78,7 +78,7 @@ std::string sha256_digest::hexadecimal_value() const {
 
 sha256_digest sha256(const std::span<const std::byte> data) {
   sha256_digest digest;
-  const uint8_t* begin = reinterpret_cast<const uint8_t*>(data.data());
+  const uint8_t* const begin = reinterpret_cast<const uint8_t*>(data.data());
   std::array<unsigned char, SHA256_HASH_SIZE> hash{};
 #if defined(__APPLE__)
   CC_SHA256_CTX context;

@@ -135,7 +135,7 @@ std::pair<std::vector<packet>, chunk_manifest_entry> encoder::encode_chunk(const
 
   for (uint32_t block_id = first_block_id; block_id <= last_block_id; ++block_id) {
     packet& packet = packets.emplace_back();
-    uint8_t* payload_destination = reinterpret_cast<uint8_t*>(packet.bytes.data() + HEADER_SIZE_V2);
+    uint8_t* const payload_destination = reinterpret_cast<uint8_t*>(packet.bytes.data() + HEADER_SIZE_V2);
     uint32_t write_length = 0;
     if (wirehair_encode(codec, block_id, payload_destination, SYMBOL_SIZE_BYTES, &write_length) != Wirehair_Success) {
       const std::string message = "Wirehair could not encode block " + std::to_string(block_id) + "!";

@@ -157,7 +157,7 @@ void extract_data_into(std::vector<std::byte>& destination, const AVFrame& sourc
 
   const std::size_t base = destination.size();
   destination.resize(base + total_bytes);
-  uint8_t* out = reinterpret_cast<uint8_t*>(destination.data() + base);
+  uint8_t* const out = reinterpret_cast<uint8_t*>(destination.data() + base);
 
   if constexpr (BITS_PER_BLOCK == 1) {
     for (int byte_index = 0; byte_index < total_bytes; ++byte_index) {
