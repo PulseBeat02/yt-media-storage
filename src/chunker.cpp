@@ -122,18 +122,21 @@ void file_chunk_reader::map_file(const char* path) {
   if (file == INVALID_HANDLE_VALUE) {
     return;
   }
+
   const HANDLE mapping =
       CreateFileMappingA(file, nullptr, PAGE_READONLY, MAPPING_SIZE_OF_FILE, MAPPING_SIZE_OF_FILE, nullptr);
   if (!mapping) {
     CloseHandle(file);
     return;
   }
+
   const void* const view = MapViewOfFile(mapping, FILE_MAP_READ, FILE_START_OFFSET, FILE_START_OFFSET, WHOLE_MAPPING);
   if (!view) {
     CloseHandle(mapping);
     CloseHandle(file);
     return;
   }
+
   file_handle_ = file;
   mapping_handle_ = mapping;
   mapped_ = static_cast<const std::byte*>(view);
@@ -159,9 +162,11 @@ file_chunk_reader::~file_chunk_reader() {
   if (mapped_) {
     UnmapViewOfFile(mapped_);
   }
+
   if (mapping_handle_) {
     CloseHandle(mapping_handle_);
   }
+
   if (file_handle_) {
     CloseHandle(file_handle_);
   }

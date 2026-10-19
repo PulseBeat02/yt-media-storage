@@ -73,6 +73,7 @@ inline float dot_product_64(const float* left, const float* right) {
     sum1 = _mm256_add_ps(sum1, _mm256_mul_ps(_mm256_loadu_ps(left + i + AVX_FLOATS_PER_VECTOR),
                                              _mm256_loadu_ps(right + i + AVX_FLOATS_PER_VECTOR)));
   }
+
   sum0 = _mm256_add_ps(sum0, sum1);
   const __m128 high = _mm256_extractf128_ps(sum0, AVX_HIGH_HALF);
   const __m128 low = _mm256_castps256_ps128(sum0);
@@ -114,6 +115,7 @@ inline float dot_product_64(const float* left, const float* right) {
     sum2 = vmlaq_f32(sum2, vld1q_f32(left + i + THIRD_VECTOR_OFFSET), vld1q_f32(right + i + THIRD_VECTOR_OFFSET));
     sum3 = vmlaq_f32(sum3, vld1q_f32(left + i + FOURTH_VECTOR_OFFSET), vld1q_f32(right + i + FOURTH_VECTOR_OFFSET));
   }
+
   sum0 = vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3));
   return vaddvq_f32(sum0);
 
@@ -122,6 +124,7 @@ inline float dot_product_64(const float* left, const float* right) {
   for (int i = 0; i < BLOCK_AREA; ++i) {
     sum += left[i] * right[i];
   }
+
   return sum;
 #endif
 }

@@ -87,6 +87,7 @@ int32_t project_block(const uint8_t* block, const int stride, const std::identit
   for (int y = SEEDED_ROWS; y < BLOCK_SIZE; ++y) {
     accumulator = vaddw_u8(accumulator, vld1_u8(block + y * stride));
   }
+
   const int16x4_t low = vreinterpret_s16_u16(vget_low_u16(accumulator));
   const int16x4_t high = vrev64_s16(vreinterpret_s16_u16(vget_high_u16(accumulator)));
   const int32x4_t products = vmull_s16(vsub_s16(low, high), vld1_s16(PROJECTION_WEIGHTS));
