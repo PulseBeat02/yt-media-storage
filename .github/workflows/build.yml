@@ -66,7 +66,7 @@ jobs:
             build_gui: 'ON'
             qt_source: 'vcpkg'
           - name: macos-arm64
-            os: macos-14
+            os: macos-15
             triplet: arm64-osx
             msvc_arch: ''
             build_gui: 'ON'
