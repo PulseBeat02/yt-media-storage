@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  VCPKG_BINARY_SOURCES: 'clear;x-gha,readwrite'
+  VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/vcpkg-binaries,readwrite'
 
 jobs:
   lint:
@@ -77,12 +77,17 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Export GitHub Actions cache env
-        uses: actions/github-script@v9
+      - name: Read the runner image version
+        id: image
+        shell: bash
+        run: echo "version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the vcpkg binaries
+        uses: actions/cache@v6
         with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+          path: vcpkg-binaries
+          key: vcpkg-${{ matrix.triplet }}-${{ steps.image.outputs.version }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-${{ matrix.triplet }}-
 
       - name: Install Linux system deps
         if: runner.os == 'Linux'
